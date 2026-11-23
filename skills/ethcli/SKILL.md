@@ -77,7 +77,9 @@ single facts.
   native-token transfer, ignoring token transfers.
 - **`uniswap position` fees:** for v3, `fee_cross_check.agree` false means
   the pool fee-growth figure and the `collect` eth_call differ;
-  `uncollected_fees` is the `collect` figure. v2 has no separate fees
+  the `collect` total is split into `tokens_owed` (withdrawn principal and
+  fees credited earlier) and `uncollected_fees` (fees since), each counted
+  once in `value_usd`. v2 has no separate fees
   (`uncollected_fees` is null; they are in the reserves). A `value_usd`
   field of null means a token had no price, not zero.
 - **`notes`:** many commands list what they could not fetch or what an

@@ -32,6 +32,7 @@ sol! {
             uint128 amount1Max;
         }
         function ownerOf(uint256 tokenId) external view returns (address);
+        function positions(uint256 tokenId) external view returns (uint96 nonce, address operator, address token0, address token1, uint24 fee, int24 tickLower, int24 tickUpper, uint128 liquidity, uint256 feeGrowthInside0LastX128, uint256 feeGrowthInside1LastX128, uint128 tokensOwed0, uint128 tokensOwed1);
         function collect(CollectParams calldata params) external payable returns (uint256 amount0, uint256 amount1);
     }
 
@@ -169,19 +170,23 @@ pub struct TokenPrice {
 pub struct UsdValue {
     pub amounts: Option<f64>,
     pub fees: Option<f64>,
+    /// v3 tokensOwed (see `tokens_owed`)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub owed: Option<f64>,
     pub total: Option<f64>,
 }
 
 /// v3 uncollected-fee cross-check
 #[derive(Debug, Clone, Serialize, PartialEq)]
 pub struct FeeCrossCheck {
-    /// From pool fee growth (uniswap-v3-sdk `get_collectable_token_amounts`)
+    /// tokensOwed + fees from pool fee growth (uniswap-v3-sdk
+    /// `get_collectable_token_amounts`): what collect should pay
     pub fee_growth: Vec<TokenAmount>,
     /// From an eth_call of NonfungiblePositionManager.collect from the owner
     pub collect_eth_call: Option<Vec<TokenAmount>>,
     /// Whether the two agree exactly (null when the eth_call failed)
     pub agree: Option<bool>,
-    /// Which figure `uncollected_fees` reports
+    /// Which collectable total the fees / tokens_owed split is based on
     pub authoritative: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<String>,
@@ -225,8 +230,15 @@ pub struct LpPosition {
     pub pool_share_pct: Option<f64>,
     /// Tokens the liquidity is worth now (excluding uncollected fees)
     pub amounts: Vec<TokenAmount>,
-    /// Uncollected fees (null for v2: fees are compounded into `amounts`)
+    /// Fees earned since the position's last liquidity change, from fee
+    /// growth x liquidity (null for v2: fees are compounded into `amounts`)
     pub uncollected_fees: Option<Vec<TokenAmount>>,
+    /// v3 only: tokens already credited to the position's tokensOwed and not
+    /// yet collected. Principal from a liquidity decrease ends up here, and
+    /// so do fees credited at the last liquidity change; the two cannot be
+    /// told apart on-chain. Counted once, in `value_usd.owed`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tokens_owed: Option<Vec<TokenAmount>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub fee_cross_check: Option<FeeCrossCheck>,
     pub prices: Vec<TokenPrice>,
@@ -304,6 +316,7 @@ pub fn apply_usd(pos: &mut LpPosition) {
         Some(f) => usd_sum(f, &prices),
         None => Some(0.0),
     };
+    let owed = pos.tokens_owed.as_ref().map(|o| usd_sum(o, &prices));
     pos.value_usd = UsdValue {
         amounts,
         fees: if pos.uncollected_fees.is_some() {
@@ -311,8 +324,10 @@ pub fn apply_usd(pos: &mut LpPosition) {
         } else {
             None
         },
-        total: match (amounts, fees) {
-            (Some(a), Some(f)) => Some(a + f),
+        owed: owed.flatten(),
+        total: match (amounts, fees, owed) {
+            (Some(a), Some(f), None) => Some(a + f),
+            (Some(a), Some(f), Some(Some(o))) => Some(a + f + o),
             _ => None,
         },
     };
@@ -320,6 +335,11 @@ pub fn apply_usd(pos: &mut LpPosition) {
 
 /// Decode an ERC20 symbol() return: string, or bytes32 for old tokens
 fn decode_symbol(data: &[u8]) -> Option<String> {
+    let s = crate::utils::format::sanitize_symbol(&decode_symbol_raw(data)?);
+    (!s.trim().is_empty()).then(|| s.trim().to_string())
+}
+
+fn decode_symbol_raw(data: &[u8]) -> Option<String> {
     use alloy::sol_types::SolValue;
     if let Ok(s) = String::abi_decode(data) {
         let s = s.trim_matches(char::from(0)).trim().to_string();
@@ -467,17 +487,26 @@ async fn value_v3(ctx: &Ctx, token_id: U256) -> anyhow::Result<LpPosition> {
     let chain_id = ctx.chain.chain_id();
     let bid = Some(ctx.block_id());
 
-    let pos = get_position(chain_id, npm, token_id, ctx.provider.clone(), bid)
-        .await
-        .map_err(|e| rpc_err(format!("v3 position {token_id}: {e}")))?;
-
     let npm_c = INonfungiblePositionManagerLite::new(npm, ctx.provider.clone());
-    let owner = npm_c
-        .ownerOf(token_id)
+    let owner = match npm_c.ownerOf(token_id).block(ctx.block_id()).call().await {
+        Ok(o) => o,
+        Err(e) if is_revert(&e) => return Err(not_found(token_id)),
+        Err(e) => return Err(rpc_err(e)),
+    };
+    let raw_pos = npm_c
+        .positions(token_id)
         .block(ctx.block_id())
         .call()
         .await
         .map_err(rpc_err)?;
+    let owed_raw = (
+        U256::from(raw_pos.tokensOwed0),
+        U256::from(raw_pos.tokensOwed1),
+    );
+
+    let pos = get_position(chain_id, npm, token_id, ctx.provider.clone(), bid)
+        .await
+        .map_err(|e| rpc_err(format!("v3 position {token_id}: {e}")))?;
 
     let t0 = pos.pool.token0.address();
     let t1 = pos.pool.token1.address();
@@ -507,7 +536,8 @@ async fn value_v3(ctx: &Ctx, token_id: U256) -> anyhow::Result<LpPosition> {
         .await
         .map(|r| (r.amount0, r.amount1))
         .map_err(|e| crate::utils::url::redact_urls_in_text(&e.to_string()));
-    let (fees_raw, cross) = v3_reconcile_fees(growth, collect, &tokens);
+    let (collectable, cross) = v3_reconcile_fees(growth, collect, &tokens);
+    let (fees_raw, owed) = split_collectable(collectable, owed_raw);
 
     let tick = pos.pool.tick_current;
     let fee_u24: alloy::primitives::aliases::U24 = pos.pool.fee.into();
@@ -515,9 +545,9 @@ async fn value_v3(ctx: &Ctx, token_id: U256) -> anyhow::Result<LpPosition> {
     let pool_addr = pos.pool.address(None, None);
 
     let method = if cross.authoritative == "collect_eth_call" {
-        "amounts: uniswap-v3-sdk get_position (liquidity at the current sqrt price); fees: eth_call of NonfungiblePositionManager.collect(tokenId, owner, max, max) from the owner, cross-checked against pool fee growth (get_collectable_token_amounts)".to_string()
+        "amounts: uniswap-v3-sdk get_position (liquidity at the current sqrt price); collectable total: eth_call of NonfungiblePositionManager.collect(tokenId, owner, max, max) from the owner, cross-checked against tokensOwed + pool fee growth (get_collectable_token_amounts); fees = collectable - tokensOwed, tokens_owed = tokensOwed, each counted once".to_string()
     } else {
-        "amounts: uniswap-v3-sdk get_position (liquidity at the current sqrt price); fees: pool fee growth inside the range (get_collectable_token_amounts) plus tokensOwed; the collect eth_call failed".to_string()
+        "amounts: uniswap-v3-sdk get_position (liquidity at the current sqrt price); fees: pool fee growth since the last liquidity change (get_collectable_token_amounts - tokensOwed); tokens_owed = tokensOwed; the collect eth_call failed".to_string()
     };
 
     Ok(LpPosition {
@@ -533,6 +563,10 @@ async fn value_v3(ctx: &Ctx, token_id: U256) -> anyhow::Result<LpPosition> {
         uncollected_fees: Some(vec![
             token_amount(fees_raw.0, &tokens[0]),
             token_amount(fees_raw.1, &tokens[1]),
+        ]),
+        tokens_owed: Some(vec![
+            token_amount(owed.0, &tokens[0]),
+            token_amount(owed.1, &tokens[1]),
         ]),
         fee_cross_check: Some(cross),
         prices: Vec::new(),
@@ -550,6 +584,31 @@ async fn value_v3(ctx: &Ctx, token_id: U256) -> anyhow::Result<LpPosition> {
         method,
         notes: Vec::new(),
     })
+}
+
+/// Split what `collect` would pay into fees earned since the last liquidity
+/// change and the position's existing tokensOwed, so nothing is counted
+/// twice: owed = min(tokensOwed, collectable), fees = collectable - owed.
+pub fn split_collectable(
+    collectable: (U256, U256),
+    tokens_owed: (U256, U256),
+) -> ((U256, U256), (U256, U256)) {
+    let one = |c: U256, o: U256| -> (U256, U256) {
+        let owed = o.min(c);
+        (c - owed, owed)
+    };
+    let (f0, o0) = one(collectable.0, tokens_owed.0);
+    let (f1, o1) = one(collectable.1, tokens_owed.1);
+    ((f0, f1), (o0, o1))
+}
+
+/// Error for a token id with no position
+pub fn not_found(token_id: U256) -> anyhow::Error {
+    anyhow::anyhow!("not_found: position {token_id} does not exist (burned or never minted)")
+}
+
+fn is_revert(e: &impl std::fmt::Display) -> bool {
+    e.to_string().to_lowercase().contains("revert")
 }
 
 /// Pick the authoritative v3 fee figure: the collect eth_call when it worked,
@@ -597,15 +656,19 @@ async fn value_v4(ctx: &Ctx, token_id: U256) -> anyhow::Result<LpPosition> {
     let chain_id = ctx.chain.chain_id();
     let bid = Some(ctx.block_id());
 
-    let pos = get_position(chain_id, pm, token_id, ctx.provider.clone(), bid)
-        .await
-        .map_err(|e| rpc_err(format!("v4 position {token_id}: {e}")))?;
-    let owner = IV4PositionManagerLite::new(pm, ctx.provider.clone())
+    let owner = match IV4PositionManagerLite::new(pm, ctx.provider.clone())
         .ownerOf(token_id)
         .block(ctx.block_id())
         .call()
         .await
-        .map_err(rpc_err)?;
+    {
+        Ok(o) => o,
+        Err(e) if is_revert(&e) => return Err(not_found(token_id)),
+        Err(e) => return Err(rpc_err(e)),
+    };
+    let pos = get_position(chain_id, pm, token_id, ctx.provider.clone(), bid)
+        .await
+        .map_err(|e| rpc_err(format!("v4 position {token_id}: {e}")))?;
 
     let mut tokens = Vec::with_capacity(2);
     for c in [&pos.pool.currency0, &pos.pool.currency1] {
@@ -679,6 +742,7 @@ async fn value_v4(ctx: &Ctx, token_id: U256) -> anyhow::Result<LpPosition> {
             token_amount(f0, &tokens[0]),
             token_amount(f1, &tokens[1]),
         ]),
+        tokens_owed: None,
         fee_cross_check: None,
         prices: Vec::new(),
         value_usd: UsdValue::default(),
@@ -740,6 +804,7 @@ async fn value_v2(ctx: &Ctx, pair: Address, owner: Address) -> anyhow::Result<Lp
         hooks: None,
         amounts: vec![token_amount(a0, &tokens[0]), token_amount(a1, &tokens[1])],
         uncollected_fees: None,
+        tokens_owed: None,
         fee_cross_check: None,
         prices: Vec::new(),
         value_usd: UsdValue::default(),
@@ -883,10 +948,21 @@ fn print_table(p: &LpPosition) {
         }
         None => println!("  fees         compounded into amounts (v2)"),
     }
+    if let Some(o) = p
+        .tokens_owed
+        .as_ref()
+        .filter(|o| o.iter().any(|a| a.amount != 0.0))
+    {
+        let o: Vec<String> = o.iter().map(fmt_amt).collect();
+        println!(
+            "  owed         {} (tokensOwed: withdrawn principal and/or fees credited earlier)",
+            o.join(" + ")
+        );
+    }
     if let Some(c) = &p.fee_cross_check {
         match (&c.collect_eth_call, c.agree) {
             (Some(_), Some(true)) => {
-                println!("  cross-check  collect eth_call == fee growth (exact)")
+                println!("  cross-check  collect eth_call == tokensOwed + fee growth (exact)")
             }
             (Some(_), _) => {
                 let g: Vec<String> = c.fee_growth.iter().map(fmt_amt).collect();
@@ -913,8 +989,14 @@ fn print_table(p: &LpPosition) {
     }
     if !p.prices.is_empty() {
         if p.uncollected_fees.is_some() {
+            let owed = p
+                .value_usd
+                .owed
+                .filter(|o| *o != 0.0)
+                .map(|o| format!(" + owed {}", fmt_usd(Some(o))))
+                .unwrap_or_default();
             println!(
-                "  value        {} (amounts {} + fees {})",
+                "  value        {} (amounts {} + fees {}{owed})",
                 fmt_usd(p.value_usd.total),
                 fmt_usd(p.value_usd.amounts),
                 fmt_usd(p.value_usd.fees)
@@ -1200,6 +1282,7 @@ mod tests {
                 token_amount(u(10u128.pow(18)), &t[1]),
             ],
             uncollected_fees: fees,
+            tokens_owed: None,
             fee_cross_check: None,
             prices: vec![
                 TokenPrice {
@@ -1240,6 +1323,51 @@ mod tests {
         assert_eq!(p.value_usd.amounts, Some(3002.0));
         assert_eq!(p.value_usd.fees, Some(301.0));
         assert_eq!(p.value_usd.total, Some(3303.0));
+    }
+
+    #[test]
+    fn split_collectable_separates_owed_from_new_fees() {
+        // collect pays 1_005 of token0: 1_000 already owed (e.g. principal
+        // from an uncollected decrease) and 5 of new fees
+        let (fees, owed) = split_collectable((u(1_005), u(7)), (u(1_000), u(0)));
+        assert_eq!(fees, (u(5), u(7)));
+        assert_eq!(owed, (u(1_000), u(0)));
+        // owed never exceeds what is collectable
+        let (fees, owed) = split_collectable((u(3), u(0)), (u(10), u(0)));
+        assert_eq!((fees.0, owed.0), (u(0), u(3)));
+    }
+
+    #[test]
+    fn apply_usd_counts_owed_once() {
+        let t = [tok("USDC", 6), tok("WETH", 18)];
+        let mut p = sample(Some(vec![
+            token_amount(u(1_000_000), &t[0]),
+            token_amount(u(0), &t[1]),
+        ]));
+        p.tokens_owed = Some(vec![
+            token_amount(u(500_000_000), &t[0]),
+            token_amount(u(0), &t[1]),
+        ]);
+        apply_usd(&mut p);
+        assert_eq!(p.value_usd.amounts, Some(3002.0));
+        assert_eq!(p.value_usd.fees, Some(1.0));
+        assert_eq!(p.value_usd.owed, Some(500.0));
+        assert_eq!(p.value_usd.total, Some(3503.0));
+    }
+
+    #[test]
+    fn not_found_message() {
+        let e = not_found(u(42)).to_string();
+        assert!(e.starts_with("not_found: position 42 does not exist"));
+    }
+
+    #[test]
+    fn decode_symbol_sanitizes() {
+        use alloy::sol_types::SolValue;
+        let enc = "US\x1b[31mDC\u{202e}X".to_string().abi_encode();
+        assert_eq!(decode_symbol(&enc).as_deref(), Some("US[31mDCX"));
+        let enc = "\u{2066}\u{202a}".to_string().abi_encode();
+        assert_eq!(decode_symbol(&enc), None);
     }
 
     #[test]

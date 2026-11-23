@@ -1,5 +1,31 @@
 //! Shared formatting utilities for numbers, tokens, ETH values, and tables.
 
+/// A token symbol safe to print: no control or bidi-override characters
+/// (on-chain strings can carry terminal escapes), at most 32 characters
+pub fn sanitize_symbol(symbol: &str) -> String {
+    symbol
+        .chars()
+        .filter(|c| {
+            !c.is_control()
+                && !('\u{202a}'..='\u{202e}').contains(c)
+                && !('\u{2066}'..='\u{2069}').contains(c)
+        })
+        .take(32)
+        .collect()
+}
+
+#[cfg(test)]
+mod sanitize_symbol_tests {
+    use super::sanitize_symbol;
+
+    #[test]
+    fn strips_escapes_and_bidi_and_caps_length() {
+        assert_eq!(sanitize_symbol("US\x1b[31mDC"), "US[31mDC");
+        assert_eq!(sanitize_symbol("A\u{202e}B\u{2066}C"), "ABC");
+        assert_eq!(sanitize_symbol(&"X".repeat(100)).len(), 32);
+    }
+}
+
 /// Add thousands separators to a numeric string.
 ///
 /// # Examples
