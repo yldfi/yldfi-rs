@@ -321,8 +321,11 @@ ethcli contract twins 0x...
 `contract analyze` and `contract inspect` also report what evmole infers from
 the bytecode (`inferred`: storage layout, control-flow summary, CBOR compiler
 metadata with the IPFS/bzzr hash) and, for inspect, the verification match
-type and verified twins. Everything inferred is labelled as such; `contract
-calls` reports what it could not resolve as `unresolved` and never guesses.
+type and verified twins. Everything inferred is labelled as such. `contract
+calls` is a bounded abstract interpretation: what it cannot resolve is
+`unresolved`, and its `coverage` section says what was not analysed, but a
+resolved fact is an inference, not a proof, and missing guards mean "not
+recognised", not "absent".
 `contract twins --submit-similarity` asks Sourcify to verify the address
 against similar code and publishes the match if one is found (a write).
 

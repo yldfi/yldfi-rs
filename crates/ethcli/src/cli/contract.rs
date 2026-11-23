@@ -969,6 +969,30 @@ pub async fn handle(
                     origin.match_type()
                 );
             }
+            // Etherscan can serve the source of another address whose code is
+            // similar; say so, since it was not verified for this address
+            if origin == crate::etherscan::fallback::Origin::Etherscan {
+                if let Ok(v) = client
+                    .explorer_get(&[
+                        ("module", "contract".to_string()),
+                        ("action", "getsourcecode".to_string()),
+                        ("address", address.to_string()),
+                    ])
+                    .await
+                {
+                    if let Some(similar) = v
+                        .get(0)
+                        .and_then(|r| r["SimilarMatch"].as_str())
+                        .filter(|s| !s.is_empty())
+                    {
+                        eprintln!(
+                            "Note: Etherscan serves this source through a similar match: it \
+                             was verified for {similar}, not for {address}. Check \
+                             `ethcli contract twins {address}` for whether the code is identical."
+                        );
+                    }
+                }
+            }
 
             if *list || file.is_some() || function.is_some() || grep.is_some() {
                 let files = source_files(&metadata.items);
@@ -2056,7 +2080,10 @@ async fn find_twins(
                     lookups.push(serde_json::json!({
                         "source": "etherscan",
                         "method": "getsourcecode SimilarMatch",
-                        "verified": verified,
+                        // Etherscan serves source either verified for this
+                        // address or borrowed from a similar one
+                        "has_source": verified,
+                        "verified_for_this_address": verified && similar.is_empty(),
                         "similar_match": (!similar.is_empty()).then_some(&similar),
                         "field_present": first.get("SimilarMatch").is_some(),
                     }));

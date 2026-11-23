@@ -93,15 +93,24 @@ single facts.
   offset, `msg_sender`, `call_return`, `keccak`, `unresolved`), and per
   function the ORIGIN/CALLER pcs and `guards` (msg.sender, tx.origin or
   address(this) compared with a constant, a slot or a mapping). These are
-  inferred but sound where resolved; decompiler output is heuristic text,
-  so do not base an access-control conclusion on it. Always read
-  `coverage`: `unresolved` means unknown, not safe; `complete: false`
-  means some code was not analysed (`opcode_sites` with `reached: false`
-  lists sensitive opcodes no path reached).
+  inferred by a bounded abstract interpretation, not proven: they are more
+  reliable than decompiler text (which is heuristic; do not base an
+  access-control conclusion on it), but a resolved value can still be
+  wrong on code built to mislead, and a function with `guards: []` may
+  check access in a form the analysis does not recognise. Cross-check
+  `caller_pcs`, and treat a sensitive function with no guard as "not
+  shown", not "unprotected". Always read `coverage`: `unresolved` means
+  unknown, not safe; `complete: false` means some code was not analysed
+  (`states_pruned`, `invalid_opcodes`, `unresolved_jumps`; `opcode_sites`
+  with `reached: false` lists sensitive opcodes no path reached, and
+  `in_metadata: true` marks bytes in a trailing metadata region).
 - **Verification match:** `contract inspect` `verification[]` and the
   `contract source` stderr line say `exact` (code and metadata hash
   match) or `partial` (code only; comments/names may differ from what was
-  compiled). Etherscan does not report it (`not_reported`).
+  compiled). Etherscan does not report it (`not_reported`); when Etherscan
+  serves the source of another address through a similar match,
+  `contract source` says so on stderr and `contract twins` shows
+  `verified_for_this_address: false`.
 - `contract twins --submit-similarity` publishes a match on Sourcify; it is
   a write (MCP `contract_twins_submit_similarity`, write tools only). Do not
   run it unless asked.

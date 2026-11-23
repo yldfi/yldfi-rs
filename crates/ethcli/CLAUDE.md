@@ -579,15 +579,27 @@ ethcli contract twins <addr> --submit-similarity # WRITES to Sourcify
   packed), `msg_sender`, `tx_origin`, `address_this`, `call_return`,
   `keccak`, `computed`, `unresolved`). Memory is keyed by symbolic base +
   constant offset; `calldatacopy`, constant `codecopy` and return data are
-  modelled; an unknown-address write clears memory. Functions come from
+  modelled, and EXTCODECOPY makes its range unknown. An unknown-address
+  write clears memory; a write through a symbolic base forgets every
+  entry not of the same allocation (same base or built from it), except
+  the free memory pointer word 0x40. Values are capped at depth 8 and 64
+  nodes (cached per node, so checks are O(1)); larger values are
+  unresolved. Functions come from
   `selector == PUSH4` branches, evmole entry offsets, or a byte-bounded
   calldata jump table (`jump_table[i]`, every JUMPDEST enumerated). Guards:
-  EQ of msg.sender/tx.origin/address(this) inside a JUMPI condition (through
-  AND/ISZERO/OR), and mapping lookups keyed by msg.sender. Budgets: steps
-  (4M), time (15 s; 10 s in analyze), distinct states per (pc, function)
-  (24). `coverage` gives evmole CFG blocks analysed / reachable, unresolved
-  jumps and call sites, prunes, and `complete`. `opcode_sites` is a linear
-  scan so unreached ORIGIN/CALLER/CALL/... are still listed.
+  EQ, SUB or XOR (solc's `==`/`!=` peephole) of msg.sender/tx.origin/
+  address(this) inside a JUMPI condition (through AND/ISZERO/OR), and
+  mapping lookups keyed by msg.sender. Budgets: steps (4M), time (15 s;
+  10 s in analyze), distinct states per (pc, function) (24; the state key
+  includes the stack, memory and the last call). `coverage` gives evmole
+  CFG blocks analysed / reachable, unresolved jumps and call sites, prunes,
+  `invalid_opcodes` (unknown opcodes stop a path) and `complete`.
+  `calls::opcode_sites(code, metadata_offset)` is a public linear sweep of
+  the whole code (it does not stop at the metadata offset, which the
+  deployer controls); sites in a trailing metadata region with no JUMPDEST
+  get `in_metadata: true`. `inference::compiler_metadata` is the CBOR
+  parser to reuse; both are meant as the crate's single source for these
+  facts.
 - `src/bytecode/inference.rs`: evmole 0.10 `with_storage`,
   `with_control_flow_graph`, `with_metadata` wrapped in ethcli types
   (`InferredFacts`), all marked inferred. `contract analyze` adds

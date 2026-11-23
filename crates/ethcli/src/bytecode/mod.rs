@@ -24,10 +24,10 @@
 //! ```
 
 mod analyze;
-mod calls;
+pub mod calls;
 mod checks;
 mod disassemble;
-mod inference;
+pub mod inference;
 mod proxy;
 mod security;
 mod selectors;

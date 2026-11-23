@@ -528,7 +528,7 @@ fn collect_sources(v: &V, out: &mut BTreeSet<&'static str>) {
 // ---------------------------------------------------------------------------
 // Memory model
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Hash)]
 enum MemVal {
     Word(V),
     /// calldatacopy: source offset
@@ -540,7 +540,7 @@ enum MemVal {
     Unknown,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Hash)]
 struct MemWrite {
     base: V,
     off: u64,
@@ -564,7 +564,7 @@ fn split_addr(v: &V) -> Option<(V, u64)> {
     }
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, Hash)]
 struct Memory {
     writes: Rc<Vec<MemWrite>>,
 }
@@ -574,6 +574,23 @@ const MAX_MEM_WRITES: usize = 192;
 impl Memory {
     fn write(&mut self, addr: &V, len: Option<u64>, val: MemVal) {
         let w = Rc::make_mut(&mut self.writes);
+        // A symbolic address can alias anything outside its own allocation:
+        // forget every entry whose base is not the same pointer or built
+        // from it (pointer arithmetic on one allocation), except Solidity's
+        // free memory pointer word (0x40), without which nothing past the
+        // first allocation could be followed
+        if let Some((base, _)) = split_addr(addr) {
+            if base != V::c(U256::ZERO) {
+                let zero = V::c(U256::ZERO);
+                w.retain(|e| {
+                    (e.base == zero && e.off == 0x40)
+                        || (e.base != zero
+                            && (e.base == base
+                                || e.base.contains(&|x| *x == base)
+                                || base.contains(&|x| *x == e.base)))
+                });
+            }
+        }
         match (split_addr(addr), len) {
             (Some((base, off)), Some(len)) if len > 0 => {
                 // drop writes this one fully covers
@@ -711,6 +728,67 @@ pub struct OpcodeSite {
     pub pc: usize,
     /// Whether any analysed path executed it
     pub reached: bool,
+    /// Inside a trailing metadata-looking region with no JUMPDEST (most
+    /// likely CBOR bytes, not code). Sites in a trailer that does hold a
+    /// JUMPDEST are reachable code and are not flagged.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub in_metadata: bool,
+}
+
+/// Opcodes listed by [`opcode_sites`]: ORIGIN, CALLER, CREATE, CALL,
+/// CALLCODE, DELEGATECALL, CREATE2, STATICCALL, SELFDESTRUCT
+pub const SENSITIVE_OPCODES: &[u8] = &[0x32, 0x33, 0xf0, 0xf1, 0xf2, 0xf4, 0xf5, 0xfa, 0xff];
+
+/// pcs of the JUMPDESTs, by linear decoding (PUSH data skipped)
+pub fn jumpdests(code: &[u8]) -> Vec<bool> {
+    let mut out = vec![false; code.len()];
+    let mut pc = 0;
+    while pc < code.len() {
+        let op = code[pc];
+        if op == 0x5b {
+            out[pc] = true;
+        }
+        pc += 1 + push_size(op);
+    }
+    out
+}
+
+fn push_size(op: u8) -> usize {
+    if (0x60..=0x7f).contains(&op) {
+        (op - 0x5f) as usize
+    } else {
+        0
+    }
+}
+
+/// Every sensitive opcode in the code, by a linear sweep of the whole code
+/// (`reached` is false here; `analyze_calls` fills it in).
+///
+/// `metadata_offset` is where a trailing metadata region (the CBOR trailer)
+/// starts. The deployer controls those bytes, so the sweep never stops
+/// there: sites inside the region are still listed, flagged `in_metadata`
+/// only when the region holds no JUMPDEST (no jump can land in it).
+#[must_use]
+pub fn opcode_sites(code: &[u8], metadata_offset: Option<usize>) -> Vec<OpcodeSite> {
+    let dests = jumpdests(code);
+    let trailer = metadata_offset
+        .filter(|start| *start < code.len())
+        .filter(|start| !dests[*start..].iter().any(|d| *d));
+    let mut out = Vec::new();
+    let mut pc = 0;
+    while pc < code.len() {
+        let op = code[pc];
+        if SENSITIVE_OPCODES.contains(&op) {
+            out.push(OpcodeSite {
+                opcode: opname(op).to_string(),
+                pc,
+                reached: false,
+                in_metadata: trailer.is_some_and(|start| pc >= start),
+            });
+        }
+        pc += 1 + push_size(op);
+    }
+    out
 }
 
 /// A jump whose target is computed from calldata and was enumerated
@@ -745,6 +823,9 @@ pub struct Coverage {
     pub states_pruned: u64,
     /// Paths that ended in a stack underflow or invalid jump
     pub paths_aborted: u64,
+    /// pcs of opcodes this analysis does not know (undefined, or newer than
+    /// its table): paths stop there, so the code after them is unanalysed
+    pub invalid_opcodes: Vec<usize>,
     /// True when no budget was hit and nothing was pruned or unresolved
     pub complete: bool,
 }
@@ -898,10 +979,9 @@ fn generic_arity(op: u8) -> Option<(usize, usize)> {
         0x01..=0x07 | 0x0a | 0x0b => (2, 1),
         0x08 | 0x09 => (3, 1),
         0x10..=0x14 | 0x16..=0x18 | 0x1a..=0x1d => (2, 1),
-        0x15 | 0x19 => (1, 1),
+        0x15 | 0x19 | 0x1e => (1, 1), // 0x1e CLZ (EIP-7939)
         0x31 | 0x3b | 0x3f | 0x40 | 0x49 => (1, 1),
         0x36 | 0x38 | 0x3a | 0x3d | 0x41..=0x48 | 0x4a | 0x58 | 0x59 | 0x5a => (0, 1),
-        0x3c => (4, 0),
         0xa0..=0xa4 => (2 + (op - 0xa0) as usize, 0),
         _ => return None,
     })
@@ -921,6 +1001,7 @@ struct Interp<'a> {
     seen: HashMap<(usize, Ctx), HashSet<u64>>,
     visited: Vec<bool>,
     unresolved_jumps: BTreeSet<usize>,
+    invalid_opcodes: BTreeSet<usize>,
     sites: BTreeMap<(usize, Ctx), SiteAcc>,
     fns: BTreeMap<Ctx, FnAcc>,
     jump_tables: BTreeMap<usize, (String, usize)>,
@@ -977,6 +1058,7 @@ impl<'a> Interp<'a> {
             seen: HashMap::new(),
             visited: vec![false; code.len()],
             unresolved_jumps: BTreeSet::new(),
+            invalid_opcodes: BTreeSet::new(),
             sites: BTreeMap::new(),
             fns: BTreeMap::new(),
             jump_tables: BTreeMap::new(),
@@ -1006,7 +1088,13 @@ impl<'a> Interp<'a> {
                 return;
             }
             match v {
-                V::Op(0x14, a) if a.len() == 2 => {
+                // EQ, and the SUB / XOR solc emits for `a == b` and `a != b`
+                // before a JUMPI (zero exactly when equal)
+                V::Op(0x14 | 0x03 | 0x18, a)
+                    if a.len() == 2
+                        && a.iter()
+                            .any(|x| matches!(strip(x), V::Caller | V::Origin | V::This)) =>
+                {
                     for (x, y) in [(&a[0], &a[1]), (&a[1], &a[0])] {
                         let subject = match strip(x) {
                             V::Caller => "msg_sender",
@@ -1096,6 +1184,10 @@ impl<'a> Interp<'a> {
     fn admit(&mut self, s: &State) -> bool {
         let mut h = std::collections::hash_map::DefaultHasher::new();
         s.stack.hash(&mut h);
+        // Memory and the last call too: two paths that differ only there can
+        // give a later call a different target or selector
+        s.mem.hash(&mut h);
+        s.last_call.hash(&mut h);
         let key = h.finish();
         let cap = self.budget.max_states_per_pc;
         let set = self.seen.entry((s.pc, s.ctx)).or_default();
@@ -1253,6 +1345,18 @@ impl<'a> Interp<'a> {
                             _ => MemVal::Unknown,
                         };
                         s.mem.write(&dest, l, val);
+                    }
+                    0x3c => {
+                        // extcodecopy(addr, dest, offset, len): external code
+                        pop!();
+                        let dest = pop!();
+                        pop!();
+                        let len = pop!();
+                        let l = len
+                            .as_const()
+                            .filter(|l| l.bit_len() <= 24)
+                            .map(|l| l.to::<u64>());
+                        s.mem.write(&dest, l, MemVal::Unknown);
                     }
                     0x5e => {
                         let dest = pop!();
@@ -1413,7 +1517,12 @@ impl<'a> Interp<'a> {
                                 push!(v)
                             }
                         }
-                        None => continue 'paths, // undefined opcode: INVALID
+                        None => {
+                            // Undefined here (or newer than this table): the
+                            // path is not followed, and coverage says so
+                            self.invalid_opcodes.insert(pc);
+                            continue 'paths;
+                        }
                     },
                 }
                 s.pc = next;
@@ -1709,26 +1818,9 @@ pub fn analyze_calls_with(
 
     // Linear scan for sensitive opcodes, so nothing is missed even if no
     // path reached it
-    let code_end = metadata_offset.unwrap_or(code.len()).min(code.len());
-    let mut opcode_sites = Vec::new();
-    let mut pc = 0;
-    while pc < code_end {
-        let op = code[pc];
-        if matches!(
-            op,
-            0x32 | 0x33 | 0xf0 | 0xf1 | 0xf2 | 0xf4 | 0xf5 | 0xfa | 0xff
-        ) {
-            opcode_sites.push(OpcodeSite {
-                opcode: opname(op).to_string(),
-                pc,
-                reached: it.visited[pc],
-            });
-        }
-        pc += 1 + if (0x60..=0x7f).contains(&op) {
-            (op - 0x5f) as usize
-        } else {
-            0
-        };
+    let mut opcode_sites = opcode_sites(code, metadata_offset);
+    for site in &mut opcode_sites {
+        site.reached = it.visited[site.pc];
     }
 
     let cfg_set: HashSet<usize> = cfg_reachable.iter().copied().collect();
@@ -1740,11 +1832,36 @@ pub fn analyze_calls_with(
         .filter(|pc| it.jumpdests[*pc] && it.visited[*pc] && !cfg_set.contains(pc))
         .count();
 
-    let unreached = opcode_sites.iter().filter(|s| !s.reached).count();
+    let unreached = opcode_sites
+        .iter()
+        .filter(|s| !s.reached && !s.in_metadata)
+        .count();
     if unreached > 0 {
         notes.push(format!(
             "{unreached} sensitive opcode(s) in the code were not reached by any analysed path \
              (dead code, data, or beyond the budget); see opcode_sites"
+        ));
+    }
+    let in_metadata = opcode_sites.iter().filter(|s| s.in_metadata).count();
+    if in_metadata > 0 {
+        notes.push(format!(
+            "{in_metadata} sensitive opcode byte(s) sit in the trailing metadata region, which \
+             holds no JUMPDEST; they are listed with in_metadata: true"
+        ));
+    }
+    if let Some(start) = metadata_offset.filter(|s| *s < code.len()) {
+        if it.jumpdests[start..].iter().any(|d| *d) {
+            notes.push(format!(
+                "The metadata-looking trailer at {start} contains a JUMPDEST, so it is treated \
+                 as code"
+            ));
+        }
+    }
+    if !it.invalid_opcodes.is_empty() {
+        notes.push(format!(
+            "Paths stopped at {} opcode(s) this analysis does not know; the code after them \
+             was not analysed (coverage.invalid_opcodes)",
+            it.invalid_opcodes.len()
         ));
     }
     if !it.jump_tables.is_empty() {
@@ -1770,10 +1887,12 @@ pub fn analyze_calls_with(
         time_budget_hit: it.time_hit,
         states_pruned: it.pruned,
         paths_aborted: it.aborted,
+        invalid_opcodes: it.invalid_opcodes.iter().copied().collect(),
         complete: !it.step_hit
             && !it.time_hit
             && it.pruned == 0
             && it.unresolved_jumps.is_empty()
+            && it.invalid_opcodes.is_empty()
             && unresolved_call_sites == 0,
     };
     if coverage.step_budget_hit || coverage.time_budget_hit {
@@ -1945,6 +2064,116 @@ mod tests {
             w = mk(0x01, vec![w.clone(), w]);
         }
         assert!(w.depth() <= MAX_DEPTH && w.nodes() <= MAX_NODES);
+    }
+
+    /// Reviewer repro: x = keccak(x, x, x, x) twelve times grew 4x per round
+    #[test]
+    fn nested_keccak_stays_small() {
+        let mut code = String::from("5f35"); // x = calldataload(0)
+        for _ in 0..40 {
+            // mstore(0,x) mstore(32,x) mstore(64,x) mstore(96,x); x = keccak(0,128)
+            code.push_str("805f52 80602052 80604052 80606052 50 60805f20");
+        }
+        code.push_str("00");
+        let code = code.replace(' ', "");
+        let t = std::time::Instant::now();
+        let r = run(&code);
+        assert!(t.elapsed() < std::time::Duration::from_secs(5));
+        assert!(r.coverage.invalid_opcodes.is_empty());
+    }
+
+    /// Paths that differ only in memory reach a shared call: both targets
+    #[test]
+    fn memory_differences_are_not_deduplicated_away() {
+        // if calldataload(0) { mstore(0, 0x11..11) } else { mstore(0, calldataload(4)) }
+        // call(gas, mload(0), 0, 0, 0, 0, 0)
+        let c = concat!(
+            "5f35",
+            "6011",
+            "57", // 0: jumpi(0x11, cd0)
+            "600435",
+            "5f52",
+            "6033",
+            "56", // 5: else branch, jump 0x33
+            "00",
+            "00",
+            "00",
+            "00", // pad to 0x11
+            "5b",
+            "73",
+            "1111111111111111111111111111111111111111",
+            "5f52", // 0x11
+            "6033",
+            "56", // jump 0x33
+            "00",
+            "00",
+            "00",
+            "00",
+            "00",
+            "00",
+            "00", // pad to 0x33
+            "5b",
+            "5f5f5f5f5f",
+            "5f51",
+            "5af1",
+            "00" // 0x33
+        );
+        let bytes = hex::decode(c).unwrap();
+        // place the join JUMPDEST exactly at 0x33
+        let join = bytes.iter().rposition(|b| *b == 0x5b).unwrap();
+        assert_eq!(join, 0x33, "test layout");
+        let r = analyze_calls(&bytes, CallsBudget::default());
+        let kinds: Vec<&str> = r.call_sites[0]
+            .target
+            .iter()
+            .map(|p| p.kind.as_str())
+            .collect();
+        assert!(kinds.contains(&"calldata"), "{kinds:?}");
+        assert!(kinds.contains(&"code_constant"), "{kinds:?}");
+    }
+
+    /// A write through a calldata address or EXTCODECOPY may overwrite a
+    /// constant: the constant must not be reported as the target
+    #[test]
+    fn symbolic_writes_and_extcodecopy_invalidate_memory() {
+        let set = "731111111111111111111111111111111111111111 5f52";
+        let call = "5f5f5f5f5f 5f51 5a f1 00";
+        for middle in [
+            "602435 600435 52",     // mstore(calldataload(4), calldataload(0x24))
+            "6020 5f 5f 600435 3c", // extcodecopy(calldataload(4), 0, 0, 32)
+        ] {
+            let code = format!("{set}{middle}{call}").replace(' ', "");
+            let r = run(&code);
+            assert_eq!(r.call_sites[0].target[0].kind, "unresolved", "{middle}");
+        }
+    }
+
+    /// CLZ (0x1e) is known; an undefined opcode stops the path and is counted
+    #[test]
+    fn clz_and_unknown_opcodes() {
+        // PUSH1 1; CLZ; POP; ORIGIN; POP; STOP
+        let r = run("60011e50325000");
+        assert!(r
+            .opcode_sites
+            .iter()
+            .any(|s| s.opcode == "ORIGIN" && s.reached));
+        let r = run("0c325000"); // 0x0c is undefined
+        assert_eq!(r.coverage.invalid_opcodes, vec![0]);
+        assert!(!r.coverage.complete);
+    }
+
+    /// Sensitive opcodes inside a forged trailer are still listed; a trailer
+    /// with a JUMPDEST is code, not metadata
+    #[test]
+    fn opcode_sites_scan_past_the_metadata_offset() {
+        let code = hex::decode("5f35560000005b32ff").unwrap();
+        let with_dest = opcode_sites(&code, Some(4));
+        assert_eq!(with_dest.len(), 2);
+        assert!(with_dest.iter().all(|s| !s.in_metadata));
+        let plain = hex::decode("00a232ff").unwrap();
+        let sites = opcode_sites(&plain, Some(1));
+        assert_eq!(sites.len(), 2);
+        assert!(sites.iter().all(|s| s.in_metadata));
     }
 
     #[test]

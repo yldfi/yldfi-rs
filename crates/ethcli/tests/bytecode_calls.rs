@@ -194,6 +194,31 @@ fn mev_executor_facts() {
     assert!(!r.coverage.complete);
 }
 
+/// onlyOwner-style checks compiled by solc 0.8.28 (--optimize, and
+/// --via-ir --optimize, no metadata hash): the optimiser turns `==` / `!=`
+/// before a JUMPI into SUB, so guards must not depend on EQ. Source:
+/// `owner` in slot 0; setIf / killIf (`if (msg.sender == owner)`),
+/// revertIfNot (`if (msg.sender != owner) revert()`), requireOwner.
+#[test]
+fn solc_sub_peephole_owner_checks_are_guards() {
+    for name in ["owned_solc0828_opt", "owned_solc0828_viair"] {
+        let r = report(name);
+        for selector in ["0x8c99b041", "0x5eb5c00c", "0xe4fa15a7", "0x9599ac06"] {
+            assert!(
+                guards(&r).iter().any(|(f, g)| f == selector
+                    && g.subject == "msg_sender"
+                    && g.against.kind == "storage"
+                    && g.against.slot.as_deref() == Some("0x0")),
+                "{name} {selector}: {:?}",
+                guards(&r)
+                    .iter()
+                    .filter(|(f, _)| f == selector)
+                    .collect::<Vec<_>>()
+            );
+        }
+    }
+}
+
 #[test]
 #[ignore]
 fn dump() {
