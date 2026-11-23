@@ -260,6 +260,12 @@ ethcli safe history <safe> --limit 20   # executed txs, newest first (--offset t
   raises the rate limit, `SAFE_TX_SERVICE_URL` overrides the base URL.
 - `queue` lists nonce >= the on-chain nonce, compares confirmations with the
   on-chain threshold and owners, and flags several proposals at one nonce.
+- Only distinct confirmations from current on-chain owners count toward
+  `confirmations` and `ready`; others are listed as `stale_signers`.
+- `multiSend(bytes)` is unpacked only when `to` is a known Safe MultiSend /
+  MultiSendCallOnly deployment (1.1.1-1.5.0, canonical/eip155/zksync). A
+  DELEGATECALL to anything that is not a known Safe library sets
+  `delegatecall_warning` and prints a WARNING line.
 - Calls are decoded from the verified ABI, else the signature database
   (`source: signature_database`, a guess). `multiSend(bytes)` payloads
   (`operation(1) to(20) value(32) length(32) data`) are unpacked and each

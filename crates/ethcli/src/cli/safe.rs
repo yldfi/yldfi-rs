@@ -25,6 +25,147 @@ const GUARD_SLOT: &str = "0x4a204f620c8c5ccdca3fd54d003badd85ba500436a431f0cbda4
 /// `keccak256("fallback_manager.handler.address")`
 const FALLBACK_HANDLER_SLOT: &str =
     "0x6c9a6c4a39284e37ed1cf53d337577d14212a4870fb976a4366c693b939918d5";
+/// Safe library deployments that a Safe is expected to DELEGATECALL, from
+/// safe-global/safe-deployments (canonical, eip155 and zksync variants).
+/// `true` marks MultiSend / MultiSendCallOnly, whose `multiSend(bytes)`
+/// payload is unpacked.
+const KNOWN_DELEGATE_TARGETS: &[(&str, &str, bool)] = &[
+    (
+        "0x8D29bE29923b68abfDD21e541b9374737B49cdAD",
+        "MultiSend 1.1.1",
+        true,
+    ),
+    (
+        "0xA238CBeb142c10Ef7Ad8442C6D1f9E89e07e7761",
+        "MultiSend 1.3.0",
+        true,
+    ),
+    (
+        "0x998739BFdAAdde7C933B942a68053933098f9EDa",
+        "MultiSend 1.3.0 (eip155)",
+        true,
+    ),
+    (
+        "0x0dFcccB95225ffB03c6FBB2559B530C2B7C8A912",
+        "MultiSend 1.3.0 (zksync)",
+        true,
+    ),
+    (
+        "0x40A2aCCbd92BCA938b02010E17A5b8929b49130D",
+        "MultiSendCallOnly 1.3.0",
+        true,
+    ),
+    (
+        "0xA1dabEF33b3B82c7814B6D82A79e50F4AC44102B",
+        "MultiSendCallOnly 1.3.0 (eip155)",
+        true,
+    ),
+    (
+        "0xf220D3b4DFb23C4ade8C88E526C1353AbAcbC38F",
+        "MultiSendCallOnly 1.3.0 (zksync)",
+        true,
+    ),
+    (
+        "0x38869bf66a61cF6bDB996A6aE40D5853Fd43B526",
+        "MultiSend 1.4.1",
+        true,
+    ),
+    (
+        "0x309D0B190FeCCa8e1D5D8309a16F7e3CB133E885",
+        "MultiSend 1.4.1 (zksync)",
+        true,
+    ),
+    (
+        "0x9641d764fc13c8B624c04430C7356C1C7C8102e2",
+        "MultiSendCallOnly 1.4.1",
+        true,
+    ),
+    (
+        "0x0408EF011960d02349d50286D20531229BCef773",
+        "MultiSendCallOnly 1.4.1 (zksync)",
+        true,
+    ),
+    (
+        "0x218543288004CD07832472D464648173c77D7eB7",
+        "MultiSend 1.5.0",
+        true,
+    ),
+    (
+        "0xA83c336B20401Af773B6219BA5027174338D1836",
+        "MultiSendCallOnly 1.5.0",
+        true,
+    ),
+    (
+        "0xA65387F16B013cf2Af4605Ad8aA5ec25a2cbA3a2",
+        "SignMessageLib 1.3.0",
+        false,
+    ),
+    (
+        "0x98FFBBF51bb33A056B08ddf711f289936AafF717",
+        "SignMessageLib 1.3.0 (eip155)",
+        false,
+    ),
+    (
+        "0x357147caf9C0cCa67DfA0CF5369318d8193c8407",
+        "SignMessageLib 1.3.0 (zksync)",
+        false,
+    ),
+    (
+        "0xd53cd0aB83D845Ac265BE939c57F53AD838012c9",
+        "SignMessageLib 1.4.1",
+        false,
+    ),
+    (
+        "0xAca1ec0a1A575CDCCF1DC3d5d296202Eb6061888",
+        "SignMessageLib 1.4.1 (zksync)",
+        false,
+    ),
+    (
+        "0x7cbB62EaA69F79e6873cD1ecB2392971036cFAa4",
+        "CreateCall 1.3.0",
+        false,
+    ),
+    (
+        "0xB19D6FFc2182150F8Eb585b79D4ABcd7C5640A9d",
+        "CreateCall 1.3.0 (eip155)",
+        false,
+    ),
+    (
+        "0xcB8e5E438c5c2b45FbE17B02Ca9aF91509a8ad56",
+        "CreateCall 1.3.0 (zksync)",
+        false,
+    ),
+    (
+        "0x9b35Af71d77eaf8d7e40252370304687390A1A52",
+        "CreateCall 1.4.1",
+        false,
+    ),
+    (
+        "0xAAA566Fe7978bB0fb0B5362B7ba23038f4428D8f",
+        "CreateCall 1.4.1 (zksync)",
+        false,
+    ),
+];
+
+/// The name of a known Safe library and whether it is a MultiSend
+pub fn known_library(to: Address) -> Option<(&'static str, bool)> {
+    KNOWN_DELEGATE_TARGETS
+        .iter()
+        .find(|(a, _, _)| a.parse::<Address>().ok() == Some(to))
+        .map(|(_, name, multisend)| (*name, *multisend))
+}
+
+/// A warning when `operation` is DELEGATECALL to an address that is not a
+/// known Safe library: that code runs with full control of the Safe
+pub fn delegatecall_warning(operation: u8, to: Address) -> Option<String> {
+    (operation == 1 && known_library(to).is_none()).then(|| {
+        format!(
+            "DELEGATECALL to {} which is not a known Safe library: it runs with full control of the Safe's storage and funds",
+            to.to_checksum(None)
+        )
+    })
+}
+
 /// Concurrent signature/ABI lookups when decoding several transactions
 const DECODE_CONCURRENCY: usize = 4;
 
@@ -144,12 +285,13 @@ pub async fn handle(
                 .zip(decoded)
                 .map(|(tx, call)| {
                     let mut item = summarize(tx, call);
-                    let (signed, missing) = signers(tx, &state.owners);
-                    item["confirmations"] = json!(signed.len());
+                    let s = signers(tx, &state.owners);
+                    item["confirmations"] = json!(s.signed.len());
                     item["threshold"] = json!(state.threshold.to_string());
-                    item["ready"] = json!(U256::from(signed.len()) >= state.threshold);
-                    item["signed"] = json!(signed);
-                    item["not_signed"] = json!(missing);
+                    item["ready"] = json!(is_ready(&s, state.threshold));
+                    item["signed"] = json!(s.signed);
+                    item["not_signed"] = json!(s.not_signed);
+                    item["stale_signers"] = json!(s.stale);
                     item["conflicting_proposals"] =
                         json!(per_nonce.get(&text(&tx["nonce"])).copied().unwrap_or(1) > 1);
                     item
@@ -187,7 +329,7 @@ pub async fn handle(
             let to = parse_address(&text(&tx["to"]))?;
             let data = hex_bytes(&tx["data"]);
             let mut call = decode_call(&fetcher, chain, to, &data).await;
-            if let Some(inner) = multisend_payload(&data) {
+            if let Some(inner) = multisend_payload(to, &data) {
                 match unpack_multisend(&inner) {
                     Ok(calls) => {
                         let mut out = Vec::with_capacity(calls.len());
@@ -199,6 +341,7 @@ pub async fn handle(
                                 "value": c.value.to_string(),
                                 "data": format!("0x{}", hex::encode(&c.data)),
                                 "call": decoded,
+                                "delegatecall_warning": delegatecall_warning(c.operation, c.to),
                             }));
                         }
                         call["multisend"] = json!(out);
@@ -217,6 +360,7 @@ pub async fn handle(
                 "operation": operation_name(tx["operation"].as_u64().unwrap_or(0) as u8),
                 "data": tx["data"],
                 "call": call,
+                "delegatecall_warning": delegatecall_warning(tx["operation"].as_u64().unwrap_or(0) as u8, to),
                 "submitted": tx["submissionDate"],
                 "proposer": tx["proposer"],
                 "executed": tx["isExecuted"],
@@ -235,8 +379,12 @@ pub async fn handle(
                 if let Ok(safe) = parse_address(&text(&tx["safe"])) {
                     match read_state(chain, rpc_url.as_deref(), safe).await {
                         Ok(state) => {
-                            let (_, missing) = signers(&tx, &state.owners);
-                            out["not_signed"] = json!(missing);
+                            let s = signers(&tx, &state.owners);
+                            out["confirmations"] = json!(s.signed.len());
+                            out["ready"] = json!(is_ready(&s, state.threshold));
+                            out["signed"] = json!(s.signed);
+                            out["not_signed"] = json!(s.not_signed);
+                            out["stale_signers"] = json!(s.stale);
                             out["threshold"] = json!(state.threshold.to_string());
                             out["safe_nonce"] = json!(state.nonce.to_string());
                         }
@@ -527,7 +675,10 @@ pub struct MultiSendCall {
 }
 
 /// The packed `transactions` bytes, when `data` is a `multiSend(bytes)` call
-pub fn multisend_payload(data: &[u8]) -> Option<Vec<u8>> {
+pub fn multisend_payload(to: Address, data: &[u8]) -> Option<Vec<u8>> {
+    if !known_library(to).is_some_and(|(_, multisend)| multisend) {
+        return None;
+    }
     if data.len() < 4 || data[..4] != MULTISEND_SELECTOR {
         return None;
     }
@@ -612,6 +763,18 @@ pub fn decode_with_signature(signature: &str, data: &[u8]) -> Option<Vec<Value>>
 /// Decode one call: the target's verified ABI first, then the signature
 /// database (best guess, marked as such)
 async fn decode_call(fetcher: &AbiFetcher, chain: Chain, to: Address, data: &[u8]) -> Value {
+    let mut call = decode_call_inner(fetcher, chain, to, data).await;
+    if let Some((name, _)) = known_library(to) {
+        call["library"] = json!(name);
+    } else if data.len() >= 4 && data[..4] == MULTISEND_SELECTOR {
+        call["warning"] = json!(
+            "unknown contract using the multiSend selector: not a known MultiSend deployment, batch not unpacked"
+        );
+    }
+    call
+}
+
+async fn decode_call_inner(fetcher: &AbiFetcher, chain: Chain, to: Address, data: &[u8]) -> Value {
     if data.len() < 4 {
         return json!({"kind": if data.is_empty() { "transfer" } else { "raw" }});
     }
@@ -628,7 +791,7 @@ async fn decode_call(fetcher: &AbiFetcher, chain: Chain, to: Address, data: &[u8
             "params": decoded.params.into_iter().map(|(name, ty, value)| json!({"name": name, "type": ty, "value": value})).collect::<Vec<_>>(),
         });
     }
-    if data[..4] == MULTISEND_SELECTOR {
+    if data[..4] == MULTISEND_SELECTOR && known_library(to).is_some_and(|(_, m)| m) {
         return json!({"selector": selector, "function": "multiSend", "signature": "multiSend(bytes)", "source": "builtin"});
     }
     if let Some(signature) = fetcher.lookup_selector(&selector).await {
@@ -649,7 +812,7 @@ async fn decode_many(fetcher: &AbiFetcher, chain: Chain, txs: &[Value]) -> Vec<V
         let to = parse_address(&text(&tx["to"])).unwrap_or_default();
         let data = hex_bytes(&tx["data"]);
         let mut call = decode_call(fetcher, chain, to, &data).await;
-        if let Some(inner) = multisend_payload(&data) {
+        if let Some(inner) = multisend_payload(to, &data) {
             if let Ok(calls) = unpack_multisend(&inner) {
                 call["multisend_calls"] = json!(calls.len());
             }
@@ -692,21 +855,58 @@ fn confirmations(tx: &Value) -> Vec<String> {
         .unwrap_or_default()
 }
 
-/// (owners who signed, owners who have not), checksummed. A confirmation
-/// from an address that is no longer an owner is kept in `signed`.
-fn signers(tx: &Value, owners: &[Address]) -> (Vec<String>, Vec<String>) {
-    let signed = confirmations(tx);
-    let lower: Vec<String> = signed.iter().map(|s| s.to_lowercase()).collect();
-    let missing = owners
+/// Confirmations split against the current on-chain owners
+#[derive(Debug, Default, PartialEq, Eq)]
+struct Signers {
+    /// Distinct current owners who confirmed, checksummed
+    signed: Vec<String>,
+    /// Current owners who have not confirmed
+    not_signed: Vec<String>,
+    /// Confirmations from addresses that are not current owners; they do not count
+    stale: Vec<String>,
+}
+
+fn signers(tx: &Value, owners: &[Address]) -> Signers {
+    let mut out = Signers::default();
+    let mut confirmed: Vec<Address> = Vec::new();
+    for raw in confirmations(tx) {
+        match raw.trim().parse::<Address>() {
+            Ok(a) if owners.contains(&a) => {
+                if !confirmed.contains(&a) {
+                    confirmed.push(a);
+                    out.signed.push(a.to_checksum(None));
+                }
+            }
+            Ok(a) => {
+                let a = a.to_checksum(None);
+                if !out.stale.contains(&a) {
+                    out.stale.push(a);
+                }
+            }
+            Err(_) => out.stale.push(raw),
+        }
+    }
+    out.not_signed = owners
         .iter()
+        .filter(|o| !confirmed.contains(o))
         .map(|o| o.to_checksum(None))
-        .filter(|o| !lower.contains(&o.to_lowercase()))
         .collect();
-    (signed, missing)
+    out
+}
+
+/// Ready to execute: distinct current owners who confirmed reach the
+/// threshold. Stale signers never count; a zero threshold is never ready.
+fn is_ready(s: &Signers, threshold: U256) -> bool {
+    !threshold.is_zero() && U256::from(s.signed.len()) >= threshold
 }
 
 fn summarize(tx: &Value, call: Value) -> Value {
+    let op = tx["operation"].as_u64().unwrap_or(0) as u8;
+    let warning = parse_address(&text(&tx["to"]))
+        .ok()
+        .and_then(|to| delegatecall_warning(op, to));
     json!({
+        "delegatecall_warning": warning,
         "nonce": text(&tx["nonce"]),
         "safe_tx_hash": tx["safeTxHash"],
         "to": tx["to"],
@@ -716,6 +916,15 @@ fn summarize(tx: &Value, call: Value) -> Value {
         "submitted": tx["submissionDate"],
         "proposer": tx["proposer"],
     })
+}
+
+/// Text from the service or a contract, made safe to print in a terminal
+fn st(v: &Value) -> String {
+    crate::abi::revert::safe_text(&text(v))
+}
+
+fn safe_text_s(s: &str) -> String {
+    crate::abi::revert::safe_text(s)
 }
 
 fn print_json(out: &Value, format: OutputFormat) -> anyhow::Result<()> {
@@ -731,8 +940,8 @@ fn method_label(call: &Value) -> String {
     use crate::abi::revert::safe_text;
     let mut label = match (call["function"].as_str(), call["selector"].as_str()) {
         (Some(f), _) => safe_text(f),
-        (None, Some(s)) => s.to_string(),
-        _ => call["kind"].as_str().unwrap_or("-").to_string(),
+        (None, Some(s)) => safe_text(s),
+        _ => safe_text(call["kind"].as_str().unwrap_or("-")),
     };
     if let Some(n) = call["multisend_calls"].as_u64() {
         label.push_str(&format!(" [{n} calls]"));
@@ -744,7 +953,11 @@ fn method_label(call: &Value) -> String {
 }
 
 fn print_info(out: &Value) {
-    let s = |v: &Value| v.as_str().unwrap_or("-").to_string();
+    let s = |v: &Value| {
+        v.as_str()
+            .map(crate::abi::revert::safe_text)
+            .unwrap_or("-".to_string())
+    };
     println!(
         "Safe:             {} ({})",
         s(&out["address"]),
@@ -779,10 +992,10 @@ fn print_queue(out: &Value) {
     let txs = out["transactions"].as_array().cloned().unwrap_or_default();
     println!(
         "Safe {} on {}: nonce {}, threshold {} of {}; {} pending",
-        text(&out["safe"]),
-        text(&out["chain"]),
-        text(&out["nonce"]),
-        text(&out["threshold"]),
+        st(&out["safe"]),
+        st(&out["chain"]),
+        st(&out["nonce"]),
+        st(&out["threshold"]),
         out["owners"],
         txs.len()
     );
@@ -790,41 +1003,62 @@ fn print_queue(out: &Value) {
         println!();
         println!(
             "nonce {}  {}/{} signed{}{}  {}",
-            text(&tx["nonce"]),
+            st(&tx["nonce"]),
             tx["confirmations"],
-            text(&tx["threshold"]),
+            st(&tx["threshold"]),
             if tx["ready"] == true { "  READY" } else { "" },
             if tx["conflicting_proposals"] == true {
                 "  (other proposals at this nonce)"
             } else {
                 ""
             },
-            text(&tx["safe_tx_hash"]),
+            st(&tx["safe_tx_hash"]),
         );
         println!(
             "  {} -> {}  value {}  {}",
             method_label(&tx["call"]),
-            text(&tx["to"]),
-            text(&tx["value"]),
-            text(&tx["operation"])
+            st(&tx["to"]),
+            st(&tx["value"]),
+            st(&tx["operation"])
         );
         let join = |v: &Value| {
             v.as_array()
-                .map(|a| a.iter().map(text).collect::<Vec<_>>().join(", "))
+                .map(|a| a.iter().map(st).collect::<Vec<_>>().join(", "))
                 .unwrap_or_default()
         };
+        if let Some(w) = tx["delegatecall_warning"].as_str() {
+            println!("  WARNING: {}", safe_text_s(w));
+        }
+        if let Some(w) = tx["call"]["warning"].as_str() {
+            println!("  WARNING: {}", safe_text_s(w));
+        }
         println!("  signed:     {}", join(&tx["signed"]));
+        if tx["stale_signers"]
+            .as_array()
+            .is_some_and(|a| !a.is_empty())
+        {
+            println!(
+                "  stale (not owners, not counted): {}",
+                join(&tx["stale_signers"])
+            );
+        }
         println!("  not signed: {}", join(&tx["not_signed"]));
     }
 }
 
 fn print_call(call: &Value, indent: &str) {
+    if let Some(w) = call["warning"].as_str() {
+        println!("{indent}WARNING: {}", safe_text_s(w));
+    }
+    if let Some(lib) = call["library"].as_str() {
+        println!("{indent}library:   {}", safe_text_s(lib));
+    }
     println!("{indent}function:  {}", method_label(call));
     if let Some(sig) = call["signature"].as_str() {
         println!(
             "{indent}signature: {} ({})",
             crate::abi::revert::safe_text(sig),
-            text(&call["source"])
+            st(&call["source"])
         );
     }
     for p in call["params"].as_array().into_iter().flatten() {
@@ -834,37 +1068,39 @@ fn print_call(call: &Value, indent: &str) {
         };
         println!(
             "{indent}  {} {} = {}",
-            text(&p["type"]),
-            text(&p["name"]),
+            st(&p["type"]),
+            st(&p["name"]),
             value
         );
     }
 }
 
 fn print_tx(out: &Value) {
-    println!("safeTxHash: {}", text(&out["safe_tx_hash"]));
-    println!(
-        "Safe:       {} ({})",
-        text(&out["safe"]),
-        text(&out["chain"])
-    );
-    println!("Nonce:      {}", text(&out["nonce"]));
+    println!("safeTxHash: {}", st(&out["safe_tx_hash"]));
+    println!("Safe:       {} ({})", st(&out["safe"]), st(&out["chain"]));
+    println!("Nonce:      {}", st(&out["nonce"]));
     println!(
         "To:         {}  ({})",
-        text(&out["to"]),
-        text(&out["operation"])
+        st(&out["to"]),
+        st(&out["operation"])
     );
-    println!("Value:      {}", text(&out["value"]));
+    println!("Value:      {}", st(&out["value"]));
+    if let Some(w) = out["delegatecall_warning"].as_str() {
+        println!("WARNING:    {}", safe_text_s(w));
+    }
     print_call(&out["call"], "  ");
     if let Some(calls) = out["call"]["multisend"].as_array() {
         println!("MultiSend: {} calls", calls.len());
         for (i, c) in calls.iter().enumerate() {
             println!(
                 "  [{i}] {} {} value {}",
-                text(&c["operation"]),
-                text(&c["to"]),
-                text(&c["value"])
+                st(&c["operation"]),
+                st(&c["to"]),
+                st(&c["value"])
             );
+            if let Some(w) = c["delegatecall_warning"].as_str() {
+                println!("      WARNING: {}", safe_text_s(w));
+            }
             print_call(&c["call"], "      ");
         }
     }
@@ -873,13 +1109,13 @@ fn print_tx(out: &Value) {
         if out["executed"] == true {
             format!(
                 "executed {} ({}), tx {}",
-                text(&out["execution_date"]),
+                st(&out["execution_date"]),
                 if out["successful"] == true {
                     "success"
                 } else {
                     "failed"
                 },
-                text(&out["transaction_hash"])
+                st(&out["transaction_hash"])
             )
         } else {
             "pending".to_string()
@@ -888,10 +1124,16 @@ fn print_tx(out: &Value) {
     println!(
         "Signed:     {} of {} required",
         out["confirmations"],
-        text(&out["confirmations_required"])
+        st(&out["confirmations_required"])
     );
     for s in out["signed"].as_array().into_iter().flatten() {
         println!("  {}", text(s));
+    }
+    if let Some(stale) = out["stale_signers"].as_array().filter(|a| !a.is_empty()) {
+        println!("Stale (not current owners, not counted):");
+        for s in stale {
+            println!("  {}", st(s));
+        }
     }
     if let Some(missing) = out["not_signed"].as_array() {
         println!("Not signed:");
@@ -904,8 +1146,8 @@ fn print_tx(out: &Value) {
 fn print_history(out: &Value) {
     println!(
         "Safe {} on {}: {} of {} executed transactions (offset {})",
-        text(&out["safe"]),
-        text(&out["chain"]),
+        st(&out["safe"]),
+        st(&out["chain"]),
         out["count"],
         out["total"],
         out["offset"]
@@ -915,15 +1157,15 @@ fn print_history(out: &Value) {
         "NONCE", "EXECUTED", "OK", "METHOD", "TO"
     );
     for tx in out["transactions"].as_array().into_iter().flatten() {
-        let date: String = text(&tx["execution_date"]).chars().take(19).collect();
+        let date: String = st(&tx["execution_date"]).chars().take(19).collect();
         let mut method = method_label(&tx["call"]);
-        if method.len() > 32 {
-            method.truncate(31);
+        if method.chars().count() > 32 {
+            method = method.chars().take(31).collect();
             method.push('…');
         }
         println!(
             "{:<7} {:<20} {:<4} {:<32} {:<42} {}",
-            text(&tx["nonce"]),
+            st(&tx["nonce"]),
             date,
             if tx["successful"] == true {
                 "yes"
@@ -931,8 +1173,8 @@ fn print_history(out: &Value) {
                 "no"
             },
             method,
-            text(&tx["to"]),
-            text(&tx["transaction_hash"])
+            st(&tx["to"]),
+            st(&tx["transaction_hash"])
         );
     }
 }
@@ -978,7 +1220,12 @@ mod tests {
             DynSolValue::Tuple(vec![DynSolValue::Bytes(packed.clone())]).abi_encode_params(),
         );
 
-        let payload = multisend_payload(&calldata).expect("multisend");
+        let ms: Address = "0x40A2aCCbd92BCA938b02010E17A5b8929b49130D"
+            .parse()
+            .unwrap();
+        // Same calldata sent to an unknown contract is not unpacked
+        assert!(multisend_payload(Address::with_last_byte(9), &calldata).is_none());
+        let payload = multisend_payload(ms, &calldata).expect("multisend");
         assert_eq!(payload, packed);
         let calls = unpack_multisend(&payload).unwrap();
         assert_eq!(calls.len(), 2);
@@ -1012,8 +1259,11 @@ mod tests {
 
     #[test]
     fn non_multisend_calldata_is_not_unpacked() {
-        assert!(multisend_payload(&transfer_calldata()).is_none());
-        assert!(multisend_payload(&[]).is_none());
+        let ms: Address = "0xA238CBeb142c10Ef7Ad8442C6D1f9E89e07e7761"
+            .parse()
+            .unwrap();
+        assert!(multisend_payload(ms, &transfer_calldata()).is_none());
+        assert!(multisend_payload(ms, &[]).is_none());
     }
 
     #[test]
@@ -1025,12 +1275,58 @@ mod tests {
     }
 
     #[test]
-    fn signers_split_owners() {
+    fn signers_split_owners_and_ignore_stale_and_duplicates() {
         let a = Address::with_last_byte(0xaa);
         let b = Address::with_last_byte(0xbb);
-        let tx = json!({"confirmations": [{"owner": a.to_checksum(None).to_lowercase()}]});
-        let (signed, missing) = signers(&tx, &[a, b]);
-        assert_eq!(signed.len(), 1);
-        assert_eq!(missing, vec![b.to_checksum(None)]);
+        let stranger = Address::with_last_byte(0xcc);
+        let tx = json!({"confirmations": [
+            {"owner": a.to_checksum(None).to_lowercase()},
+            {"owner": a.to_checksum(None)},
+            {"owner": stranger.to_checksum(None)},
+        ]});
+        let s = signers(&tx, &[a, b]);
+        assert_eq!(s.signed, vec![a.to_checksum(None)]);
+        assert_eq!(s.not_signed, vec![b.to_checksum(None)]);
+        assert_eq!(s.stale, vec![stranger.to_checksum(None)]);
+        // threshold 2: one owner plus a duplicate and a stale signer is not ready
+        assert!(!is_ready(&s, U256::from(2)));
+        assert!(is_ready(&s, U256::from(1)));
+        assert!(!is_ready(&s, U256::ZERO));
+    }
+
+    #[test]
+    fn known_libraries_and_delegatecall_warning() {
+        let ms: Address = "0x9641d764fc13c8B624c04430C7356C1C7C8102e2"
+            .parse()
+            .unwrap();
+        let sign: Address = "0xd53cd0aB83D845Ac265BE939c57F53AD838012c9"
+            .parse()
+            .unwrap();
+        assert_eq!(known_library(ms).map(|(_, m)| m), Some(true));
+        assert_eq!(known_library(sign).map(|(_, m)| m), Some(false));
+        for (addr, _, _) in KNOWN_DELEGATE_TARGETS {
+            assert!(addr.parse::<Address>().is_ok(), "{addr}");
+        }
+        assert!(delegatecall_warning(1, ms).is_none());
+        assert!(delegatecall_warning(1, sign).is_none());
+        assert!(delegatecall_warning(0, Address::with_last_byte(7)).is_none());
+        assert!(delegatecall_warning(1, Address::with_last_byte(7)).is_some());
+    }
+
+    #[test]
+    fn method_label_truncation_is_char_safe() {
+        let call = json!({"function": "é".repeat(40), "source": "abi"});
+        let mut method = method_label(&call);
+        if method.chars().count() > 32 {
+            method = method.chars().take(31).collect();
+            method.push('…');
+        }
+        assert_eq!(method.chars().count(), 32);
+    }
+
+    #[test]
+    fn table_text_strips_escapes() {
+        let v = json!("evil\u{1b}[31mred");
+        assert!(!st(&v).contains('\u{1b}'));
     }
 }
