@@ -159,55 +159,153 @@ fn same_word(a: &str, b: &str) -> bool {
     }
 }
 
-/// Does this code act as the proxy `kind` says, by ethcli's call analysis?
+/// Does this code act as the proxy `kind` says?
+#[cfg(test)]
+fn acts_as_proxy(kind: &str, code: &[u8], implementation: Address) -> bool {
+    proxy_check(kind, code, implementation, None).ok
+}
+
+/// What ethcli's call analysis says about a proxy claim
+#[derive(Debug, Default)]
+struct ProxyCheck {
+    /// The code delegates every unmatched call as `kind` says
+    ok: bool,
+    /// The analysis covered every path, so a negative answer is definite
+    complete: bool,
+    /// Selectors under which the code delegates as `kind` says, when it
+    /// does so only inside specific functions
+    only_under: Vec<String>,
+}
+
 /// A slot alone proves nothing (any contract can write to it), and so does
 /// a DELEGATECALL alone (a contract can delegate to an argument). A
-/// reached DELEGATECALL must take its target from:
+/// DELEGATECALL reached on the dispatcher path (the one every call whose
+/// selector the dispatcher does not match runs) must take its target from:
 /// - the EIP-1967 or OpenZeppelin legacy implementation slot,
-/// - the return of a call to a beacon read from the EIP-1967 beacon slot,
+/// - the return of a call to the beacon: read from the EIP-1967 beacon
+///   slot, or a code constant equal to the beacon (an immutable beacon, as
+///   in OpenZeppelin 5.x BeaconProxy),
 /// - a code constant equal to the implementation (EIP-1167 clones).
 ///
-/// Safe proxies are recognised by their exact runtime code (singleton in
-/// slot 0).
-fn acts_as_proxy(kind: &str, code: &[u8], implementation: Address) -> bool {
+/// Safe proxies and Vyper forwarders are recognised by their exact code.
+fn proxy_check(
+    kind: &str,
+    code: &[u8],
+    implementation: Address,
+    beacon: Option<Address>,
+) -> ProxyCheck {
     if kind == "Safe proxy" {
-        return is_known_safe_proxy(code);
+        return ProxyCheck {
+            ok: is_known_safe_proxy(code),
+            complete: true,
+            ..Default::default()
+        };
+    }
+    if kind == "Vyper forwarder proxy" {
+        return ProxyCheck {
+            ok: vyper_forwarder(code) == Some(implementation),
+            complete: true,
+            ..Default::default()
+        };
     }
     let report = analyze_calls(code, CallsBudget::default());
-    let delegate_targets = report
-        .call_sites
-        .iter()
-        .filter(|s| s.kind == "DELEGATECALL")
-        .flat_map(|s| s.target.iter());
+    proxy_check_report(kind, &report, implementation, beacon)
+}
+
+fn is_constant(p: &crate::bytecode::Provenance, addr: Address) -> bool {
+    matches!(p.kind.as_str(), "constant" | "code_constant")
+        && p.value
+            .as_deref()
+            .and_then(|v| U256::from_str(v).ok())
+            .is_some_and(|v| v == U256::from_be_slice(addr.as_slice()))
+}
+
+fn proxy_check_report(
+    kind: &str,
+    report: &CallsReport,
+    implementation: Address,
+    beacon: Option<Address>,
+) -> ProxyCheck {
     let from_slot = |p: &crate::bytecode::Provenance, slot: &str| {
         p.kind == "storage" && p.slot.as_deref().is_some_and(|s| same_word(s, slot))
     };
-    for t in delegate_targets {
-        let ok = match kind {
+    let mut check = ProxyCheck {
+        complete: report.coverage.complete,
+        ..Default::default()
+    };
+    for site in report
+        .call_sites
+        .iter()
+        .filter(|s| s.kind == "DELEGATECALL")
+    {
+        let matches = site.target.iter().any(|t| match kind {
             "EIP-1967 proxy" => from_slot(t, EIP1967_IMPL_SLOT),
             "OpenZeppelin legacy proxy" => from_slot(t, OZ_LEGACY_SLOT),
-            "EIP-1967 beacon proxy" => {
+            "EIP-1967 beacon proxy" | "beacon proxy (immutable beacon)" => {
                 t.kind == "call_return"
                     && t.call_pc.is_some_and(|pc| {
                         report.call_sites.iter().any(|c| {
-                            c.pc == pc && c.target.iter().any(|b| from_slot(b, EIP1967_BEACON_SLOT))
+                            c.pc == pc
+                                && c.target.iter().any(|b| {
+                                    from_slot(b, EIP1967_BEACON_SLOT)
+                                        || beacon.is_some_and(|addr| is_constant(b, addr))
+                                })
                         })
                     })
             }
-            k if k.starts_with("EIP-1167") => {
-                matches!(t.kind.as_str(), "constant" | "code_constant")
-                    && t.value
-                        .as_deref()
-                        .and_then(|v| U256::from_str(v).ok())
-                        .is_some_and(|v| v == U256::from_be_slice(implementation.as_slice()))
-            }
+            k if k.starts_with("EIP-1167") => is_constant(t, implementation),
             _ => false,
-        };
-        if ok {
-            return true;
+        });
+        if !matches {
+            continue;
+        }
+        if site.functions.iter().any(|f| f == "dispatcher") {
+            check.ok = true;
+        } else {
+            check.only_under.extend(site.functions.iter().cloned());
         }
     }
-    false
+    check.only_under.sort();
+    check.only_under.dedup();
+    check
+}
+
+/// A Vyper `create_forwarder_to` proxy (Uniswap V1 exchanges, Curve
+/// factory pools): copy calldata, DELEGATECALL a code constant, return.
+/// The two known byte patterns, with the target address
+fn vyper_forwarder(code: &[u8]) -> Option<Address> {
+    const PREFIX: &str = "366000600037611000600036600073";
+    const SUFFIXES: &[&str] = &["5af4602c57600080fd5b6110006000f3", "5af41558576110006000f3"];
+    let hex_code = hex::encode(code);
+    let rest = hex_code.strip_prefix(PREFIX)?;
+    let (addr, tail) = rest.split_at_checked(40)?;
+    SUFFIXES
+        .contains(&tail)
+        .then(|| Address::from_str(addr).ok())
+        .flatten()
+}
+
+/// A beacon held in the code (immutable): a DELEGATECALL on the dispatcher
+/// path whose target is the return of a call to a code constant. Returns
+/// that constant
+fn immutable_beacon(code: &[u8]) -> Option<Address> {
+    let report = analyze_calls(code, CallsBudget::default());
+    report
+        .call_sites
+        .iter()
+        .filter(|s| s.kind == "DELEGATECALL" && s.functions.iter().any(|f| f == "dispatcher"))
+        .flat_map(|s| s.target.iter())
+        .filter(|t| t.kind == "call_return")
+        .find_map(|t| {
+            let call = report.call_sites.iter().find(|c| Some(c.pc) == t.call_pc)?;
+            call.target.iter().find_map(|b| {
+                if matches!(b.kind.as_str(), "constant" | "code_constant") {
+                    b.value.as_deref().and_then(|v| Address::from_str(v).ok())
+                } else {
+                    None
+                }
+            })
+        })
 }
 
 /// Safe proxy runtime code, exactly as the canonical proxy factories of
@@ -302,21 +400,58 @@ async fn fetch_target(chain: Chain, args: &TargetArgs, quiet: bool) -> anyhow::R
         } else {
             None
         };
-        let found = match safe_singleton {
+        let mut found = match safe_singleton {
             Some(found) => Some(found),
             None => super::contract::find_implementation(provider, address, &code, block_id).await,
         };
+        let mut beacon = super::contract::storage_address(
+            provider,
+            address,
+            B256::from_str(EIP1967_BEACON_SLOT).expect("valid slot"),
+            block_id,
+        )
+        .await;
+        if found.is_none() {
+            if let Some(target) = vyper_forwarder(&code) {
+                found = Some(("Vyper forwarder proxy", target));
+            } else if let Some(b) = immutable_beacon(&code) {
+                if let Some(imp) =
+                    super::contract::call_implementation_function_at(provider, b, block_id).await
+                {
+                    beacon = Some(b);
+                    found = Some(("beacon proxy (immutable beacon)", imp));
+                }
+            }
+        }
         if let Some((kind, implementation)) = found {
+            let check = if kind.starts_with("implementation() getter") {
+                ProxyCheck::default()
+            } else {
+                proxy_check(kind, &code, implementation, beacon)
+            };
             if kind.starts_with("implementation() getter") {
                 notes.push(format!(
                     "answers implementation() with {}, but that alone does not make it a proxy; using its own code",
                     implementation.to_checksum(None)
                 ));
-            } else if !acts_as_proxy(kind, &code, implementation) {
-                let warning = format!(
-                    "{kind}: points to {}, but ethcli's call analysis finds no DELEGATECALL in this address's own code whose target comes from that slot, beacon or constant, so it does not run that code; analysing its own code",
-                    implementation.to_checksum(None)
-                );
+            } else if !check.ok {
+                let warning = if !check.only_under.is_empty() {
+                    format!(
+                        "{kind}: points to {}, but this address delegates to it only under selector {}, not for every call; analysing its own code",
+                        implementation.to_checksum(None),
+                        check.only_under.join(", ")
+                    )
+                } else if check.complete {
+                    format!(
+                        "{kind}: points to {}, but ethcli's call analysis (complete) finds no DELEGATECALL in this address's own code whose target comes from that slot, beacon or constant, so it does not run that code; analysing its own code",
+                        implementation.to_checksum(None)
+                    )
+                } else {
+                    format!(
+                        "{kind}: points to {}, but ethcli's call analysis could not confirm that this address delegates to it (coverage incomplete); analysing its own code",
+                        implementation.to_checksum(None)
+                    )
+                };
                 if !quiet {
                     eprintln!("Warning: {warning}");
                 }
@@ -984,8 +1119,35 @@ pub fn cross_check_for(
             .collect();
         if !unreached.is_empty() {
             warnings.push(format!(
-                "sites ethcli's analysis did not reach, not compared (data, dead code or unanalysed paths): {}",
+                "sites ethcli's analysis did not reach (data, dead code or unanalysed paths): {}",
                 unreached.join(", ")
+            ));
+        }
+    }
+    // Guard and control opcodes the analysis did not reach are still named,
+    // one by one, when the decompiler's text shows fewer than exist: a
+    // check behind a function pointer or other unresolved jump can sit there
+    for (name, tokens, call, _, _) in TEXT_EVIDENCE {
+        if !matches!(*name, "ORIGIN" | "CALLER" | "DELEGATECALL" | "SELFDESTRUCT") {
+            continue;
+        }
+        let Some(unreached) = census.not_reached.get(*name) else {
+            continue;
+        };
+        let reached = census.positions.get(*name).map_or(0, Vec::len);
+        let shown: usize = tokens.iter().map(|t| count_word(source, t, *call)).sum();
+        if shown >= reached + unreached.len() {
+            continue;
+        }
+        for pc in unreached.iter().take(5) {
+            warnings.push(format!(
+                "{name} at pc {pc:#x} not reached by ethcli's analysis and not shown by the decompiler: possible dropped guard"
+            ));
+        }
+        if unreached.len() > 5 {
+            warnings.push(format!(
+                "and {} more unreached {name} site(s) not shown by the decompiler",
+                unreached.len() - 5
             ));
         }
     }
@@ -2326,5 +2488,134 @@ mod tests {
             .warnings
             .iter()
             .any(|w| w.contains("reached code inside metadata-looking bytes")));
+    }
+
+    fn prov(
+        kind: &str,
+        value: Option<&str>,
+        slot: Option<&str>,
+        call_pc: Option<usize>,
+    ) -> crate::bytecode::Provenance {
+        crate::bytecode::Provenance {
+            kind: kind.into(),
+            value: value.map(String::from),
+            slot: slot.map(String::from),
+            offset: None,
+            call_pc,
+            note: None,
+        }
+    }
+
+    fn site(
+        pc: usize,
+        kind: &str,
+        function: &str,
+        target: Vec<crate::bytecode::Provenance>,
+    ) -> crate::bytecode::CallSite {
+        crate::bytecode::CallSite {
+            pc,
+            kind: kind.into(),
+            functions: vec![function.into()],
+            target,
+            selector: vec![],
+            value: vec![],
+            args: vec![],
+            resolved: true,
+        }
+    }
+
+    fn report_with(sites: Vec<crate::bytecode::CallSite>) -> CallsReport {
+        CallsReport {
+            source: "inferred",
+            bytecode_size: 0,
+            call_sites: sites,
+            functions: vec![],
+            opcode_sites: vec![],
+            jump_tables: vec![],
+            coverage: crate::bytecode::calls::Coverage {
+                complete: true,
+                ..Default::default()
+            },
+            notes: vec![],
+            visited: vec![],
+        }
+    }
+
+    #[test]
+    fn immutable_beacon_is_followed() {
+        let beacon = Address::repeat_byte(0xbe);
+        let imp = Address::repeat_byte(0x11);
+        let report = report_with(vec![
+            site(
+                10,
+                "STATICCALL",
+                "dispatcher",
+                vec![prov(
+                    "code_constant",
+                    Some(&format!("{beacon:#x}")),
+                    None,
+                    None,
+                )],
+            ),
+            site(
+                20,
+                "DELEGATECALL",
+                "dispatcher",
+                vec![prov("call_return", None, None, Some(10))],
+            ),
+        ]);
+        assert!(proxy_check_report("EIP-1967 beacon proxy", &report, imp, Some(beacon)).ok);
+        assert!(
+            !proxy_check_report(
+                "EIP-1967 beacon proxy",
+                &report,
+                imp,
+                Some(Address::repeat_byte(0x22))
+            )
+            .ok
+        );
+    }
+
+    #[test]
+    fn slot_delegatecall_under_one_selector_is_not_a_proxy() {
+        let slot = format!("0x{SLOT}");
+        let report = report_with(vec![site(
+            20,
+            "DELEGATECALL",
+            "0xa3ecc898",
+            vec![prov("storage", None, Some(&slot), None)],
+        )]);
+        let check = proxy_check_report("EIP-1967 proxy", &report, Address::ZERO, None);
+        assert!(!check.ok);
+        assert_eq!(check.only_under, vec!["0xa3ecc898".to_string()]);
+        let report = report_with(vec![site(
+            20,
+            "DELEGATECALL",
+            "dispatcher",
+            vec![prov("storage", None, Some(&slot), None)],
+        )]);
+        assert!(proxy_check_report("EIP-1967 proxy", &report, Address::ZERO, None).ok);
+    }
+
+    #[test]
+    fn vyper_forwarders_are_recognised() {
+        let curve = hex::decode("3660006000376110006000366000735f890841f657d90e081babdb532a05996af79fe65af4602c57600080fd5b6110006000f3").unwrap();
+        assert_eq!(
+            vyper_forwarder(&curve),
+            Some(Address::from_str("0x5f890841f657d90e081babdb532a05996af79fe6").unwrap())
+        );
+        assert!(vyper_forwarder(&hex::decode("6000").unwrap()).is_none());
+    }
+
+    #[test]
+    fn unreached_origin_is_named_when_not_shown() {
+        let mut census = census_with("SSTORE", vec![1]);
+        census.not_reached.insert("ORIGIN".into(), vec![0xc8]);
+        let dec = json!({"source": "x = 1;", "functions": [], "storage": [], "stats": {}});
+        let cc = cross_check_for("heimdall", &[], &census, &dec);
+        assert!(cc["warnings"].as_array().unwrap().iter().any(|w| w
+            .as_str()
+            .unwrap()
+            .starts_with("ORIGIN at pc 0xc8 not reached")));
     }
 }

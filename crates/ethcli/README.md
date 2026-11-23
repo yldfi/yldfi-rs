@@ -366,7 +366,10 @@ timeout).
 Takes a forge artifact or solc standard-JSON output; no compiler is
 embedded. Verdicts: `exact` (identical, metadata included), `partial`
 (identical once metadata is ignored, as Sourcify calls it; this is not a
-verification) or `mismatch`, with the first differing offset, both byte
+verification), `partial_unverified_metadata` (as `partial`, but the deployed
+metadata-looking bytes hold a JUMPDEST followed by effectful opcodes, so
+hidden reachable code is not ruled out; never report it as a clean partial)
+or `mismatch`, with the first differing offset, both byte
 sequences, the function it falls in and a per-function equal/different
 table. Build with `forge build --ast` so functions are mapped from the source
 map and the inline-assembly share is reported. The rebuild procedure for

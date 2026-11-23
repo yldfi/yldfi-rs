@@ -90,7 +90,8 @@ ethcli contract fingerprint <addr>  # Compiler + version, metadata hash, min EVM
 ethcli contract decompile <addr> [--backend evmdec|heimdall|all]
                                      # Optional external decompilers, cross-checked first
 ethcli contract match <addr> --artifact out/X.sol/X.json [--contract X] [--creation-tx <hash>] [--build-info out/build-info/<id>.json]
-                                     # exact / partial (ignoring metadata, NOT verified) / mismatch
+                                     # exact / partial (ignoring metadata, NOT verified) /
+                                     # partial_unverified_metadata (metadata bytes may hide code) / mismatch
 ethcli contract calls <addr> [--block N] [--follow-proxy] [--lookup] [--json]
                                       # Every CALL/DELEGATECALL/STATICCALL/CALLCODE/CREATE/CREATE2: pc, function,
                                       # target/selector/value/args provenance (constant, storage slot, calldata

@@ -599,14 +599,18 @@ ethcli contract match <addr> --artifact <forge-or-solc-json> [--contract Name] [
   `decompilers[]`, one per backend.
 - Sensitive-opcode facts come from `bytecode::calls` (`opcode_sites` with
   `reached`, guards and SSTOREs per function); the cross-check compares only
-  reached sites and summarises unreached ones in one warning. Older notes
-  below about a separate sweep are superseded.
-- Sensitive-opcode positions come from the EVM's own linear sweep from offset
-  0 (PUSH immediates honoured, valid JUMPDESTs as in jumpdest analysis).
-  Opcodes after a halt and before the next valid JUMPDEST are listed as
-  `unreachable_by_fallthrough`, never dropped. A metadata block is excluded
-  only when no instruction in it is reachable and it holds no valid JUMPDEST;
-  otherwise its opcodes are reported under `inside_metadata` with a warning.
+  reached sites (a reached site counts even inside metadata-looking bytes,
+  with a warning), summarises unreached ones, and names each unreached
+  ORIGIN / CALLER / DELEGATECALL / SELFDESTRUCT site the decompiler does not
+  show ("possible dropped guard").
+- Proxy following also covers immutable beacons (OpenZeppelin 5.x
+  BeaconProxy, Euler v2 vaults: the beacon call's target is a code constant
+  equal to the beacon) and Vyper forwarders (Curve factory pools, Uniswap
+  V1, by exact pattern). The slot-sourced DELEGATECALL must be on the
+  dispatcher path (run for every unmatched selector); one under a specific
+  selector gives "delegates to it only under selector X". "Does not run that
+  code" is said only when the analysis was complete; otherwise "could not
+  confirm".
 - Metadata blocks are found anywhere in the code (nested contracts) and only
   count when the CBOR decodes exactly up to its length field, with byte
   strings of at most 64 bytes, 32/34-byte hashes and 3-byte solc versions.
@@ -638,8 +642,10 @@ ethcli contract match <addr> --artifact <forge-or-solc-json> [--contract Name] [
   other sources is labelled `(source N: no AST ...)` and the "only shared
   code differs" hint is not given.
 - Artifact `start`/`length` values are checked (no overflow, inside the
-  code). Deployed metadata-looking bytes holding executable sensitive
-  opcodes are compared as code, so the verdict cannot be `partial`.
+  code). Deployed metadata-looking bytes that an analysed path executes are
+  compared as code. Otherwise a JUMPDEST followed by an effectful opcode
+  before a halt inside them gives `partial_unverified_metadata` (fail
+  closed, whatever the coverage), never a clean `partial`.
 - `min_evm_version` uses only reachable code. Vyper metadata followed by
   immutables is recognised. CBOR version text is limited to `[0-9A-Za-z.+-]`.
 - The decompile cross-check counts sites: fewer `tx.origin` / `msg.sender` /

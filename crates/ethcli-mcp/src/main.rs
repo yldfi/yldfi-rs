@@ -563,7 +563,7 @@ impl EthcliMcpServer {
     }
 
     #[tool(
-        description = "Compare a local compiled artifact (forge out/<File>.sol/<Name>.json, ideally built with --ast, or solc standard-JSON output) with deployed code. Masks immutables and library addresses (reports their values), compares metadata separately. Verdict exact, partial (equal ignoring metadata: NOT verified, never report it as verified) or mismatch with the first differing offset, the function it falls in and a per-function equal/different table. Optional creation_tx compares creation code and returns constructor arguments",
+        description = "Compare a local compiled artifact (forge out/<File>.sol/<Name>.json, ideally built with --ast, or solc standard-JSON output) with deployed code. Masks immutables and library addresses (reports their values), compares metadata separately. Verdict exact, partial (equal ignoring metadata: NOT verified, never report it as verified), partial_unverified_metadata (as partial, but the deployed metadata bytes could hide reachable code: never report it as a clean partial) or mismatch with the first differing offset, the function it falls in and a per-function equal/different table. Optional creation_tx compares creation code and returns constructor arguments",
         annotations(read_only_hint = true, open_world_hint = true)
     )]
     async fn contract_match(

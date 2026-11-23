@@ -423,7 +423,7 @@ async fn call_implementation_function<P: Provider>(
 }
 
 /// `implementation()` at a given block
-async fn call_implementation_function_at<P: Provider>(
+pub(crate) async fn call_implementation_function_at<P: Provider>(
     provider: &P,
     address: Address,
     block: alloy::eips::BlockId,
@@ -755,7 +755,9 @@ pub enum ContractCommands {
     /// Takes a forge artifact (out/<File>.sol/<Name>.json) or a solc
     /// standard-JSON output. Immutables and library addresses are masked
     /// (their deployed values reported), metadata is compared separately.
-    /// Verdict: exact, partial (equal ignoring metadata; NOT a verification)
+    /// Verdict: exact, partial (equal ignoring metadata; NOT a verification),
+    /// partial_unverified_metadata (as partial, but the deployed metadata
+    /// bytes hold a JUMPDEST and effectful opcodes that might be reachable)
     /// or mismatch, with the first differing offset, the function it falls in
     /// and a per-function table. Build with `forge build --ast` for
     /// source-level function mapping and the inline-assembly share.
