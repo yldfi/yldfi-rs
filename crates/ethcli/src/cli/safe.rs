@@ -240,10 +240,11 @@ pub async fn handle(
                 "address": safe.to_checksum(None),
                 "block": state.block.to_string(),
                 "version": state.version,
-                "nonce": state.nonce.to_string(),
+                "nonce": state.nonce.map(|n| n.to_string()),
                 "threshold": state.threshold.to_string(),
-                "owners": state.owners.iter().map(|a| a.to_checksum(None)).collect::<Vec<_>>(),
-                "modules": state.modules.iter().map(|a| a.to_checksum(None)).collect::<Vec<_>>(),
+                "owners": state.owners.as_ref().map(|o| o.iter().map(|a| a.to_checksum(None)).collect::<Vec<_>>()),
+                "modules": state.modules.as_ref().map(|m| m.iter().map(|a| a.to_checksum(None)).collect::<Vec<_>>()),
+                "modules_truncated": state.modules_truncated,
                 "guard": state.guard.map(|a| a.to_checksum(None)),
                 "fallback_handler": state.fallback_handler.map(|a| a.to_checksum(None)),
                 "singleton": state.singleton.map(|a| a.to_checksum(None)),
@@ -263,10 +264,13 @@ pub async fn handle(
             let safe = parse_address(safe)?;
             let service = Service::new(chain)?;
             let state = read_state(chain, rpc_url.as_deref(), safe).await?;
+            let (Some(owners), Some(current_nonce)) = (state.owners.clone(), state.nonce) else {
+                anyhow::bail!("could not read the Safe's owners or nonce on chain; cannot tell who has signed");
+            };
             let path = format!(
                 "/api/v2/safes/{}/multisig-transactions/?executed=false&nonce__gte={}&ordering=nonce&limit={}",
                 safe.to_checksum(None),
-                state.nonce,
+                current_nonce,
                 limit
             );
             let page = service.get(&path).await?;
@@ -285,24 +289,38 @@ pub async fn handle(
                 .zip(decoded)
                 .map(|(tx, call)| {
                     let mut item = summarize(tx, call);
-                    let s = signers(tx, &state.owners);
+                    let s = signers(tx, &owners);
+                    let conflicting = per_nonce.get(&text(&tx["nonce"])).copied().unwrap_or(1) > 1;
+                    let complete = is_ready(&s, state.threshold);
+                    let at_current = text(&tx["nonce"]) == current_nonce.to_string();
                     item["confirmations"] = json!(s.signed.len());
                     item["threshold"] = json!(state.threshold.to_string());
-                    item["ready"] = json!(is_ready(&s, state.threshold));
+                    item["signatures_complete"] = json!(complete);
+                    item["ready"] = json!(complete && at_current);
                     item["signed"] = json!(s.signed);
                     item["not_signed"] = json!(s.not_signed);
                     item["stale_signers"] = json!(s.stale);
-                    item["conflicting_proposals"] =
-                        json!(per_nonce.get(&text(&tx["nonce"])).copied().unwrap_or(1) > 1);
+                    item["conflicting_proposals"] = json!(conflicting);
+                    let mut warnings = integrity_warnings(tx, chain.chain_id(), Some(safe), None);
+                    if complete && !at_current {
+                        warnings.push(format!(
+                            "fully signed but nonce {} is not the current nonce {current_nonce}: it cannot run until earlier nonces execute",
+                            text(&tx["nonce"])
+                        ));
+                    }
+                    if conflicting {
+                        warnings.push("other proposals share this nonce: only one of them can execute".to_string());
+                    }
+                    item["warnings"] = json!(warnings);
                     item
                 })
                 .collect();
             let out = json!({
                 "chain": chain.name(),
                 "safe": safe.to_checksum(None),
-                "nonce": state.nonce.to_string(),
+                "nonce": current_nonce.to_string(),
                 "threshold": state.threshold.to_string(),
-                "owners": state.owners.len(),
+                "owners": owners.len(),
                 "count": items.len(),
                 "total": page["count"],
                 "transactions": items,
@@ -328,14 +346,15 @@ pub async fn handle(
             let fetcher = AbiFetcher::new(api_key)?;
             let to = parse_address(&text(&tx["to"]))?;
             let data = hex_bytes(&tx["data"]);
+            let operation = tx["operation"].as_u64().unwrap_or(0) as u8;
             let mut call = decode_call(&fetcher, chain, to, &data).await;
-            if let Some(inner) = multisend_payload(to, &data) {
+            if let Some(inner) = nested_payload(operation, to, &data) {
                 match decode_batch(&fetcher, chain, &inner, 1).await {
                     Ok(calls) => call["multisend"] = json!(calls),
                     Err(e) => call["multisend_error"] = json!(e.to_string()),
                 }
             }
-            let warnings = batch_warnings(to, &data, 1);
+            let warnings = top_level_warnings(operation, to, &data);
             if !warnings.is_empty() {
                 call["batch_warnings"] = json!(warnings);
             }
@@ -359,8 +378,15 @@ pub async fn handle(
                 "transaction_hash": tx["transactionHash"],
                 "executor": tx["executor"],
                 "confirmations_required": tx["confirmationsRequired"],
+                "refund": refund_fields(&tx),
+                "warnings": integrity_warnings(&tx, chain.chain_id(), None, Some(hash)),
             });
             let signed: Vec<Value> = confirmations(&tx).into_iter().map(|a| json!(a)).collect();
+            if let Some(w) = refund_warning(&tx) {
+                if let Some(list) = out["warnings"].as_array_mut() {
+                    list.push(json!(w));
+                }
+            }
             out["confirmations"] = json!(signed.len());
             out["signed"] = json!(signed);
             if tx["isExecuted"].as_bool() != Some(true) {
@@ -368,15 +394,37 @@ pub async fn handle(
                 // against the current owners
                 if let Ok(safe) = parse_address(&text(&tx["safe"])) {
                     match read_state(chain, rpc_url.as_deref(), safe).await {
-                        Ok(state) => {
-                            let s = signers(&tx, &state.owners);
+                        Ok(SafeState {
+                            owners: Some(owners),
+                            nonce: Some(current_nonce),
+                            threshold,
+                            ..
+                        }) => {
+                            let state_threshold = threshold;
+                            let s = signers(&tx, &owners);
+                            let complete = is_ready(&s, state_threshold);
+                            let at_current = text(&tx["nonce"]) == current_nonce.to_string();
                             out["confirmations"] = json!(s.signed.len());
-                            out["ready"] = json!(is_ready(&s, state.threshold));
+                            out["signatures_complete"] = json!(complete);
+                            out["ready"] = json!(complete && at_current);
+                            if complete && !at_current {
+                                if let Some(list) = out["warnings"].as_array_mut() {
+                                    list.push(json!(format!(
+                                        "fully signed but nonce {} is not the current nonce {current_nonce}",
+                                        text(&tx["nonce"])
+                                    )));
+                                }
+                            }
                             out["signed"] = json!(s.signed);
                             out["not_signed"] = json!(s.not_signed);
                             out["stale_signers"] = json!(s.stale);
-                            out["threshold"] = json!(state.threshold.to_string());
-                            out["safe_nonce"] = json!(state.nonce.to_string());
+                            out["threshold"] = json!(state_threshold.to_string());
+                            out["safe_nonce"] = json!(current_nonce.to_string());
+                        }
+                        Ok(_) => {
+                            if !quiet {
+                                eprintln!("Note: on-chain owners or nonce not read; signer split not shown");
+                            }
                         }
                         Err(e) => {
                             if !quiet {
@@ -420,6 +468,8 @@ pub async fn handle(
                     item["execution_date"] = tx["executionDate"].clone();
                     item["transaction_hash"] = tx["transactionHash"].clone();
                     item["confirmations"] = json!(confirmations(tx).len());
+                    item["warnings"] =
+                        json!(integrity_warnings(tx, chain.chain_id(), Some(safe), None));
                     item
                 })
                 .collect();
@@ -448,10 +498,15 @@ pub async fn handle(
 struct SafeState {
     block: u64,
     version: Option<String>,
-    nonce: U256,
+    /// `None` when the read failed
+    nonce: Option<U256>,
     threshold: U256,
-    owners: Vec<Address>,
-    modules: Vec<Address>,
+    /// `None` when the read failed
+    owners: Option<Vec<Address>>,
+    /// `None` when neither getModulesPaginated nor getModules answered
+    modules: Option<Vec<Address>>,
+    /// More than [`MODULE_PAGE`] modules are enabled; only the first page is listed
+    modules_truncated: bool,
     guard: Option<Address>,
     fallback_handler: Option<Address>,
     singleton: Option<Address>,
@@ -474,12 +529,13 @@ async fn read_state(
     let block = provider.get_block_number().await?;
     let at = alloy::eips::BlockId::number(block);
 
-    // getModulesPaginated(SENTINEL, 100): the first 100 enabled modules
+    // getModulesPaginated(SENTINEL, MODULE_PAGE): the first page of enabled
+    // modules; Safe 1.0.0 only has getModules()
     let mut modules_call = selector("getModulesPaginated(address,uint256)").to_vec();
     modules_call.extend(
         DynSolValue::Tuple(vec![
-            DynSolValue::Address(Address::with_last_byte(1)),
-            DynSolValue::Uint(U256::from(100), 256),
+            DynSolValue::Address(SENTINEL),
+            DynSolValue::Uint(U256::from(MODULE_PAGE), 256),
         ])
         .abi_encode_params(),
     );
@@ -489,6 +545,7 @@ async fn read_state(
         .add_call(safe, selector("nonce()"), true)
         .add_call(safe, selector("VERSION()"), true)
         .add_call(safe, modules_call.into(), true)
+        .add_call(safe, selector("getModules()"), true)
         .execute_at(provider, at)
         .await?;
     let ok = |i: usize| {
@@ -510,25 +567,29 @@ async fn read_state(
                 &results[0].data,
             )
         })
-        .flatten()
-        .unwrap_or_default();
-    let nonce = ok(2)
-        .then(|| results[2].decode_uint256())
-        .flatten()
-        .unwrap_or_default();
+        .flatten();
+    let nonce = ok(2).then(|| results[2].decode_uint256()).flatten();
     let version = ok(3).then(|| results[3].decode_string()).flatten();
-    let modules = ok(4)
-        .then(|| {
-            decode_addresses(
-                &DynSolType::Tuple(vec![
-                    DynSolType::Array(Box::new(DynSolType::Address)),
-                    DynSolType::Address,
-                ]),
-                &results[4].data,
-            )
-        })
+    let (modules, modules_truncated) = match ok(4)
+        .then(|| decode_modules_page(&results[4].data))
         .flatten()
-        .unwrap_or_default();
+    {
+        Some((list, next)) => {
+            let truncated = next != SENTINEL && !next.is_zero();
+            (Some(list), truncated)
+        }
+        None => (
+            ok(5)
+                .then(|| {
+                    decode_addresses(
+                        &DynSolType::Array(Box::new(DynSolType::Address)),
+                        &results[5].data,
+                    )
+                })
+                .flatten(),
+            false,
+        ),
+    };
 
     let slot = |s: &str| s.parse::<B256>().expect("valid slot");
     let (guard, fallback_handler, singleton) = tokio::join!(
@@ -543,10 +604,34 @@ async fn read_state(
         threshold,
         owners,
         modules,
+        modules_truncated,
         guard,
         fallback_handler,
         singleton,
     })
+}
+
+/// The modules sentinel (`address(0x1)`)
+const SENTINEL: Address =
+    Address::new([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1]);
+/// Modules read per `getModulesPaginated` page
+const MODULE_PAGE: u64 = 100;
+
+/// `getModulesPaginated` return: (modules, next)
+fn decode_modules_page(data: &[u8]) -> Option<(Vec<Address>, Address)> {
+    let ty = DynSolType::Tuple(vec![
+        DynSolType::Array(Box::new(DynSolType::Address)),
+        DynSolType::Address,
+    ]);
+    let DynSolValue::Tuple(items) = ty.abi_decode_params(data).ok()? else {
+        return None;
+    };
+    let list = match items.first()? {
+        DynSolValue::Array(a) => a.iter().filter_map(|v| v.as_address()).collect(),
+        _ => return None,
+    };
+    let next = items.get(1)?.as_address()?;
+    Some((list, next))
 }
 
 /// The addresses in an `address[]` return, or the first `address[]` of a tuple
@@ -643,7 +728,8 @@ impl Service {
             );
         }
         if !status.is_success() {
-            let snippet: String = body.chars().take(300).collect();
+            let snippet =
+                crate::abi::revert::safe_text(&body.chars().take(300).collect::<String>());
             anyhow::bail!("Safe Transaction Service returned {status}: {snippet}");
         }
         Ok(serde_json::from_str(&body)?)
@@ -898,13 +984,14 @@ async fn decode_many(fetcher: &AbiFetcher, chain: Chain, txs: &[Value]) -> Vec<V
     futures::stream::iter(txs.iter().map(|tx| async move {
         let to = parse_address(&text(&tx["to"])).unwrap_or_default();
         let data = hex_bytes(&tx["data"]);
+        let operation = tx["operation"].as_u64().unwrap_or(0) as u8;
         let mut call = decode_call(fetcher, chain, to, &data).await;
-        if let Some(inner) = multisend_payload(to, &data) {
+        if let Some(inner) = nested_payload(operation, to, &data) {
             if let Ok(calls) = unpack_multisend(&inner) {
                 call["multisend_calls"] = json!(calls.len());
             }
         }
-        let warnings = batch_warnings(to, &data, 1);
+        let warnings = top_level_warnings(operation, to, &data);
         if !warnings.is_empty() {
             call["batch_warnings"] = json!(warnings);
         }
@@ -1006,7 +1093,191 @@ fn summarize(tx: &Value, call: Value) -> Value {
         "call": call,
         "submitted": tx["submissionDate"],
         "proposer": tx["proposer"],
+        "refund": refund_fields(tx),
+        "refund_warning": refund_warning(tx),
     })
+}
+
+/// The gas-refund fields of a Safe transaction. With a non-zero gasPrice
+/// the Safe pays `(gasUsed + baseGas) * gasPrice` of gasToken (ETH when
+/// zero) to refundReceiver (tx.origin when zero) on execution.
+fn refund_fields(tx: &Value) -> Value {
+    json!({
+        "safe_tx_gas": text(&tx["safeTxGas"]),
+        "base_gas": text(&tx["baseGas"]),
+        "gas_price": text(&tx["gasPrice"]),
+        "gas_token": tx["gasToken"],
+        "refund_receiver": tx["refundReceiver"],
+    })
+}
+
+fn is_zero_text(v: &Value) -> bool {
+    let t = text(v);
+    let t = t.trim();
+    t.is_empty()
+        || t.trim_start_matches("0x")
+            .trim_start_matches('0')
+            .is_empty()
+}
+
+/// A warning when the transaction pays a gas refund out of the Safe
+pub fn refund_warning(tx: &Value) -> Option<String> {
+    let price_set = !is_zero_text(&tx["gasPrice"]);
+    let receiver_set = !is_zero_text(&tx["refundReceiver"]);
+    if !price_set && !receiver_set {
+        return None;
+    }
+    let token = if is_zero_text(&tx["gasToken"]) {
+        "ETH".to_string()
+    } else {
+        text(&tx["gasToken"])
+    };
+    let receiver = if receiver_set {
+        text(&tx["refundReceiver"])
+    } else {
+        "the executor (tx.origin)".to_string()
+    };
+    Some(if price_set {
+        format!(
+            "gas refund: the Safe pays (gasUsed + baseGas {}) * gasPrice {} in {token} to {receiver}",
+            text(&tx["baseGas"]),
+            text(&tx["gasPrice"])
+        )
+    } else {
+        format!("refundReceiver is set to {receiver} (gasPrice is 0, so no refund is paid unless it changes)")
+    })
+}
+
+const SAFE_TX_TYPEHASH: &str = "SafeTx(address to,uint256 value,bytes data,uint8 operation,uint256 safeTxGas,uint256 baseGas,uint256 gasPrice,address gasToken,address refundReceiver,uint256 nonce)";
+
+/// The EIP-712 safeTxHash for the fields in a service record, under both
+/// domain layouts: with chainId (Safe >= 1.3.0) and without (older Safes)
+pub fn compute_safe_tx_hashes(tx: &Value, chain_id: u64) -> Option<[B256; 2]> {
+    let addr = |k: &str| -> Option<Address> {
+        let t = text(&tx[k]);
+        if t.is_empty() {
+            Some(Address::ZERO)
+        } else {
+            t.parse().ok()
+        }
+    };
+    let uint = |k: &str| -> Option<U256> {
+        let t = text(&tx[k]);
+        if t.is_empty() {
+            Some(U256::ZERO)
+        } else {
+            t.parse().ok()
+        }
+    };
+    let safe = addr("safe")?;
+    let data = match tx["data"].as_str() {
+        None => Vec::new(),
+        Some(d) => hex::decode(d.trim_start_matches("0x")).ok()?,
+    };
+    let operation = tx["operation"].as_u64()?;
+    let struct_hash = keccak256(
+        DynSolValue::Tuple(vec![
+            DynSolValue::FixedBytes(keccak256(SAFE_TX_TYPEHASH.as_bytes()), 32),
+            DynSolValue::Address(addr("to")?),
+            DynSolValue::Uint(uint("value")?, 256),
+            DynSolValue::FixedBytes(keccak256(&data), 32),
+            DynSolValue::Uint(U256::from(operation), 8),
+            DynSolValue::Uint(uint("safeTxGas")?, 256),
+            DynSolValue::Uint(uint("baseGas")?, 256),
+            DynSolValue::Uint(uint("gasPrice")?, 256),
+            DynSolValue::Address(addr("gasToken")?),
+            DynSolValue::Address(addr("refundReceiver")?),
+            DynSolValue::Uint(uint("nonce")?, 256),
+        ])
+        .abi_encode_params(),
+    );
+    let domain_with_chain = keccak256(
+        DynSolValue::Tuple(vec![
+            DynSolValue::FixedBytes(
+                keccak256("EIP712Domain(uint256 chainId,address verifyingContract)".as_bytes()),
+                32,
+            ),
+            DynSolValue::Uint(U256::from(chain_id), 256),
+            DynSolValue::Address(safe),
+        ])
+        .abi_encode_params(),
+    );
+    let domain_legacy = keccak256(
+        DynSolValue::Tuple(vec![
+            DynSolValue::FixedBytes(
+                keccak256("EIP712Domain(address verifyingContract)".as_bytes()),
+                32,
+            ),
+            DynSolValue::Address(safe),
+        ])
+        .abi_encode_params(),
+    );
+    let digest = |domain: B256| {
+        let mut buf = vec![0x19, 0x01];
+        buf.extend_from_slice(domain.as_slice());
+        buf.extend_from_slice(struct_hash.as_slice());
+        keccak256(&buf)
+    };
+    Some([digest(domain_with_chain), digest(domain_legacy)])
+}
+
+/// Checks that the service record is the one asked for and that its
+/// safeTxHash matches its own fields
+pub fn integrity_warnings(
+    tx: &Value,
+    chain_id: u64,
+    expected_safe: Option<Address>,
+    requested_hash: Option<B256>,
+) -> Vec<String> {
+    let mut out = Vec::new();
+    let returned: Option<B256> = text(&tx["safeTxHash"]).parse().ok();
+    if let Some(requested) = requested_hash {
+        if returned != Some(requested) {
+            out.push(format!(
+                "the service returned safeTxHash {} for requested {requested:#x}",
+                text(&tx["safeTxHash"])
+            ));
+        }
+    }
+    if let Some(expected) = expected_safe {
+        if text(&tx["safe"]).parse::<Address>().ok() != Some(expected) {
+            out.push(format!(
+                "the service returned a transaction of Safe {} for {}",
+                text(&tx["safe"]),
+                expected.to_checksum(None)
+            ));
+        }
+    }
+    match compute_safe_tx_hashes(tx, chain_id) {
+        Some(hashes) if returned.is_some_and(|h| hashes.contains(&h)) => {}
+        Some(hashes) => out.push(format!(
+            "safeTxHash does not match the transaction's fields (recomputed {:#x}); the service data cannot be trusted",
+            hashes[0]
+        )),
+        None => out.push("could not recompute safeTxHash from the service fields".to_string()),
+    }
+    out
+}
+
+/// Warnings about the transaction's own call: a CALL to a MultiSend (not a
+/// normal batch), a DELEGATECALLed batch that cannot be decoded, and every
+/// finding inside the batch
+pub fn top_level_warnings(operation: u8, to: Address, data: &[u8]) -> Vec<String> {
+    let is_multisend_call = data.len() >= 4
+        && data[..4] == MULTISEND_SELECTOR
+        && known_library(to).is_some_and(|(_, m)| m);
+    if !is_multisend_call {
+        return Vec::new();
+    }
+    if operation != 1 {
+        return vec![
+            "CALL (not DELEGATECALL) to a MultiSend library: not a normal Safe batch; MultiSend reverts, MultiSendCallOnly would run the inner calls from the library rather than the Safe. Batch not unpacked".to_string(),
+        ];
+    }
+    if multisend_payload(to, data).is_none() {
+        return vec!["multiSend calldata to a known MultiSend could not be decoded; its calls were not checked".to_string()];
+    }
+    batch_warnings(to, data, 1)
 }
 
 /// Text from the service or a contract, made safe to print in a terminal
@@ -1058,24 +1329,44 @@ fn print_info(out: &Value) {
     println!(
         "Threshold:        {} of {} owners",
         s(&out["threshold"]),
-        out["owners"].as_array().map_or(0, |a| a.len())
+        out["owners"]
+            .as_array()
+            .map_or("unknown".to_string(), |a| a.len().to_string())
     );
-    println!("Nonce:            {}", s(&out["nonce"]));
+    println!(
+        "Nonce:            {}",
+        out["nonce"]
+            .as_str()
+            .map(safe_text_s)
+            .unwrap_or("unknown (read failed)".to_string())
+    );
     println!("Singleton:        {}", s(&out["singleton"]));
     println!("Guard:            {}", s(&out["guard"]));
     println!("Fallback handler: {}", s(&out["fallback_handler"]));
     println!("Block:            {}", s(&out["block"]));
-    println!("Owners:");
-    for o in out["owners"].as_array().into_iter().flatten() {
-        println!("  {}", s(o));
+    match out["owners"].as_array() {
+        Some(owners) => {
+            println!("Owners:");
+            for o in owners {
+                println!("  {}", s(o));
+            }
+        }
+        None => println!("Owners:           unknown (read failed)"),
     }
-    let modules = out["modules"].as_array().cloned().unwrap_or_default();
-    println!(
-        "Modules:          {}",
-        if modules.is_empty() { "none" } else { "" }
-    );
-    for m in &modules {
-        println!("  {}", s(m));
+    match out["modules"].as_array() {
+        None => println!(
+            "Modules:          unknown (read failed): check modules before trusting this Safe"
+        ),
+        Some(modules) if modules.is_empty() => println!("Modules:          none"),
+        Some(modules) => {
+            println!("Modules:");
+            for m in modules {
+                println!("  {}", s(m));
+            }
+        }
+    }
+    if out["modules_truncated"] == true {
+        println!("WARNING: more than {MODULE_PAGE} modules are enabled; only the first {MODULE_PAGE} are listed");
     }
 }
 
@@ -1097,7 +1388,13 @@ fn print_queue(out: &Value) {
             st(&tx["nonce"]),
             tx["confirmations"],
             st(&tx["threshold"]),
-            if tx["ready"] == true { "  READY" } else { "" },
+            if tx["ready"] == true {
+                "  READY"
+            } else if tx["signatures_complete"] == true {
+                "  SIGNED (not current nonce)"
+            } else {
+                ""
+            },
             if tx["conflicting_proposals"] == true {
                 "  (other proposals at this nonce)"
             } else {
@@ -1124,6 +1421,8 @@ fn print_queue(out: &Value) {
             println!("  WARNING: {}", safe_text_s(w));
         }
         print_batch_warnings(&tx["call"], "  ");
+        print_list_warnings(tx, "  ");
+        print_refund(tx, "  ");
         println!("  signed:     {}", join(&tx["signed"]));
         if tx["stale_signers"]
             .as_array()
@@ -1180,6 +1479,8 @@ fn print_tx(out: &Value) {
     if let Some(w) = out["delegatecall_warning"].as_str() {
         println!("WARNING:    {}", safe_text_s(w));
     }
+    print_list_warnings(out, "");
+    print_refund(out, "");
     print_batch_warnings(&out["call"], "");
     print_call(&out["call"], "  ");
     print_batch(&out["call"], "");
@@ -1200,13 +1501,28 @@ fn print_tx(out: &Value) {
             "pending".to_string()
         }
     );
-    println!(
-        "Signed:     {} of {} required",
-        out["confirmations"],
-        st(&out["confirmations_required"])
-    );
+    match out["threshold"].as_str() {
+        Some(threshold) => println!(
+            "Signed:     {} of {} (on-chain threshold; service says {}){}",
+            out["confirmations"],
+            safe_text_s(threshold),
+            st(&out["confirmations_required"]),
+            if out["ready"] == true {
+                "  READY"
+            } else if out["signatures_complete"] == true {
+                "  SIGNED (not current nonce)"
+            } else {
+                ""
+            }
+        ),
+        None => println!(
+            "Signed:     {} (service says {} required; on-chain threshold not read)",
+            out["confirmations"],
+            st(&out["confirmations_required"])
+        ),
+    }
     for s in out["signed"].as_array().into_iter().flatten() {
-        println!("  {}", text(s));
+        println!("  {}", st(s));
     }
     if let Some(stale) = out["stale_signers"].as_array().filter(|a| !a.is_empty()) {
         println!("Stale (not current owners, not counted):");
@@ -1217,9 +1533,33 @@ fn print_tx(out: &Value) {
     if let Some(missing) = out["not_signed"].as_array() {
         println!("Not signed:");
         for s in missing {
-            println!("  {}", text(s));
+            println!("  {}", st(s));
         }
     }
+}
+
+fn print_list_warnings(item: &Value, indent: &str) {
+    for w in item["warnings"].as_array().into_iter().flatten() {
+        println!("{indent}WARNING: {}", st(w));
+    }
+    if let Some(w) = item["refund_warning"].as_str() {
+        println!("{indent}WARNING: {}", safe_text_s(w));
+    }
+}
+
+fn print_refund(item: &Value, indent: &str) {
+    let r = &item["refund"];
+    if r.is_null() {
+        return;
+    }
+    println!(
+        "{indent}refund: safeTxGas {} baseGas {} gasPrice {} gasToken {} refundReceiver {}",
+        st(&r["safe_tx_gas"]),
+        st(&r["base_gas"]),
+        st(&r["gas_price"]),
+        st(&r["gas_token"]),
+        st(&r["refund_receiver"])
+    );
 }
 
 fn print_batch_warnings(call: &Value, indent: &str) {
@@ -1290,6 +1630,7 @@ fn print_history(out: &Value) {
             println!("        WARNING: {}", safe_text_s(w));
         }
         print_batch_warnings(&tx["call"], "        ");
+        print_list_warnings(tx, "        ");
     }
 }
 
@@ -1506,5 +1847,101 @@ mod tests {
             "{}",
             warnings[0]
         );
+    }
+
+    fn live_queued_tx() -> Value {
+        json!({
+            "safe": "0xFEB4acf3df3cDEA7399794D0869ef76A6EfAff52",
+            "to": "0x40A2aCCbd92BCA938b02010E17A5b8929b49130D",
+            "value": "0",
+            "data": "0x8d80ff0a0000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000009900a0b86991c6218b36c1d19d4a2e9eb0ce3606eb4800000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000044a9059cbb000000000000000000000000b9d026f3f383872922d2c3bebfbfa2affa06ec24000000000000000000000000000000000000000000000000000000001dcd650000000000000000",
+            "operation": 1,
+            "safeTxGas": "0",
+            "baseGas": "0",
+            "gasPrice": "0",
+            "gasToken": "0x0000000000000000000000000000000000000000",
+            "refundReceiver": "0x0000000000000000000000000000000000000000",
+            "nonce": "2308",
+            "safeTxHash": "0x4865c6e169a13fcf0e80f37122728e051857fb18737e11a5633390375fc52e0e",
+        })
+    }
+
+    #[test]
+    fn recomputes_safe_tx_hash_of_a_real_transaction() {
+        let tx = live_queued_tx();
+        let hash: B256 = text(&tx["safeTxHash"]).parse().unwrap();
+        let safe: Address = text(&tx["safe"]).parse().unwrap();
+        assert_eq!(compute_safe_tx_hashes(&tx, 1).unwrap()[0], hash);
+        assert!(integrity_warnings(&tx, 1, Some(safe), Some(hash)).is_empty());
+        assert!(refund_warning(&tx).is_none());
+    }
+
+    #[test]
+    fn flags_tampered_or_mismatched_service_records() {
+        let mut tx = live_queued_tx();
+        let hash: B256 = text(&tx["safeTxHash"]).parse().unwrap();
+        // a field changed under the same hash
+        tx["value"] = json!("1");
+        let w = integrity_warnings(&tx, 1, None, Some(hash));
+        assert!(w.iter().any(|w| w.contains("does not match")), "{w:?}");
+        // a different hash and Safe than requested
+        let tx = live_queued_tx();
+        let other_hash = B256::repeat_byte(7);
+        let other_safe = Address::with_last_byte(5);
+        let w = integrity_warnings(&tx, 1, Some(other_safe), Some(other_hash));
+        assert!(w.iter().any(|w| w.contains("returned safeTxHash")), "{w:?}");
+        assert!(w.iter().any(|w| w.contains("of Safe")), "{w:?}");
+        // wrong chain id: the hash does not match
+        assert!(!integrity_warnings(&tx, 10, None, None).is_empty());
+    }
+
+    #[test]
+    fn warns_on_gas_refunds() {
+        let mut tx = live_queued_tx();
+        tx["gasPrice"] = json!("1000000000");
+        tx["baseGas"] = json!("50000");
+        let w = refund_warning(&tx).unwrap();
+        assert!(w.contains("ETH") && w.contains("tx.origin"), "{w}");
+        let mut tx = live_queued_tx();
+        tx["refundReceiver"] = json!("0x00000000000000000000000000000000000000ee");
+        assert!(refund_warning(&tx).is_some());
+        let r = refund_fields(&live_queued_tx());
+        assert_eq!(r["gas_price"], "0");
+        assert_eq!(r["safe_tx_gas"], "0");
+    }
+
+    #[test]
+    fn top_level_multisend_checks() {
+        let ms: Address = "0x38869bf66a61cF6bDB996A6aE40D5853Fd43B526"
+            .parse()
+            .unwrap();
+        let batch = multisend_call(pack(0, Address::with_last_byte(1), 0, &[]));
+        // normal delegatecall batch: no warnings
+        assert!(top_level_warnings(1, ms, &batch).is_empty());
+        // CALL to MultiSend: warned, not unpacked
+        let w = top_level_warnings(0, ms, &batch);
+        assert!(w[0].contains("CALL (not DELEGATECALL)"), "{w:?}");
+        assert!(nested_payload(0, ms, &batch).is_none());
+        // undecodable multiSend calldata: warned
+        let cut = &batch[..batch.len() - 40];
+        let w = top_level_warnings(1, ms, cut);
+        assert!(w[0].contains("could not be decoded"), "{w:?}");
+    }
+
+    #[test]
+    fn decodes_module_pages() {
+        let page = |next: Address| {
+            DynSolValue::Tuple(vec![
+                DynSolValue::Array(vec![DynSolValue::Address(Address::with_last_byte(9))]),
+                DynSolValue::Address(next),
+            ])
+            .abi_encode_params()
+        };
+        let (list, next) = decode_modules_page(&page(SENTINEL)).unwrap();
+        assert_eq!(list, vec![Address::with_last_byte(9)]);
+        assert_eq!(next, SENTINEL);
+        let (_, next) = decode_modules_page(&page(Address::with_last_byte(9))).unwrap();
+        assert!(next != SENTINEL && !next.is_zero());
+        assert!(decode_modules_page(&[1, 2, 3]).is_none());
     }
 }

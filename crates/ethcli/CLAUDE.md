@@ -269,7 +269,18 @@ ethcli safe history <safe> --limit 20   # executed txs, newest first (--offset t
 - Batches DELEGATECALLed from inside a batch are unpacked recursively (up
   to 4 levels) and every level is checked; findings, including a batch that
   cannot be unpacked or is nested too deep, are in `call.batch_warnings`
-  (also in `queue` and `history`).
+  (also in `queue` and `history`). A CALL (not DELEGATECALL) to a MultiSend
+  is warned about and not unpacked; undecodable multiSend calldata is warned.
+- Every service record is checked: the returned `safeTxHash` and `safe` must
+  match the request, and the EIP-712 safeTxHash is recomputed from the fields
+  (chainId domain, or the pre-1.3.0 domain); mismatches go in `warnings`.
+- `refund` shows safeTxGas, baseGas, gasPrice, gasToken and refundReceiver;
+  a non-zero gasPrice or a set refundReceiver adds a refund warning.
+- `ready` is true only at the current on-chain nonce with enough owner
+  signatures; `signatures_complete` is the signature check alone.
+- `info` reports owners, nonce or modules as unknown (JSON `null`) when the
+  read fails, falls back to `getModules()` for Safe 1.0.0, and sets
+  `modules_truncated` when more than 100 modules are enabled.
 - Calls are decoded from the verified ABI, else the signature database
   (`source: signature_database`, a guess). `multiSend(bytes)` payloads
   (`operation(1) to(20) value(32) length(32) data`) are unpacked and each
