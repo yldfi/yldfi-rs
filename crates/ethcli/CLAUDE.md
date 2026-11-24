@@ -1835,7 +1835,8 @@ ethcli uniswap addresses --pools --version v3       # Only V3 pools
   - `lp-positions` lists v3 only: the v4 PositionManager is not enumerable on-chain
   - `lp-positions` JSON has `complete`, `nft_count`, `count` and `failed` (`[{token_id, error}]`); `total_value_usd` is null when any position failed or lacks a price
   - With `--block`, prices are DefiLlama's at the block's time and `prices_at` holds that time (`prices[].source` gives the offset); without it `prices_at` is `latest`
-  - v2 uses one multicall, or the same calls one by one at blocks before Multicall3 existed (`method` says which); v3 and v4 use no multicall
+  - Reads are batched through Multicall3 at the pinned block, each call with `allowFailure`, so a failing read fails only the position that needs it (it goes in `failed` with the reason). v3 (`position` and `lp-positions` alike): (1) `factory`, `ownerOf` + `positions` of every id; (2) `getPool` per distinct (token0, token1, fee) with `decimals` + `symbol` per distinct token; (3) `slot0`, `liquidity`, `feeGrowthGlobal0/1` per distinct pool and `ticks` per distinct (pool, tick); then one `collect` eth_call per position from its owner (never batched). Batches hold up to 200 calls. v4: PositionManager reads, then currency metadata plus one PoolManager `extsload(bytes32[])` of the pool, tick and position slots. v2: the pair reads, then token metadata. Code: `cli/uniswap_lp_reads.rs` (`Reader`, `ChainReader`, a `MockReader` for tests)
+  - At blocks before Multicall3 existed every read is sent on its own (v2 `method` says which)
 
 ## Project Structure
 
