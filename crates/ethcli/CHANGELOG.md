@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.30.14](https://github.com/yldfi/yldfi-rs/compare/ethcli-v0.30.13...ethcli-v0.30.14) (2026-11-24)
+
+
+### Features
+
+* **ethcli:** calls second pass recovers facts lost to value caps ([#325](https://github.com/yldfi/yldfi-rs/issues/325)) ([55c5405](https://github.com/yldfi/yldfi-rs/commit/55c5405017d2420f8b58ac38a953cab81ca81994))
+* **ethcli:** follow clones with immutable args to the implementation ([#323](https://github.com/yldfi/yldfi-rs/issues/323)) ([2849289](https://github.com/yldfi/yldfi-rs/commit/2849289471fb7f6598d6be4c05a3959c6656b80b))
+
+
+### Performance Improvements
+
+* **ethcli:** batch Uniswap LP valuation reads through Multicall3 ([#324](https://github.com/yldfi/yldfi-rs/issues/324)) ([4b6f196](https://github.com/yldfi/yldfi-rs/commit/4b6f19612698a6884964f59380b9339e565d54f0))
+
 ## [0.30.13](https://github.com/yldfi/yldfi-rs/compare/ethcli-v0.30.12...ethcli-v0.30.13) (2026-11-24)
 
 

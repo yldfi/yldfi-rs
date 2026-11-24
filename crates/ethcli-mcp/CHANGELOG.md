@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.13](https://github.com/yldfi/yldfi-rs/compare/ethcli-mcp-v0.6.12...ethcli-mcp-v0.6.13) (2026-11-24)
+
+
+### Features
+
+* **ethcli:** follow clones with immutable args to the implementation ([#323](https://github.com/yldfi/yldfi-rs/issues/323)) ([2849289](https://github.com/yldfi/yldfi-rs/commit/2849289471fb7f6598d6be4c05a3959c6656b80b))
+
 ## [0.6.12](https://github.com/yldfi/yldfi-rs/compare/ethcli-mcp-v0.6.11...ethcli-mcp-v0.6.12) (2026-11-24)
 
 
