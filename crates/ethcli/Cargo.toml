@@ -11,7 +11,7 @@ keywords = ["ethereum", "cli", "etherscan", "blockchain", "web3"]
 categories = ["command-line-utilities", "web-programming"]
 readme = "README.md"
 # Mainnet bytecode fixtures for tests; not needed to build the crate
-exclude = ["tests/fixtures/"]
+exclude = ["tests/fixtures/bytecode/"]
 
 [[bin]]
 name = "ethcli"
