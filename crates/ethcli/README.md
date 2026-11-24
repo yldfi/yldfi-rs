@@ -278,6 +278,9 @@ ethcli contract creation 0x...
 # implementation, verified name, creator, token details, Safe owners, and its functions
 ethcli contract inspect 0x...
 ethcli contract inspect 0x... --json
+# Proxies followed: EIP-1167, clones with immutable args (wighawag
+# ClonesWithImmutableArgs, Sudoswap pairs, Solady LibClone, whose appended args
+# are shown as raw data), EIP-1967, beacon, OpenZeppelin legacy, Safe, Vyper forwarders
 
 # Read a storage variable by name, decoded, from the verified storage layout
 # (Sourcify). Keys, indexes and struct members follow the name or go in the path.

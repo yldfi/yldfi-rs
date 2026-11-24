@@ -3008,6 +3008,11 @@ pub(crate) async fn find_implementation<P: Provider>(
     code: &[u8],
     block: alloy::eips::BlockId,
 ) -> Option<(&'static str, Address)> {
+    if let Some(clone) = crate::bytecode::detect_immutable_args_clone(code) {
+        if let Some(found) = clone.implementation {
+            return Some((clone.kind, found));
+        }
+    }
     if let Some(found) = crate::bytecode::detect_proxy(code).implementation {
         return Some(("EIP-1167 minimal proxy", found));
     }
@@ -3143,6 +3148,13 @@ async fn inspect_address(
             proxy["beacon"] = serde_json::json!(beacon.to_checksum(None));
         }
         out["proxy"] = proxy;
+    }
+    // Data appended to a clone's code, read from the address's own code
+    if let Some(clone) = crate::bytecode::detect_immutable_args_clone(&code) {
+        if out["proxy"].is_null() {
+            out["proxy"] = serde_json::json!({"kind": clone.kind, "implementation": null});
+        }
+        out["proxy"]["immutable_args"] = clone.to_json();
     }
     let interface_target = implementation.map(|(_, target)| target).unwrap_or(address);
 
@@ -3509,6 +3521,32 @@ fn format_inspect_table(report: &serde_json::Value) -> String {
         );
         if let Some(admin) = text(&report["proxy"]["admin"]) {
             line(&mut out, "Proxy admin", admin);
+        }
+    }
+    let args = &report["proxy"]["immutable_args"];
+    if let Some(hex) = text(&args["args_hex"]) {
+        line(
+            &mut out,
+            "Immutable args",
+            format!(
+                "{} bytes (raw data): {hex}",
+                args["args_length"].as_u64().unwrap_or(0)
+            ),
+        );
+        for a in args["address_like"]["packed"]
+            .as_array()
+            .into_iter()
+            .flatten()
+        {
+            line(
+                &mut out,
+                "  address-like",
+                format!(
+                    "offset {}: {}",
+                    a["offset"],
+                    a["address"].as_str().unwrap_or_default()
+                ),
+            );
         }
     }
     if let Some(creator) = text(&report["creation"]["creator"]) {

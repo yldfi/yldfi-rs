@@ -310,7 +310,7 @@ ethcli contract inspect <addr> --json
 ```
 
 - **Kind:** EOA, contract, or an EOA that delegates its code under EIP-7702.
-- **Proxy:** kind (EIP-1167, EIP-1967, beacon, OpenZeppelin legacy, Safe proxy, or
+- **Proxy:** kind (EIP-1167, clone with immutable args, EIP-1967, beacon, OpenZeppelin legacy, Safe proxy, or
   an `implementation()` getter), implementation, admin and beacon.
 - **Explorer facts:** verified name and creator.
 - **Standard getters,** read together at one block: token name, symbol, decimals
@@ -606,7 +606,21 @@ ethcli contract match <addr> --artifact <forge-or-solc-json> [--contract Name] [
 - Proxy following also covers immutable beacons (OpenZeppelin 5.x
   BeaconProxy, Euler v2 vaults: the beacon call's target is a code constant
   equal to the beacon) and Vyper forwarders (Curve factory pools, Uniswap
-  V1, by exact pattern). The slot-sourced DELEGATECALL must be on the
+  V1, by exact pattern).
+- Clones with immutable args (`src/bytecode/clones.rs`) are matched by
+  exact runtime template from each library's source, with the
+  implementation and length fields as wildcards; the length fields and any
+  2-byte length suffix must agree with the code size. Templates: wighawag
+  ClonesWithImmutableArgs v1.0 and v1.1+ (to v2.0.x), Sudoswap
+  LSSVMPairCloner (v1 and v2 pairs, PUSH1 lengths, no suffix), Solady
+  LibClone CWIA before v0.0.230, Solady ERC-1167 with args (v0.0.230+; a
+  plain 45-byte EIP-1167 stays EIP-1167), and Solady ERC1967 / ERC1967I /
+  ERC1967 beacon / ERC1967I beacon with args (implementation from the
+  slot or beacon, followed by the usual checks). The address's own code
+  gives `immutable_args` (hex, length, suffix, whether forwarded in
+  calldata, 32-byte words, address-looking packed 20-byte chunks and ABI
+  words, all labelled raw data) in `target` (fingerprint, decompile, match,
+  also with `--no-follow-proxy`) and in `contract inspect`'s `proxy`. The slot-sourced DELEGATECALL must be on the
   dispatcher path (run for every unmatched selector); one under a specific
   selector gives "delegates to it only under selector X". "Does not run that
   code" is said only when the analysis was complete; otherwise "could not
@@ -745,6 +759,7 @@ ethcli contract twins <addr> --submit-similarity # WRITES to Sourcify
 
 The analyze command automatically detects proxy contracts:
 - **EIP-1167**: Minimal proxy clones (implementation embedded in bytecode)
+- **Clones with immutable args**: wighawag, Sudoswap pairs, Solady LibClone (implementation and appended args embedded in bytecode)
 - **EIP-1967**: Transparent proxies (implementation in storage slot)
 - **EIP-1822**: UUPS proxies
 - **OpenZeppelin Legacy**: Pre-EIP-1967 patterns

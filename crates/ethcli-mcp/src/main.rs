@@ -481,7 +481,7 @@ impl EthcliMcpServer {
     }
 
     #[tool(
-        description = "Everything about an address in one call: EOA, contract or EIP-7702 delegated EOA; proxy kind, implementation and admin; verified name and creator; token name, symbol, decimals and supply; Safe owners and threshold; owner; ERC-4626 asset; and the function list (from the verified ABI of the code that runs, or recovered from bytecode with guessed names when unverified). Use this first for an unknown address instead of chaining rpc_code, contract_selectors, contract_abi, contract_creation and token_info. Parts that could not be fetched are listed under notes",
+        description = "Everything about an address in one call: EOA, contract or EIP-7702 delegated EOA; proxy kind, implementation and admin (clones with immutable args, such as Sudoswap pairs, also give the appended args under proxy.immutable_args: hex plus a guessed split into words and address-looking chunks, raw data); verified name and creator; token name, symbol, decimals and supply; Safe owners and threshold; owner; ERC-4626 asset; and the function list (from the verified ABI of the code that runs, or recovered from bytecode with guessed names when unverified). Use this first for an unknown address instead of chaining rpc_code, contract_selectors, contract_abi, contract_creation and token_info. Parts that could not be fetched are listed under notes",
         annotations(read_only_hint = true, open_world_hint = true)
     )]
     async fn contract_inspect(
@@ -525,7 +525,7 @@ impl EthcliMcpServer {
     }
 
     #[tool(
-        description = "Decompile an unverified contract with optional external decompilers: evmdec (default) or heimdall, or backend all for every installed one (if none is installed, returns install steps, ethcli's own facts and a Dedaub link). ethcli fetches the code itself (following real proxies) and runs each offline with no environment, no config and a timeout. Each result is under decompilers[]. Read cross_check first: warnings where the decompiled text misses sensitive opcodes (tx.origin, delegatecall, selfdestruct, storage writes), evmole vs evmdec type disagreements, and 'not found by evmdec' items, which are not facts. Everything under heuristic is a guess, not source",
+        description = "Decompile an unverified contract with optional external decompilers: evmdec (default) or heimdall, or backend all for every installed one (if none is installed, returns install steps, ethcli's own facts and a Dedaub link). ethcli fetches the code itself (following real proxies, including clones with immutable args) and runs each offline with no environment, no config and a timeout. Each result is under decompilers[]. Read cross_check first: warnings where the decompiled text misses sensitive opcodes (tx.origin, delegatecall, selfdestruct, storage writes), evmole vs evmdec type disagreements, and 'not found by evmdec' items, which are not facts. Everything under heuristic is a guess, not source",
         annotations(read_only_hint = true, open_world_hint = true)
     )]
     async fn contract_decompile(
@@ -545,7 +545,7 @@ impl EthcliMcpServer {
     }
 
     #[tool(
-        description = "Compiler fingerprint of deployed code: compiler and version and metadata hash type from the CBOR metadata, embedded metadata of created contracts, minimum EVM version from opcodes (PUSH0, MCOPY, TLOAD), a legacy vs via-IR guess, an optimizer runs hint (optimizer_runs_hint from how constants are written, with evidence pcs; check it before sweeping runs), dispatcher (no selector dispatcher: fallback-only / packed-calldata executor) when there are no selectors but calldata is read, and an upper bound on address-shaped immutables. First step before rebuilding source for an unverified contract",
+        description = "Compiler fingerprint of deployed code: compiler and version and metadata hash type from the CBOR metadata, embedded metadata of created contracts, minimum EVM version from opcodes (PUSH0, MCOPY, TLOAD), a legacy vs via-IR guess, an optimizer runs hint (optimizer_runs_hint from how constants are written, with evidence pcs; check it before sweeping runs), dispatcher (no selector dispatcher: fallback-only / packed-calldata executor) when there are no selectors but calldata is read, and an upper bound on address-shaped immutables. Proxies are followed to the implementation (target.resolved_via); for a clone with immutable args (wighawag, Sudoswap pairs, Solady LibClone) target.immutable_args holds the appended data (raw; the word/address split is a guess). First step before rebuilding source for an unverified contract",
         annotations(read_only_hint = true, open_world_hint = true)
     )]
     async fn contract_fingerprint(

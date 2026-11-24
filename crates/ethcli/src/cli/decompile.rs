@@ -134,6 +134,9 @@ struct Target {
     /// The address's own code, when another code was substituted for it
     /// (proxy or EIP-7702 delegate); it runs on every call too
     own_code: Option<Vec<u8>>,
+    /// Data appended to the address's own code, when it is a clone with
+    /// immutable args (whether or not it was followed)
+    immutable_args: Option<crate::bytecode::ImmutableArgsClone>,
     notes: Vec<String>,
     endpoint: Endpoint,
 }
@@ -212,6 +215,17 @@ fn proxy_check(
             complete: true,
             ..Default::default()
         };
+    }
+    // Clones with immutable args with the implementation in the code are
+    // recognised by their exact template
+    if let Some(clone) = crate::bytecode::detect_immutable_args_clone(code) {
+        if clone.kind == kind && clone.implementation.is_some() {
+            return ProxyCheck {
+                ok: clone.implementation == Some(implementation),
+                complete: true,
+                ..Default::default()
+            };
+        }
     }
     let report = analyze_calls(code, CallsBudget::default());
     proxy_check_report(kind, &report, implementation, beacon)
@@ -429,6 +443,7 @@ async fn fetch_target(chain: Chain, args: &TargetArgs, quiet: bool) -> anyhow::R
             .map_err(|e| anyhow::anyhow!("Failed to fetch code: {e}"))
     };
     let mut code = get_code(address).await?;
+    let immutable_args = crate::bytecode::detect_immutable_args_clone(&code);
     let mut code_address = address;
     let mut resolved_via = None;
     let mut own_code = None;
@@ -545,6 +560,7 @@ async fn fetch_target(chain: Chain, args: &TargetArgs, quiet: bool) -> anyhow::R
         block,
         code,
         own_code,
+        immutable_args,
         notes,
         endpoint,
     })
@@ -561,6 +577,29 @@ fn own_code_json(t: &Target) -> Value {
             "sensitive_opcodes": sensitive_census(code),
         }),
         None => Value::Null,
+    }
+}
+
+fn print_immutable_args(args: &Value) {
+    if args.is_null() {
+        return;
+    }
+    println!(
+        "Immutable args ({}, raw data): {} bytes {}",
+        args["template"].as_str().unwrap_or(""),
+        args["args_length"],
+        args["args_hex"].as_str().unwrap_or("")
+    );
+    for a in args["address_like"]["packed"]
+        .as_array()
+        .into_iter()
+        .flatten()
+    {
+        println!(
+            "  offset {}: {} (looks like an address)",
+            a["offset"],
+            a["address"].as_str().unwrap_or("")
+        );
     }
 }
 
@@ -591,6 +630,10 @@ fn print_own_code(out: &Value) {
 fn target_json(chain: Chain, t: &Target) -> Value {
     let mut v = target_json_inner(chain, t);
     v["own_code"] = own_code_json(t);
+    v["immutable_args"] = t
+        .immutable_args
+        .as_ref()
+        .map_or(Value::Null, |c| c.to_json());
     v
 }
 
@@ -1673,6 +1716,7 @@ fn print_target_table(out: &Value) {
     }
     let wrapped = json!({"own_code": out["target"]["own_code"].clone()});
     print_own_code(&wrapped);
+    print_immutable_args(&out["target"]["immutable_args"]);
 }
 
 fn print_decompile_table(out: &Value) {
@@ -2812,6 +2856,30 @@ mod tests {
             Some(Address::from_str("0x5f890841f657d90e081babdb532a05996af79fe6").unwrap())
         );
         assert!(vyper_forwarder(&hex::decode("6000").unwrap()).is_none());
+    }
+
+    #[test]
+    fn clones_with_immutable_args_are_followed() {
+        use crate::bytecode::clones::{KIND_SOLADY_1167, KIND_SUDOSWAP};
+        let imp = Address::from_str("0x08ce97807a81896e85841d74fb7e7b065ab3ef05").unwrap();
+        // Sudoswap v1 pair 0x3689f77a209ea08b05cc2db202ee9694fa4791d8
+        let pair = hex::decode("3d3d3d3d363d3d37603d6035363936603d013d7308ce97807a81896e85841d74fb7e7b065ab3ef055af43d3d93803e603357fd5bf3b16c1342e617a5b6e4b631eb114483fdb289c0a45b6ac51d9b1cede0068a1b26533cace807f883ee5af0d9827e0c53e4799bb226655a1de152a425a501").unwrap();
+        assert!(acts_as_proxy(KIND_SUDOSWAP, &pair, imp));
+        assert!(!acts_as_proxy(KIND_SUDOSWAP, &pair, Address::ZERO));
+        // Solady ERC-1167 with args
+        let solady = hex::decode(
+            "363d3d373d3d3d363d7308ce97807a81896e85841d74fb7e7b065ab3ef055af43d82803e903d91602b57fd5bf3aabbccdd",
+        )
+        .unwrap();
+        assert!(acts_as_proxy(KIND_SOLADY_1167, &solady, imp));
+        // Solady ERC-1967 with args: storage-based, still followed by the
+        // call analysis with the args after the code
+        let erc1967 = hex::decode("363d3d373d3d363d7f360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc545af43d6000803e6038573d6000fd5b3d6000f3aabbccdd").unwrap();
+        assert!(acts_as_proxy("EIP-1967 proxy", &erc1967, imp));
+        let erc1967i = hex::decode("365814604357363d3d373d3d363d7f360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc545af43d6000803e603e573d6000fd5b3d6000f35b6020600f3d393d51543d52593df3aabbccdd").unwrap();
+        assert!(acts_as_proxy("EIP-1967 proxy", &erc1967i, imp));
+        let beacon = hex::decode("363d3d373d3d363d602036600436635c60da1b60e01b36527fa3f0ad74e5423aebfd80d3ef4346578335a9a72aeaee59ff6cb3582b35133d50545afa5036515af43d6000803e604d573d6000fd5b3d6000f3aabbccdd").unwrap();
+        assert!(acts_as_proxy("EIP-1967 beacon proxy", &beacon, imp));
     }
 
     #[test]
