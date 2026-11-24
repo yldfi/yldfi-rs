@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.30.16](https://github.com/yldfi/yldfi-rs/compare/ethcli-v0.30.15...ethcli-v0.30.16) (2026-11-24)
+
+
+### Bug Fixes
+
+* **ethcli:** keep the skills manifest per machine ([#331](https://github.com/yldfi/yldfi-rs/issues/331)) ([0a027d8](https://github.com/yldfi/yldfi-rs/commit/0a027d8b6f4c85c71a804958f5b8d72bf53dacd8))
+* **ethcli:** package the match fixtures the unit tests read ([#328](https://github.com/yldfi/yldfi-rs/issues/328)) ([fbcf18d](https://github.com/yldfi/yldfi-rs/commit/fbcf18d3891e0884c716584521225b3e8fee7aed))
+
 ## [0.30.15](https://github.com/yldfi/yldfi-rs/compare/ethcli-v0.30.14...ethcli-v0.30.15) (2026-11-24)
 
 
