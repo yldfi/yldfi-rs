@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.30.17](https://github.com/yldfi/yldfi-rs/compare/ethcli-v0.30.16...ethcli-v0.30.17) (2026-11-24)
+
+
+### Features
+
+* **ethcli:** list Uniswap v4 positions in uniswap lp-positions ([#332](https://github.com/yldfi/yldfi-rs/issues/332)) ([c47ef4b](https://github.com/yldfi/yldfi-rs/commit/c47ef4bf6f91d2c75b9938fdc93f5f77fa1425c5))
+
 ## [0.30.16](https://github.com/yldfi/yldfi-rs/compare/ethcli-v0.30.15...ethcli-v0.30.16) (2026-11-24)
 
 
