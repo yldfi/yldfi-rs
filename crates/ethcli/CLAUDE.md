@@ -713,14 +713,20 @@ ethcli contract twins <addr> --submit-similarity # WRITES to Sourcify
   distinct stacks, plus up to 4 memory/last-call variants per stack,
   explored after every other path so they never crowd one out; all drops
   counted in `states_pruned`). When the first pass prunes, a second
-  pass (half the first pass's steps, at least 50k; time only as a
-  backstop, so results do not depend on machine speed) makes capped values
-  `V::Fresh` (an unknown with an identity; dedup compares stacks with
-  them erased) and joins states over the caps into per-(pc, function,
-  height, JUMPDEST constants) summaries explored after every precise
-  path; its facts are only added (resolved values, within the
-  per-field cap), so it never removes a first-pass fact, and coverage
-  stays the first pass's. `tests/calls_corpus.rs` (ignored) writes
+  pass runs on steps only (three quarters of the first pass's, at least 50k; the
+  overall time limit is a safety net, and hitting it shows in
+  `coverage.second_pass.time_budget_hit`): capped values and unknown
+  words read from memory become `V::Fresh` (an unknown with an identity;
+  dedup compares stacks with them erased). Its facts are only added:
+  at a site the first pass saw, resolved values at their own argument
+  position plus an unresolved target; a less precise second-pass
+  SSTORE/guard duplicate is dropped. Argument slots keep their
+  positions (an empty middle slot stays). `coverage.second_pass` gives
+  its steps, budgets and `jumpdests_added`; the rest of coverage is the
+  first pass's except `cfg_blocks_analysed` and `reached`, which include
+  it. A memory address term that holds a plain `Unknown` anywhere is
+  opaque (never the same address as another).
+  `tests/calls_corpus.rs` (ignored) writes
   every fact for a directory of bytecode, for A/B runs between builds.
   `coverage` gives evmole
   CFG blocks analysed / reachable, unresolved jumps and call sites, prunes,

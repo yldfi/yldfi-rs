@@ -39,7 +39,7 @@ mod types;
 pub use analyze::{analyze_bytecode, AnalysisError};
 pub use calls::{
     analyze_calls, analyze_calls_with, CallSite, CallsBudget, CallsReport, Coverage, FunctionFacts,
-    Guard, OpcodeSite, Provenance,
+    Guard, OpcodeSite, Provenance, SecondPass,
 };
 pub use checks::{analyze_handler_checks, infer_dispatcher};
 pub use disassemble::{

@@ -9,14 +9,14 @@
 //! at every `JUMPI` whose condition is not constant, and are cut by a step
 //! budget, a time budget and a cap on distinct states per pc.
 //!
-//! When that first pass drops states, a second pass runs with at most the
-//! steps and time the first used: a value that grows past the size caps
-//! keeps an identity (`V::Fresh`, so `p + 4` after a capped `p` still
-//! addresses the same memory), and a state over the per-pc cap is joined
-//! into a summary (equal values kept, differing ones unknown) that is
-//! explored after every precise path, instead of being dropped. Its facts
-//! are only added to the first pass's, so the result never has fewer
-//! facts than the plain analysis, and coverage describes the first pass.
+//! When that first pass drops states, a second pass runs on a step
+//! budget (three quarters of the first pass's steps): a value that grows past the
+//! size caps, or an unknown word read from memory, keeps an identity
+//! (`V::Fresh`), so `p + 4` after a capped `p` still addresses the same
+//! memory. Its facts are only added to the first pass's, so the result
+//! never has fewer facts than the plain analysis; `coverage.second_pass`
+//! describes it. A term holding a plain `Unknown` never makes two memory
+//! addresses equal.
 //!
 //! The containing function is the dispatcher branch taken: a `JUMPI` on
 //! `selector == PUSH4` (or a jump to an entry evmole found), or an entry of a
@@ -814,11 +814,14 @@ fn affine(v: &V) -> Option<Addr> {
         .map(term_lower_bound)
         .fold(k, u64::saturating_add)
         .saturating_sub(ADDR_BIAS);
-    // A bare unknown term can stand for anything, so two of them are never
-    // the same address: only the lower bound counts. (A term that merely
-    // contains an unknown, like `32 * n`, is the same expression on both
-    // sides of one path and is compared as such.)
-    let opaque = terms.iter().any(|t| matches!(t, V::Unknown));
+    // An unknown can stand for anything, so a term holding one (bare, or
+    // inside, like `32 * n`) never makes two addresses the same: two
+    // unknowns that print alike may be different values. Only the lower
+    // bound counts. (A capped value with an identity, `V::Fresh`, is
+    // compared as itself.)
+    let opaque = terms
+        .iter()
+        .any(|t| t.contains(&|x| matches!(x, V::Unknown)));
     let mut floor_terms = Vec::new();
     let mut floor_k = k as i128;
     for t in &terms {
@@ -943,8 +946,6 @@ struct Memory {
 const MAX_MEM_WRITES: usize = 192;
 /// Smallest step budget of the second pass (small contracts finish in ms)
 const MIN_SECOND_PASS_STEPS: u64 = 50_000;
-/// Unknown entries a memory join may add past the common prefix
-const MAX_JOINED_UNKNOWN_WRITES: usize = 16;
 
 impl Memory {
     fn write(&mut self, addr: &V, len: Option<u64>, val: MemVal) {
@@ -985,34 +986,6 @@ impl Memory {
         });
         if w.len() > MAX_MEM_WRITES {
             w.remove(0);
-        }
-    }
-
-    /// Over-approximation of two memories: their common write prefix, then
-    /// each later write of either side as an unknown value over its range.
-    /// A read finds the same newest overlapping entry as on each side, so it
-    /// is a value only when the prefix decides it for both. An entry already
-    /// unknown is not repeated, so joining is idempotent.
-    fn join(&self, other: &Memory) -> Memory {
-        let (a, b) = (&*self.writes, &*other.writes);
-        let n = a.iter().zip(b).take_while(|(x, y)| x == y).count();
-        let mut out: Vec<MemWrite> = a[..n].to_vec();
-        for e in a[n..].iter().chain(&b[n..]) {
-            let u = MemWrite {
-                val: MemVal::Unknown,
-                ..e.clone()
-            };
-            if !out[n..].contains(&u) {
-                out.push(u);
-            }
-        }
-        // Too many differing writes: forget the memory (reads are unknown)
-        // rather than carry a long log every later write would copy
-        if out.len() - n > MAX_JOINED_UNKNOWN_WRITES {
-            out.clear();
-        }
-        Memory {
-            writes: Rc::new(out),
         }
     }
 
@@ -1285,6 +1258,24 @@ pub struct Coverage {
     pub invalid_opcodes: Vec<usize>,
     /// True when no budget was hit and nothing was pruned or unresolved
     pub complete: bool,
+    /// The second pass (run when the first pruned states): its own steps
+    /// and budgets. `cfg_blocks_analysed`, `opcode_sites[].reached` and
+    /// the facts include what it reached; `jumpdests_added` counts the
+    /// blocks only it reached. Everything else above is the first pass's
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub second_pass: Option<SecondPass>,
+}
+
+/// Coverage of the second pass of [`analyze_calls`]
+#[derive(Debug, Clone, Serialize, Default)]
+pub struct SecondPass {
+    pub steps: u64,
+    pub step_limit: u64,
+    pub step_budget_hit: bool,
+    /// The overall time limit cut it short: its facts may then differ
+    /// between runs
+    pub time_budget_hit: bool,
+    pub jumpdests_added: usize,
 }
 
 /// Result of [`analyze_calls`]
@@ -1385,8 +1376,6 @@ struct State {
     mem: Memory,
     ctx: Ctx,
     last_call: Option<usize>,
-    /// Descends from a widened summary (see [`Interp::widen`])
-    widened: bool,
 }
 
 #[derive(Default)]
@@ -1419,38 +1408,6 @@ enum Admit {
     New,
     Variant,
     Seen,
-    /// Over the cap: the state was joined into the (pc, function, stack
-    /// height) summary, which grew and is explored instead
-    Widened(State),
-}
-
-/// Pointwise join of `s` into `sum` (equal stack heights): equal values
-/// are kept, differing ones become `Unknown` (top); the last call is kept
-/// only when equal (`None` reads as unknown); memory keeps the common
-/// prefix of the two write logs and turns every later write of either side
-/// into an unknown write over the same range, so a read is a value only
-/// where both sides agree. The result over-approximates both inputs.
-/// Returns whether `sum` changed.
-fn join_into(sum: &mut State, s: &State) -> bool {
-    let mut changed = false;
-    for (a, b) in sum.stack.iter_mut().zip(&s.stack) {
-        if *a != *b && *a != V::Unknown {
-            *a = V::Unknown;
-            changed = true;
-        }
-    }
-    if sum.last_call != s.last_call && sum.last_call.is_some() {
-        sum.last_call = None;
-        changed = true;
-    }
-    if sum.mem != s.mem {
-        let joined = sum.mem.join(&s.mem);
-        if joined != sum.mem {
-            sum.mem = joined;
-            changed = true;
-        }
-    }
-    changed
 }
 
 /// Memory / last-call variants kept per distinct stack at one pc
@@ -1509,15 +1466,6 @@ struct Interp<'a> {
     /// hash collision must not make a distinct path look already explored
     #[allow(clippy::type_complexity)]
     seen: HashMap<(usize, Ctx), HashMap<Vec<V>, Vec<(Memory, Option<usize>)>>>,
-    /// Summaries of states dropped over the caps, per (pc, function), keyed
-    /// by stack height and the slots holding JUMPDEST constants. See
-    /// [`Self::widen`]
-    #[allow(clippy::type_complexity)]
-    widened: HashMap<(usize, Ctx), HashMap<(usize, Vec<(usize, U256)>), State>>,
-    /// Steps spent on widened states
-    widened_steps: u64,
-    /// Second pass: join states over the caps instead of dropping them
-    widen_on: bool,
     visited: Vec<bool>,
     unresolved_jumps: BTreeSet<usize>,
     invalid_opcodes: BTreeSet<usize>,
@@ -1575,9 +1523,6 @@ impl<'a> Interp<'a> {
             pruned: 0,
             aborted: 0,
             seen: HashMap::new(),
-            widened: HashMap::new(),
-            widened_steps: 0,
-            widen_on: false,
             visited: vec![false; code.len()],
             unresolved_jumps: BTreeSet::new(),
             invalid_opcodes: BTreeSet::new(),
@@ -1590,37 +1535,43 @@ impl<'a> Interp<'a> {
         }
     }
 
-    /// Add the facts of another run over the same code (the second pass).
-    /// Budgets, prunes and unresolved jumps stay this run's: coverage
-    /// describes the plain analysis, which the second pass only adds to
-    fn absorb(&mut self, o: Interp<'_>) {
+    /// Add the facts of the second pass. Its own coverage is returned for
+    /// the report; this run's budgets, prunes and unresolved jumps stay as
+    /// they were. Where this run already has facts (a site, an SSTORE pc,
+    /// a guard pc), only resolved values are added, within the per-field
+    /// cap and at their own argument position; an unresolved target is
+    /// added too, so a site the second pass could not resolve is not
+    /// reported as resolved. New sites and pcs are added whole.
+    fn absorb(&mut self, o: Interp<'_>) -> SecondPass {
+        let fully = |p: &Provenance| !p.describe().contains("unresolved");
+        let add = |set: &mut BTreeSet<Provenance>, p: Provenance| {
+            if !set.contains(&p) && set.len() < MAX_PROVENANCE_PER_FIELD {
+                set.insert(p);
+            }
+        };
         for (k, acc) in o.sites {
             let Some(mine) = self.sites.get_mut(&k) else {
                 self.sites.insert(k, acc);
                 continue;
             };
-            // At a site the first pass saw, only resolved values are added:
-            // an unresolved one from a widened state says nothing new and
-            // would mark a resolved site unresolved; nor are values past the
-            // per-field cap, which would add the "more values" marker
+            for p in acc.target {
+                if fully(&p) || p.is_unresolved() {
+                    add(&mut mine.target, p);
+                }
+            }
             let fields = [
-                (&mut mine.target, acc.target),
                 (&mut mine.selector, acc.selector),
                 (&mut mine.value, acc.value),
                 (&mut mine.args_len, acc.args_len),
             ];
-            for (set, add) in fields {
-                for p in add.into_iter().filter(|p| !p.is_unresolved()) {
-                    if set.len() < MAX_PROVENANCE_PER_FIELD {
-                        set.insert(p);
-                    }
+            for (set, more) in fields {
+                for p in more.into_iter().filter(fully) {
+                    add(set, p);
                 }
             }
-            for (set, add) in mine.args.iter_mut().zip(acc.args) {
-                for p in add.into_iter().filter(|p| !p.is_unresolved()) {
-                    if set.len() < MAX_PROVENANCE_PER_FIELD {
-                        set.insert(p);
-                    }
+            for (set, more) in mine.args.iter_mut().zip(acc.args) {
+                for p in more.into_iter().filter(fully) {
+                    add(set, p);
                 }
             }
         }
@@ -1628,19 +1579,51 @@ impl<'a> Interp<'a> {
             let mine = self.fns.entry(ctx).or_default();
             mine.origin.extend(f.origin);
             mine.caller.extend(f.caller);
-            mine.guards.extend(f.guards);
             mine.calls.extend(f.calls);
             mine.delegatecall.extend(f.delegatecall);
             mine.selfdestruct.extend(f.selfdestruct);
             mine.create.extend(f.create);
+            let (first_guards, first_stores) = (mine.guards.clone(), mine.sstores.clone());
+            mine.guards.extend(f.guards);
             mine.sstores.extend(f.sstores);
+            // A less precise second-pass duplicate (holding an unresolved
+            // part) is dropped where the same pc has a fully resolved entry
+            let resolved_guards: BTreeSet<usize> = mine
+                .guards
+                .iter()
+                .filter(|g| fully(&g.against))
+                .map(|g| g.pc)
+                .collect();
+            mine.guards.retain(|g| {
+                first_guards.contains(g) || fully(&g.against) || !resolved_guards.contains(&g.pc)
+            });
+            let resolved_stores: BTreeSet<usize> = mine
+                .sstores
+                .iter()
+                .filter(|x| fully(&x.slot))
+                .map(|x| x.pc)
+                .collect();
+            mine.sstores.retain(|x| {
+                first_stores.contains(x) || fully(&x.slot) || !resolved_stores.contains(&x.pc)
+            });
         }
-        for (v, w) in self.visited.iter_mut().zip(o.visited) {
+        let mut blocks_added = 0;
+        for (pc, (v, w)) in self.visited.iter_mut().zip(o.visited).enumerate() {
+            if w && !*v && self.jumpdests[pc] {
+                blocks_added += 1;
+            }
             *v |= w;
         }
         self.invalid_opcodes.extend(o.invalid_opcodes);
         for (pc, t) in o.jump_tables {
             self.jump_tables.entry(pc).or_insert(t);
+        }
+        SecondPass {
+            steps: o.steps,
+            step_limit: o.budget.max_steps,
+            step_budget_hit: o.step_hit,
+            time_budget_hit: o.time_hit,
+            jumpdests_added: blocks_added,
         }
     }
 
@@ -1800,63 +1783,21 @@ impl<'a> Interp<'a> {
                     return Admit::Seen;
                 }
                 if mems.len() >= MEMORY_VARIANTS_PER_STACK {
-                    return self.widen(s);
+                    self.pruned += 1;
+                    return Admit::Seen;
                 }
                 mems.push((mem, s.last_call));
                 Admit::Variant
             }
             None => {
                 if stacks.len() >= cap {
-                    return self.widen(s);
+                    self.pruned += 1;
+                    return Admit::Seen;
                 }
                 stacks.insert(stack.into_owned(), vec![(mem, s.last_call)]);
                 Admit::New
             }
         }
-    }
-
-    /// A state over the caps: instead of dropping it, join it into a
-    /// summary for its pc and function, keyed by stack height and by the
-    /// stack slots holding JUMPDEST constants (return addresses of internal
-    /// functions, which must survive the join or the path dies at the
-    /// function's JUMP). The summary is explored again only when the join
-    /// changed it. A join only turns values into `Unknown` and memory
-    /// entries into unknown ones, so each summary changes a bounded number
-    /// of times, and there are at most `max_states_per_pc` summaries per
-    /// (pc, function): precision is lost instead of whole paths. Summaries
-    /// run after every precise path ([`Self::run`]), so they never take a
-    /// slot a precise path would have used.
-    fn widen(&mut self, s: &State) -> Admit {
-        self.pruned += 1;
-        if !self.widen_on {
-            return Admit::Seen;
-        }
-        let key: Vec<(usize, U256)> = s
-            .stack
-            .iter()
-            .enumerate()
-            .filter_map(|(i, v)| match v {
-                V::Const(c, _) if self.valid_dest(*c).is_some() => Some((i, *c)),
-                _ => None,
-            })
-            .collect();
-        let cap = self.budget.max_states_per_pc;
-        let sums = self.widened.entry((s.pc, s.ctx)).or_default();
-        let k = (s.stack.len(), key);
-        if let Some(sum) = sums.get_mut(&k) {
-            return if join_into(sum, s) {
-                Admit::Widened(sum.clone())
-            } else {
-                Admit::Seen
-            };
-        }
-        if sums.len() >= cap {
-            return Admit::Seen;
-        }
-        let mut w = s.clone();
-        w.widened = true;
-        sums.insert(k, w.clone());
-        Admit::Widened(w)
     }
 
     fn run(&mut self) {
@@ -1866,25 +1807,16 @@ impl<'a> Interp<'a> {
             mem: Memory::default(),
             ctx: Ctx::Dispatcher,
             last_call: None,
-            widened: false,
         }];
         // Memory variants (same stack, different memory) wait here until
         // every other path is done, so they use only what budget is left
         // and never crowd out a path the stack alone would have explored
         let mut deferred: Vec<State> = Vec::new();
-        // Widened summaries wait until every precise path and memory
-        // variant is done, and get at most as many steps as those used
-        let mut widened: Vec<State> = Vec::new();
-        let mut precise_steps: Option<u64> = None;
         'paths: while let Some((mut s, admitted)) = work
             .pop()
             .map(|s| (s, false))
             .or_else(|| deferred.pop().map(|s| (s, true)))
-            .or_else(|| widened.pop().map(|s| (s, true)))
         {
-            if s.widened && precise_steps.is_none() {
-                precise_steps = Some(self.steps);
-            }
             if self.step_hit || self.time_hit {
                 break;
             }
@@ -1896,10 +1828,6 @@ impl<'a> Interp<'a> {
                         continue;
                     }
                     Admit::Seen => continue,
-                    Admit::Widened(w) => {
-                        widened.push(w);
-                        continue;
-                    }
                 }
             }
             loop {
@@ -1907,14 +1835,6 @@ impl<'a> Interp<'a> {
                     break 'paths;
                 }
                 self.steps += 1;
-                if let (true, Some(steps)) = (s.widened, precise_steps) {
-                    // Widened paths get at most as many steps as the
-                    // precise ones used
-                    self.widened_steps += 1;
-                    if self.widened_steps > steps {
-                        break 'paths;
-                    }
-                }
                 let pc = s.pc;
                 if pc >= self.code.len() {
                     continue 'paths; // implicit STOP
@@ -1994,7 +1914,7 @@ impl<'a> Interp<'a> {
                                     .collect();
                                 hash(words)
                             }
-                            _ => V::Unknown,
+                            _ => fresh(),
                         };
                         push!(v);
                     }
@@ -2063,7 +1983,12 @@ impl<'a> Interp<'a> {
                     }
                     0x51 => {
                         let a = pop!();
-                        let v = s.mem.read(self.code, &a);
+                        // An unknown word read from memory is one value: copies
+                        // of it are equal, other reads are not
+                        let v = match s.mem.read(self.code, &a) {
+                            V::Unknown => fresh(),
+                            v => v,
+                        };
                         push!(v)
                     }
                     0x52 => {
@@ -2143,11 +2068,6 @@ impl<'a> Interp<'a> {
                                         vec![]
                                     }
                                 },
-                                // A destination a join made unknown: the
-                                // precise paths decided this jump already
-                                None if s.widened && dest.contains(&|x| *x == V::Unknown) => {
-                                    vec![]
-                                }
                                 None => self.jump_table(pc, &dest, s.ctx),
                             };
                             for (d, ctx) in targets {
@@ -2239,10 +2159,6 @@ impl<'a> Interp<'a> {
                             continue 'paths;
                         }
                         Admit::Seen => continue 'paths,
-                        Admit::Widened(w) => {
-                            widened.push(w);
-                            continue 'paths;
-                        }
                     }
                 }
             }
@@ -2418,7 +2334,7 @@ impl<'a> Interp<'a> {
                 self.code,
                 &mk(0x01, vec![args_off.clone(), V::c(U256::from(4 + 32 * i))]),
             );
-            if matches!(a, V::Unknown) && i > 0 {
+            if matches!(a, V::Unknown | V::Fresh(_)) && i > 0 {
                 break;
             }
             insert_capped(&mut site.args[i as usize], provenance(&a));
@@ -2475,34 +2391,32 @@ pub fn analyze_calls_with(
     }
     let entry_map: HashMap<usize, u32> = entries.iter().map(|(s, pc)| (*pc, *s)).collect();
     let mut it = Interp::new(code, entry_map.clone(), budget);
+    FRESH_ON.with(|c| c.set(false));
     it.run();
     // Second pass, only when the first dropped states and finished within
-    // its budgets: capped values keep an identity (`V::Fresh`) and states
-    // over the caps are widened instead of dropped. Its facts are added to
-    // the first pass's, which are all kept, so the result is never less
-    // than the plain analysis. It runs on a step budget, so its results do
-    // not depend on machine speed: half the first pass's steps (a step
-    // costs about twice as much there, so it takes about as long as the
-    // first pass), at least `MIN_SECOND_PASS_STEPS`; time is only a
-    // backstop (twice the first pass's, within what is left)
+    // its budgets: a value past the size caps keeps an identity
+    // (`V::Fresh`) instead of becoming `Unknown`, so memory addressed by a
+    // capped free-memory pointer can still be read back. Its facts are
+    // added to the first pass's (see `absorb`), so nothing the plain
+    // analysis reports is lost. It is limited by steps only (three
+    // quarters of the first pass's, at least `MIN_SECOND_PASS_STEPS`), so its results do
+    // not depend on machine speed; the overall time limit stays as a
+    // safety net and, if it cuts the pass short, says so in coverage
+    let mut second_pass = None;
     if it.pruned > 0 && !it.step_hit && !it.time_hit {
-        let used = it.started.elapsed();
         let second = CallsBudget {
-            max_steps: (it.steps / 2)
+            max_steps: (it.steps / 4 * 3)
                 .max(MIN_SECOND_PASS_STEPS)
                 .min(budget.max_steps),
-            max_time: (used * 2)
-                .max(Duration::from_millis(50))
-                .min(budget.max_time.saturating_sub(used)),
+            max_time: budget.max_time.saturating_sub(it.started.elapsed()),
             ..budget
         };
         let mut w = Interp::new(code, entry_map, second);
-        w.widen_on = true;
         NEXT_FRESH.with(|n| n.set(0));
         FRESH_ON.with(|c| c.set(true));
         w.run();
         FRESH_ON.with(|c| c.set(false));
-        it.absorb(w);
+        second_pass = Some(it.absorb(w));
     }
 
     // Merge per-(pc, ctx) sites that carry the same facts
@@ -2515,12 +2429,19 @@ pub fn analyze_calls_with(
             target: acc.target.iter().cloned().collect(),
             selector: acc.selector.iter().cloned().collect(),
             value: acc.value.iter().cloned().collect(),
-            args: acc
-                .args
-                .iter()
-                .filter(|a| !a.is_empty())
-                .map(|a| a.iter().cloned().collect())
-                .collect(),
+            args: {
+                // Keep positions: an empty middle slot stays (as an empty
+                // list) so a later word is never reported as an earlier one
+                let n = acc
+                    .args
+                    .iter()
+                    .rposition(|a| !a.is_empty())
+                    .map_or(0, |i| i + 1);
+                acc.args[..n]
+                    .iter()
+                    .map(|a| a.iter().cloned().collect())
+                    .collect()
+            },
             args_len: acc.args_len.iter().cloned().collect(),
             resolved: !acc.target.iter().any(Provenance::is_unresolved),
         };
@@ -2648,6 +2569,7 @@ pub fn analyze_calls_with(
             && it.unresolved_jumps.is_empty()
             && it.invalid_opcodes.is_empty()
             && unresolved_call_sites == 0,
+        second_pass,
     };
     if coverage.step_budget_hit || coverage.time_budget_hit {
         notes.push("A budget was hit: results are partial".into());
@@ -3045,7 +2967,6 @@ mod tests {
             mem: Memory::default(),
             ctx: Ctx::Dispatcher,
             last_call: None,
-            widened: false,
         };
         let a = st(vec![V::Caller]);
         let b = st(vec![V::Origin]);
@@ -3055,76 +2976,6 @@ mod tests {
         // Stored keys are the full stacks, not hashes
         let stacks = &it.seen[&(0, Ctx::Dispatcher)];
         assert!(stacks.contains_key(&vec![V::Caller]) && stacks.contains_key(&vec![V::Origin]));
-    }
-
-    /// A state over the per-pc cap is joined into a summary and explored
-    /// after the precise paths, instead of being dropped
-    #[test]
-    fn states_over_the_cap_are_widened_not_dropped() {
-        // if calldataload(0) { t = 0x22 } else { t = 0x11 }
-        // join; call(gas, t, 0, 0, 0, 0, 0)
-        let code = concat!(
-            "5f35",
-            "600a",
-            "57", // jumpi(0x0a, calldataload(0))
-            "6011",
-            "600d",
-            "56", // t = 0x11; jump(0x0d)
-            "5b",
-            "6022", // 0x0a: t = 0x22
-            "5b",   // 0x0d: join
-            "5f5f5f5f5f",
-            "85",
-            "5a",
-            "f1",
-            "00"
-        );
-        let budget = CallsBudget {
-            max_states_per_pc: 1,
-            ..CallsBudget::default()
-        };
-        let r = analyze_calls(&hex::decode(code).unwrap(), budget);
-        let mut targets: Vec<_> = r.call_sites[0]
-            .target
-            .iter()
-            .filter_map(|p| p.value.clone())
-            .collect();
-        targets.sort();
-        assert_eq!(targets, ["0x11", "0x22"]);
-        assert!(r.coverage.states_pruned > 0);
-    }
-
-    /// The join keeps only what both states agree on
-    #[test]
-    fn join_over_approximates_both_states() {
-        let st = |stack: Vec<V>, mem: Memory, last_call| State {
-            pc: 0,
-            stack,
-            mem,
-            ctx: Ctx::Dispatcher,
-            last_call,
-            widened: false,
-        };
-        let c = |n: u64| V::c(U256::from(n));
-        let mut shared = Memory::default();
-        shared.write(&c(0), Some(32), MemVal::Word(c(7)));
-        let mut ma = shared.clone();
-        ma.write(&c(0x20), Some(32), MemVal::Word(c(1)));
-        let mut mb = shared.clone();
-        mb.write(&c(0x40), Some(32), MemVal::Word(c(2)));
-        let a = st(vec![c(1), V::Caller], ma, Some(5));
-        let b = st(vec![c(1), V::Origin], mb, Some(6));
-        let mut sum = a.clone();
-        assert!(join_into(&mut sum, &b));
-        assert_eq!(sum.stack, vec![c(1), V::Unknown]);
-        assert_eq!(sum.last_call, None);
-        // The common write survives; words only one side wrote are unknown
-        assert_eq!(sum.mem.read(&[], &c(0)), c(7));
-        assert_eq!(sum.mem.read(&[], &c(0x20)), V::Unknown);
-        assert_eq!(sum.mem.read(&[], &c(0x40)), V::Unknown);
-        // Joining either input again changes nothing
-        assert!(!join_into(&mut sum, &a));
-        assert!(!join_into(&mut sum, &b));
     }
 
     /// A value past the caps keeps an identity: memory addressed by it
@@ -3149,5 +3000,58 @@ mod tests {
         // and the value reports as unresolved, like any unknown
         assert!(provenance(&x).is_unresolved());
         FRESH_ON.with(|c| c.set(false));
+    }
+
+    fn has_value(ps: &[Provenance], value: &str) -> bool {
+        ps.iter().any(|p| p.value.as_deref() == Some(value))
+    }
+
+    /// Adversarial loop: counters i and j = i + 0x1000. The selector and
+    /// target are written at 0x80 + 32 i and read at 0x80 + 32 j, never the
+    /// same word, so neither may resolve
+    #[test]
+    fn distinct_unknown_offsets_are_not_the_same_address() {
+        let r = run(concat!(
+            "60006110005b60010190600101905f3561001857610005565b7fa9059cbb",
+            "000000000000000000000000000000000000000000000000000000008260",
+            "051b608001527300000000000000000000000000000000deadbeef826005",
+            "1b608401525f5f60448360051b6080015f8560051b608401515af100"
+        ));
+        let site = &r.call_sites[0];
+        assert!(!has_value(&site.selector, "0xa9059cbb"));
+        assert!(site.target.iter().all(|p| p.value.is_none()));
+    }
+
+    /// `if (i == j) selfdestruct` with j = i + 0x1000 can never run
+    #[test]
+    fn infeasible_branch_is_not_reached() {
+        let r = run(concat!(
+            "60006110005b60010190600101905f3561001857610005565b",
+            "81811461002157005b33ff"
+        ));
+        assert!(r.functions.iter().all(|f| f.selfdestruct_pcs.is_empty()));
+    }
+
+    /// The call reads its selector at a capped storage value p before this
+    /// iteration writes there; the last write was at the previous p. Two
+    /// unknowns that print alike are not the same address. When the write
+    /// comes first (same p), the selector is found, through the second
+    /// pass's identity for capped values
+    #[test]
+    fn capped_address_from_an_earlier_iteration_is_not_reused() {
+        let before = run(concat!(
+            "5f355f5b600101905454545454545454545f5f6004835f73000000000000",
+            "00000000000000000000deadbeef5af1507fa9059cbb0000000000000000",
+            "00000000000000000000000000000000000000008152905f3561005d5761",
+            "0003565b00"
+        ));
+        assert!(!has_value(&before.call_sites[0].selector, "0xa9059cbb"));
+        let after = run(concat!(
+            "5f355f5b600101905454545454545454547fa9059cbb0000000000000000",
+            "00000000000000000000000000000000000000008152",
+            "5f5f6004835f7300000000000000000000000000000000deadbeef5af150",
+            "905f3561005d57610003565b00"
+        ));
+        assert!(has_value(&after.call_sites[0].selector, "0xa9059cbb"));
     }
 }
