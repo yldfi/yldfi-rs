@@ -502,6 +502,27 @@ Removed (no public Tenderly endpoint): `contracts verify|update`,
 `actions enable|disable|invoke|logs|source|update-source` (use
 `actions stop|resume|get-call`), `simulate tx --via tenderly`.
 
+## Agent skills
+
+Skills under `skills/` are embedded in the binary (build.rs; the crate keeps a
+copy in `crates/ethcli/skills/`, checked against `skills/` by a test).
+
+```bash
+ethcli skills list [--json]          # name, version, computedHash (skills-lock v2 algorithm)
+ethcli skills show <name> [--file F]
+ethcli skills install [--target claude|codex|dir] [--project] [--dir P] [--name N]... [--force]
+ethcli skills update                 # refresh files unchanged since ethcli wrote them
+ethcli skills status [--json]        # current | outdated | modified | missing | not_shipped
+```
+
+claude: `$CLAUDE_CONFIG_DIR/skills` or `~/.claude/skills` (project `.claude/skills`);
+codex: `~/.agents/skills` (project `.agents/skills`); dir: `<P>/<name>/`. Writes
+are atomic; each is recorded in `skills-installed.json` in the ethcli config
+folder (`ETHCLI_CONFIG_DIR` honoured). Files not written by ethcli are refused
+without `--force` (which keeps `.bak-<unix time>`). `upgrade` runs the new
+binary's `skills update` and only warns on failure. `install`/`update` are in
+`MUTATING_COMMANDS`.
+
 ## Configuration
 
 ```bash

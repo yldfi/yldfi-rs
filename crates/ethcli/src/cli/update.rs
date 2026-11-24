@@ -263,7 +263,48 @@ pub async fn handle(install: bool, quiet: bool) -> anyhow::Result<()> {
     println!("\n✓ Updated to {}!", release.tag_name);
     println!("  Restart your terminal or run: ethcli --version");
 
+    refresh_skills_after_upgrade(&install_path, |exe| {
+        std::process::Command::new(exe)
+            .args(["skills", "update"])
+            .output()
+    });
+
     Ok(())
+}
+
+/// Run the new binary's `skills update` so installed skills match the new
+/// release. Never fails the upgrade: problems are printed as warnings.
+/// Returns whether the refresh ran successfully.
+pub fn refresh_skills_after_upgrade<F>(new_binary: &Path, run: F) -> bool
+where
+    F: FnOnce(&Path) -> std::io::Result<std::process::Output>,
+{
+    match run(new_binary) {
+        Ok(out) if out.status.success() => {
+            let text = String::from_utf8_lossy(&out.stdout);
+            if !text.trim().is_empty() {
+                println!("\nSkills:");
+                for line in text.lines() {
+                    println!("  {line}");
+                }
+            }
+            true
+        }
+        Ok(out) => {
+            eprintln!(
+                "Warning: could not refresh installed skills ({}): {}\n  Run `ethcli skills update` to retry.",
+                out.status,
+                String::from_utf8_lossy(&out.stderr).trim()
+            );
+            false
+        }
+        Err(e) => {
+            eprintln!(
+                "Warning: could not refresh installed skills: {e}\n  Run `ethcli skills update` to retry."
+            );
+            false
+        }
+    }
 }
 
 /// Download a checksum file. Any non-success status is an error: a listed
@@ -689,6 +730,49 @@ fn install_binary(source: &Path, destination: &Path) -> anyhow::Result<()> {
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod skills_hook_tests {
+    use super::refresh_skills_after_upgrade;
+    use std::path::Path;
+
+    #[cfg(unix)]
+    fn status(code: i32) -> std::process::ExitStatus {
+        use std::os::unix::process::ExitStatusExt;
+        std::process::ExitStatus::from_raw(code << 8)
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn upgrade_runs_new_binary_skills_update() {
+        let mut seen = None;
+        let ok = refresh_skills_after_upgrade(Path::new("/new/ethcli"), |exe| {
+            seen = Some(exe.to_path_buf());
+            Ok(std::process::Output {
+                status: status(0),
+                stdout: b"refreshed  /x/SKILL.md\n".to_vec(),
+                stderr: vec![],
+            })
+        });
+        assert!(ok);
+        assert_eq!(seen.unwrap(), Path::new("/new/ethcli"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn skills_failure_only_warns() {
+        assert!(!refresh_skills_after_upgrade(Path::new("/x"), |_| {
+            Ok(std::process::Output {
+                status: status(1),
+                stdout: vec![],
+                stderr: b"boom".to_vec(),
+            })
+        }));
+        assert!(!refresh_skills_after_upgrade(Path::new("/x"), |_| {
+            Err(std::io::Error::other("no exec"))
+        }));
+    }
 }
 
 #[cfg(test)]

@@ -171,3 +171,6 @@ single facts.
   the command tree as JSON.
 - Full reference: `crates/ethcli/LLMREF.md` and `crates/ethcli/CLAUDE.md` in
   the repository.
+- This skill ships inside ethcli: `ethcli skills install` writes the copy that
+  matches the installed version (`--target claude|codex|dir`), and `ethcli
+  skills status` says whether an installed copy is out of date.
