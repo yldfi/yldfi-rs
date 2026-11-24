@@ -524,6 +524,197 @@ pub struct FunctionDiff {
     pub function: String,
     pub instructions: usize,
     pub status: &'static str,
+    /// Aligned artifact/deployed instructions (`--diff`, functions marked
+    /// different only): the changes with a few equal rows around them
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub diff: Option<Vec<DiffRow>>,
+    /// Rows were cut at the per-function cap
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub diff_truncated: bool,
+}
+
+/// One row of an aligned instruction diff
+#[derive(Debug, Clone, Serialize, PartialEq)]
+pub struct DiffRow {
+    /// equal | changed | inserted (deployed only) | deleted (artifact only)
+    /// | skip (`skipped` equal rows left out)
+    pub kind: &'static str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub artifact_pc: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub artifact: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub onchain_pc: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub onchain: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub skipped: Option<usize>,
+}
+
+/// Equal rows kept on each side of a change
+const DIFF_CONTEXT: usize = 3;
+/// Rows kept per function
+pub const DIFF_MAX_ROWS: usize = 200;
+
+fn instruction_text(code: &[u8], pc: usize) -> String {
+    let op = code[pc];
+    let n = push_size(op);
+    let name = super::mnemonic(op);
+    if n == 0 {
+        name
+    } else {
+        let end = (pc + 1 + n).min(code.len());
+        format!("{name} 0x{}", hex::encode(&code[(pc + 1).min(end)..end]))
+    }
+}
+
+fn diff_row(kind: &'static str, a: Option<(&[u8], usize)>, c: Option<(&[u8], usize)>) -> DiffRow {
+    DiffRow {
+        kind,
+        artifact_pc: a.map(|(_, pc)| pc),
+        artifact: a.map(|(code, pc)| instruction_text(code, pc)),
+        onchain_pc: c.map(|(_, pc)| pc),
+        onchain: c.map(|(code, pc)| instruction_text(code, pc)),
+        skipped: None,
+    }
+}
+
+/// Align the executable code of artifact (`a`) and deployment (`c`) and cut
+/// the rows into per-function diffs. Labels come from `mapper`; a
+/// deployed-only row takes the label of the artifact row before it. Masked
+/// artifact bytes (immutables, libraries, embedded metadata) match any
+/// deployed value; when the sizes differ PUSH2/PUSH3 operands (mostly code
+/// offsets, which shift) are ignored. Returns label -> (rows, truncated)
+/// and whether the alignment was approximate somewhere.
+pub fn function_diffs(
+    a: &[u8],
+    c: &[u8],
+    mask: &[bool],
+    mapper: &FunctionMapper,
+) -> (BTreeMap<String, (Vec<DiffRow>, bool)>, bool) {
+    use super::opdiff::{align, Step};
+    let ia = linear_sweep(a);
+    let ic = linear_sweep(c);
+    let sizes_differ = a.len() != c.len();
+    let operand = |code: &[u8], pc: usize, op: u8| -> Range<usize> {
+        (pc + 1).min(code.len())..(pc + 1 + push_size(op)).min(code.len())
+    };
+    let is_masked = |k: usize| mask.get(k).copied().unwrap_or(false);
+    let ignore_operand = |op: u8| sizes_differ && matches!(push_size(op), 2 | 3);
+    let eq = |i: usize, j: usize| {
+        let ((pa, oa), (pb, ob)) = (ia[i], ic[j]);
+        if oa != ob {
+            return false;
+        }
+        if ignore_operand(oa) {
+            return true;
+        }
+        let (ra, rb) = (operand(a, pa, oa), operand(c, pb, ob));
+        ra.len() == rb.len() && ra.zip(rb).all(|(x, y)| a[x] == c[y] || is_masked(x))
+    };
+    let key_l = |i: usize| {
+        let (pc, op) = ia[i];
+        if (pc..pc + 1 + push_size(op)).any(is_masked) {
+            return None;
+        }
+        let mut k = vec![op];
+        if !ignore_operand(op) {
+            k.extend_from_slice(&a[operand(a, pc, op)]);
+        }
+        Some(k)
+    };
+    let key_r = |j: usize| {
+        let (pc, op) = ic[j];
+        let mut k = vec![op];
+        if !ignore_operand(op) {
+            k.extend_from_slice(&c[operand(c, pc, op)]);
+        }
+        Some(k)
+    };
+    let (steps, approximate) = align(ia.len(), ic.len(), &eq, &key_l, &key_r);
+
+    // Rows, pairing each run of deletions and insertions into changed rows
+    let mut rows: Vec<(String, DiffRow)> = Vec::new();
+    let mut label = mapper.label(0);
+    let mut k = 0;
+    while k < steps.len() {
+        if let Step::Equal(i, j) = steps[k] {
+            label = mapper.label(ia[i].0);
+            rows.push((
+                label.clone(),
+                diff_row("equal", Some((a, ia[i].0)), Some((c, ic[j].0))),
+            ));
+            k += 1;
+            continue;
+        }
+        let (mut dels, mut ins) = (Vec::new(), Vec::new());
+        while k < steps.len() {
+            match steps[k] {
+                Step::Delete(i) => dels.push(ia[i].0),
+                Step::Insert(j) => ins.push(ic[j].0),
+                Step::Equal(..) => break,
+            }
+            k += 1;
+        }
+        for n in 0..dels.len().max(ins.len()) {
+            let (d, s) = (dels.get(n).copied(), ins.get(n).copied());
+            if let Some(pc) = d {
+                label = mapper.label(pc);
+            }
+            let kind = match (d, s) {
+                (Some(_), Some(_)) => "changed",
+                (Some(_), None) => "deleted",
+                _ => "inserted",
+            };
+            rows.push((
+                label.clone(),
+                diff_row(kind, d.map(|pc| (a, pc)), s.map(|pc| (c, pc))),
+            ));
+        }
+    }
+
+    // Per function: changes with context, equal runs left out
+    let mut grouped: BTreeMap<String, Vec<DiffRow>> = BTreeMap::new();
+    for (l, r) in rows {
+        grouped.entry(l).or_default().push(r);
+    }
+    let mut out = BTreeMap::new();
+    for (l, rows) in grouped {
+        let near: Vec<bool> = (0..rows.len())
+            .map(|i| {
+                let lo = i.saturating_sub(DIFF_CONTEXT);
+                let hi = (i + DIFF_CONTEXT + 1).min(rows.len());
+                rows[lo..hi].iter().any(|r| r.kind != "equal")
+            })
+            .collect();
+        let mut kept: Vec<DiffRow> = Vec::new();
+        let mut skipped = 0;
+        let mut truncated = false;
+        for (r, keep) in rows.into_iter().zip(near) {
+            if !keep {
+                skipped += 1;
+                continue;
+            }
+            if kept.len() >= DIFF_MAX_ROWS {
+                truncated = true;
+                break;
+            }
+            if skipped > 0 {
+                kept.push(DiffRow {
+                    kind: "skip",
+                    artifact_pc: None,
+                    artifact: None,
+                    onchain_pc: None,
+                    onchain: None,
+                    skipped: Some(skipped),
+                });
+                skipped = 0;
+            }
+            kept.push(r);
+        }
+        out.insert(l, (kept, truncated));
+    }
+    (out, approximate)
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -548,6 +739,9 @@ pub struct Mismatch {
     /// How the per-function table was built
     pub table_method: String,
     pub functions: Vec<FunctionDiff>,
+    /// How `functions[].diff` was built (`--diff` only)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub diff_method: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -649,6 +843,11 @@ const EFFECTFUL_OPCODES: &[u8] = &[
 ];
 
 pub fn match_code(artifact: &Artifact, onchain: &[u8]) -> MatchReport {
+    match_code_with(artifact, onchain, false)
+}
+
+/// `match_code`, adding per-function instruction diffs when `with_diff`
+pub fn match_code_with(artifact: &Artifact, onchain: &[u8], with_diff: bool) -> MatchReport {
     let art = &artifact.runtime;
     let mut warnings = Vec::new();
 
@@ -887,8 +1086,34 @@ pub fn match_code(artifact: &Artifact, onchain: &[u8]) -> MatchReport {
                 function,
                 instructions,
                 status: if diff { "different" } else { "equal" },
+                diff: None,
+                diff_truncated: false,
             })
             .collect();
+        let mut diff_note = None;
+        if with_diff {
+            let (mut per_fn, approximate) = function_diffs(a, c, &meta_mask, &mapper);
+            for f in functions.iter_mut().filter(|f| f.status == "different") {
+                let (rows, truncated) = per_fn.remove(&f.function).unwrap_or_default();
+                f.diff = Some(rows);
+                f.diff_truncated = truncated;
+            }
+            diff_note = Some(format!(
+                "instructions aligned by LCS over the executable code{}{}; masked bytes (immutables, libraries, embedded metadata) match any deployed value; {} equal rows of context, at most {} rows per function",
+                if a.len() != c.len() {
+                    ", PUSH2/PUSH3 operands ignored (code offsets shift)"
+                } else {
+                    ""
+                },
+                if approximate {
+                    "; APPROXIMATE: a large region with no unique anchor is shown as replaced"
+                } else {
+                    ""
+                },
+                DIFF_CONTEXT,
+                DIFF_MAX_ROWS
+            ));
+        }
         functions.sort_by_key(|f| (f.status == "equal", f.function.clone()));
         let window = |code: &[u8], at: usize| {
             let start = at.saturating_sub(16).min(code.len());
@@ -914,6 +1139,7 @@ pub fn match_code(artifact: &Artifact, onchain: &[u8]) -> MatchReport {
             size_difference: c.len() as i64 - a.len() as i64,
             table_method,
             functions,
+            diff_method: diff_note,
         }
     });
 
@@ -1150,6 +1376,67 @@ mod tests {
         let m = report.mismatch.unwrap();
         assert_eq!(m.first_difference_offset, 6);
         assert_eq!(m.size_difference, 0);
+        assert!(m.functions.iter().all(|f| f.diff.is_none()));
+        assert!(m.diff_method.is_none());
+    }
+
+    #[test]
+    fn diff_aligns_changes_and_masks_immutables() {
+        // PUSH1 1, PUSH32 <immutable>, POP, PUSH1 2, PUSH1 3, ADD, STOP
+        let zero = "00".repeat(32);
+        let code = format!("60017f{zero}5060026003010000");
+        let art = parse_artifact(
+            &forge_artifact(
+                &with_meta(&code, META),
+                serde_json::json!({"7": [{"start": 3, "length": 32}]}),
+                Value::Null,
+            ),
+            None,
+        )
+        .unwrap();
+        // Deployed: the immutable has a value, PUSH1 3 became PUSH1 4 and a
+        // PUSH1 0x0a was inserted before STOP
+        let value = format!("{}{}", "00".repeat(12), "11".repeat(20));
+        let deployed_hex = format!("60017f{value}50600260040160 0a0000").replace(' ', "");
+        let deployed = hex::decode(&with_meta(&deployed_hex, META)[2..]).unwrap();
+        let report = match_code_with(&art, &deployed, true);
+        assert_eq!(report.verdict, "mismatch");
+        let m = report.mismatch.unwrap();
+        assert!(m.diff_method.is_some());
+        let rows: Vec<&DiffRow> = m
+            .functions
+            .iter()
+            .filter_map(|f| f.diff.as_ref())
+            .flatten()
+            .collect();
+        let kinds: Vec<&str> = rows.iter().map(|r| r.kind).collect();
+        // The masked PUSH32 is equal despite its different deployed value
+        let push32 = rows
+            .iter()
+            .find(|r| {
+                r.artifact
+                    .as_deref()
+                    .is_some_and(|t| t.starts_with("PUSH32"))
+            })
+            .expect("PUSH32 row in context");
+        assert_eq!(push32.kind, "equal");
+        assert!(push32
+            .onchain
+            .as_deref()
+            .unwrap()
+            .ends_with(&"11".repeat(20)));
+        let changed = rows
+            .iter()
+            .find(|r| r.kind == "changed")
+            .expect("a changed row");
+        assert_eq!(changed.artifact.as_deref(), Some("PUSH1 0x03"));
+        assert_eq!(changed.onchain.as_deref(), Some("PUSH1 0x04"));
+        let inserted = rows
+            .iter()
+            .find(|r| r.kind == "inserted")
+            .expect("an inserted row");
+        assert_eq!(inserted.onchain.as_deref(), Some("PUSH1 0x0a"));
+        assert!(!kinds.contains(&"deleted"), "{kinds:?}");
     }
 
     #[test]

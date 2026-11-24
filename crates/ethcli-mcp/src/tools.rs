@@ -823,6 +823,7 @@ pub async fn contract_match(
     chain: Option<&str>,
     block: Option<&str>,
     no_follow_proxy: bool,
+    diff: bool,
 ) -> Result<String, ToolError> {
     let root = artifact_root()?;
     let artifact = validate_artifact_path(artifact, &root)?;
@@ -850,6 +851,7 @@ pub async fn contract_match(
         .chain(chain)
         .opt("--block", block)
         .opt_flag("--no-follow-proxy", no_follow_proxy)
+        .opt_flag("--diff", diff)
         .format_json()
         .execute()
         .await

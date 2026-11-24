@@ -30,6 +30,7 @@ mod disassemble;
 pub mod inference;
 pub mod matcher;
 pub mod metadata;
+pub mod opdiff;
 mod proxy;
 mod security;
 mod selectors;
@@ -42,7 +43,7 @@ pub use calls::{
 };
 pub use checks::{analyze_handler_checks, infer_dispatcher};
 pub use disassemble::{
-    disassemble_bytecode, disassemble_raw, opcode_stats, opcode_stats_from_operations,
+    disassemble_bytecode, disassemble_raw, mnemonic, opcode_stats, opcode_stats_from_operations,
     DisassemblyError,
 };
 pub use inference::{

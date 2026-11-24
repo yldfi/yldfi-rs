@@ -545,7 +545,7 @@ impl EthcliMcpServer {
     }
 
     #[tool(
-        description = "Compiler fingerprint of deployed code: compiler and version and metadata hash type from the CBOR metadata, embedded metadata of created contracts, minimum EVM version from opcodes (PUSH0, MCOPY, TLOAD), a legacy vs via-IR guess, and an upper bound on address-shaped immutables. First step before rebuilding source for an unverified contract",
+        description = "Compiler fingerprint of deployed code: compiler and version and metadata hash type from the CBOR metadata, embedded metadata of created contracts, minimum EVM version from opcodes (PUSH0, MCOPY, TLOAD), a legacy vs via-IR guess, an optimizer runs hint (optimizer_runs_hint from how constants are written, with evidence pcs; check it before sweeping runs), dispatcher (no selector dispatcher: fallback-only / packed-calldata executor) when there are no selectors but calldata is read, and an upper bound on address-shaped immutables. First step before rebuilding source for an unverified contract",
         annotations(read_only_hint = true, open_world_hint = true)
     )]
     async fn contract_fingerprint(
@@ -563,7 +563,7 @@ impl EthcliMcpServer {
     }
 
     #[tool(
-        description = "Compare a local compiled artifact (forge out/<File>.sol/<Name>.json, ideally built with --ast, or solc standard-JSON output) with deployed code. Masks immutables and library addresses (reports their values), compares metadata separately. Verdict exact, partial (equal ignoring metadata: NOT verified, never report it as verified), partial_unverified_metadata (as partial, but the deployed metadata bytes could hide reachable code: never report it as a clean partial) or mismatch with the first differing offset, the function it falls in and a per-function equal/different table. Optional creation_tx compares creation code and returns constructor arguments",
+        description = "Compare a local compiled artifact (forge out/<File>.sol/<Name>.json, ideally built with --ast, or solc standard-JSON output) with deployed code. Masks immutables and library addresses (reports their values), compares metadata separately. Verdict exact, partial (equal ignoring metadata: NOT verified, never report it as verified), partial_unverified_metadata (as partial, but the deployed metadata bytes could hide reachable code: never report it as a clean partial) or mismatch with the first differing offset, the function it falls in and a per-function equal/different table; diff=true adds aligned artifact vs deployed opcodes (equal/changed/inserted/deleted) for each different function. Optional creation_tx compares creation code and returns constructor arguments",
         annotations(read_only_hint = true, open_world_hint = true)
     )]
     async fn contract_match(
@@ -579,6 +579,7 @@ impl EthcliMcpServer {
             Some(&input.chain),
             input.block.as_deref(),
             input.no_follow_proxy,
+            input.diff,
         )
         .await
         .to_response()

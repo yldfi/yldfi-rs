@@ -9,7 +9,7 @@
 
 use super::OutputFormat;
 use crate::bytecode::calls::{analyze_calls, CallsBudget, CallsReport};
-use crate::bytecode::matcher::{assembly_share, match_code, match_creation, parse_artifact};
+use crate::bytecode::matcher::{assembly_share, match_code_with, match_creation, parse_artifact};
 use crate::bytecode::metadata::fingerprint;
 use crate::bytecode::{extract_selectors, ExtractedFunction};
 use crate::config::{Chain, EndpointConfig};
@@ -117,6 +117,11 @@ pub struct MatchArgs {
     /// Do not look for a build-info file next to the artifact
     #[arg(long)]
     pub no_build_info_discovery: bool,
+
+    /// On a mismatch, print the artifact and deployed instructions side by
+    /// side for each function marked different (JSON: `functions[].diff`)
+    #[arg(long)]
+    pub diff: bool,
 }
 
 /// Code fetched for one address
@@ -1122,6 +1127,21 @@ fn count_word(source: &str, token: &str, call: bool) -> usize {
         .count()
 }
 
+/// `pcs` of a JSON array of pcs; "-" when empty
+fn list_pcs(v: &Value) -> String {
+    let list: Vec<usize> = v
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|p| p.as_u64().map(|p| p as usize))
+        .collect();
+    if list.is_empty() {
+        "-".to_string()
+    } else {
+        pcs(&list)
+    }
+}
+
 fn pcs(list: &[usize]) -> String {
     let shown: Vec<String> = list.iter().take(8).map(|p| format!("{p:#x}")).collect();
     let more = if list.len() > 8 {
@@ -1835,6 +1855,26 @@ pub async fn fingerprint_cmd(
         "Address-shaped PUSH32 operands (immutables or address constants, upper bound): {}",
         f["address_like_push32"]
     );
+    let ev = &f["optimizer_runs_evidence"];
+    let list = |k: &str| list_pcs(&ev[k]);
+    println!(
+        "Optimizer runs (guess): {} - Error(string) selector written out at {}, computed at {}; other constants written out at {}, computed at {}",
+        f["optimizer_runs_hint"].as_str().unwrap_or("unknown"),
+        list("error_selector_literal"),
+        list("error_selector_shifted"),
+        list("other_literal"),
+        list("other_shifted")
+    );
+    match f["dispatcher"].as_str() {
+        Some(d) => println!(
+            "Functions: {d} (calldata read at {})",
+            list_pcs(&f["calldata_reads"])
+        ),
+        None => println!(
+            "Functions: {} selector(s) in the dispatcher",
+            f["selector_count"]
+        ),
+    }
     for n in f["notes"].as_array().into_iter().flatten() {
         println!("Note: {}", n.as_str().unwrap_or(""));
     }
@@ -1976,7 +2016,7 @@ pub async fn match_cmd(chain: Chain, args: &MatchArgs, quiet: bool) -> anyhow::R
         !args.no_build_info_discovery,
     )?;
     let target = fetch_target(chain, &args.target, quiet).await?;
-    let report = match_code(&artifact, &target.code);
+    let report = match_code_with(&artifact, &target.code, args.diff);
 
     // Selectors: artifact methodIdentifiers vs the deployed code
     let deployed: Vec<String> = extract_selectors(&target.code)
@@ -2073,6 +2113,58 @@ pub async fn match_cmd(chain: Chain, args: &MatchArgs, quiet: bool) -> anyhow::R
     Ok(())
 }
 
+/// Side-by-side rows of `match --diff`, one block per function
+fn print_function_diffs(mm: &serde_json::Map<String, Value>) {
+    let Some(method) = mm.get("diff_method").and_then(Value::as_str) else {
+        return;
+    };
+    println!();
+    println!("Instruction diff ({method}):");
+    let pc = |v: &Value| v.as_u64().map(|p| format!("{p:#06x}")).unwrap_or_default();
+    for f in mm["functions"].as_array().into_iter().flatten() {
+        let Some(rows) = f["diff"].as_array() else {
+            continue;
+        };
+        println!();
+        println!(
+            "== {}",
+            safe_multiline(f["function"].as_str().unwrap_or("?"))
+        );
+        if rows.is_empty() {
+            println!("   (the alignment finds no change here; the status comes from the size-change range)");
+        }
+        println!("   {:<8} art pc {:<44} dep pc deployed", "", "artifact");
+        for r in rows {
+            let kind = r["kind"].as_str().unwrap_or("");
+            if kind == "skip" {
+                println!("   ... {} equal instruction(s)", r["skipped"]);
+                continue;
+            }
+            let mark = match kind {
+                "equal" => " ",
+                "changed" => "~",
+                "inserted" => "+",
+                "deleted" => "-",
+                _ => "?",
+            };
+            println!(
+                " {mark} {:<8} {:>6} {:<44} {:>6} {}",
+                kind,
+                pc(&r["artifact_pc"]),
+                r["artifact"].as_str().unwrap_or(""),
+                pc(&r["onchain_pc"]),
+                r["onchain"].as_str().unwrap_or("")
+            );
+        }
+        if f["diff_truncated"] == true {
+            println!(
+                "   ... (cut at {} rows)",
+                crate::bytecode::matcher::DIFF_MAX_ROWS
+            );
+        }
+    }
+}
+
 fn print_match_table(out: &Value) {
     print_target_table(out);
     let a = &out["artifact"];
@@ -2160,6 +2252,7 @@ fn print_match_table(out: &Value) {
                 f["function"].as_str().unwrap_or("")
             );
         }
+        print_function_diffs(mm);
     }
     let s = &out["selectors"];
     for (label, key) in [

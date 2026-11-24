@@ -309,7 +309,9 @@ ethcli contract az 0x... --include-disassembly
 ethcli contract analyze 0x... --follow-proxy --lookup --dispatcher --checks
 
 # Compiler fingerprint: solc/vyper version and metadata hash from the CBOR
-# metadata, minimum EVM version (PUSH0, MCOPY, TLOAD), legacy/via-IR guess
+# metadata, minimum EVM version (PUSH0, MCOPY, TLOAD), legacy/via-IR guess,
+# optimizer runs hint, and "fallback-only / packed-calldata executor" when
+# there is no selector dispatcher
 ethcli contract fingerprint 0x...
 
 # Decompile with the optional external evmdec (or heimdall, or all
@@ -320,6 +322,8 @@ ethcli contract decompile 0x... --backend all
 # Compare a compiled artifact with the deployed code
 ethcli contract match 0x... --artifact out/Router.sol/Router.json
 ethcli contract match 0x... --artifact build-output.json --contract Router --creation-tx 0x...
+# Side-by-side artifact vs deployed opcodes for each function that differs
+ethcli contract match 0x... --artifact out/Router.sol/Router.json --diff
 ```
 
 #### Decompiling (`contract decompile`)
@@ -372,8 +376,24 @@ hidden reachable code is not ruled out; never report it as a clean partial)
 or `mismatch`, with the first differing offset, both byte
 sequences, the function it falls in and a per-function equal/different
 table. Build with `forge build --ast` so functions are mapped from the source
-map and the inline-assembly share is reported. The rebuild procedure for
-agents is in `skills/bytecode-to-source/SKILL.md`.
+map and the inline-assembly share is reported. `--diff` adds, for each
+function marked different, the artifact and deployed instructions aligned
+side by side (LCS over the executable code; rows marked equal, changed,
+inserted or deleted; masked immutables match any value; PUSH2/PUSH3 operands
+ignored when sizes differ; JSON `functions[].diff`).
+
+`contract fingerprint` also gives `optimizer_runs_hint`, read from how solc
+wrote constants in reached code: `PUSH32 0x08c379a0..` (the `Error(string)`
+selector written out) means high runs (about 5000 or more), `PUSH3 0x461bcd
+PUSH1 0xe5 SHL` means fewer; the share of other constants written out
+(selectors, `PUSH20 0xff..ff` masks) separates about 1000-4000 from the
+default 200. The evidence pcs are in `optimizer_runs_evidence`. Code compiled
+with the optimizer off reads as high, and pre-Constantinople code gives
+`unknown`. When there is no selector dispatcher but reached code reads
+calldata, fingerprint and `contract inspect` say "no selector dispatcher:
+fallback-only / packed-calldata executor" (`dispatcher`, `calldata_reads`)
+instead of "Functions: 0". The rebuild procedure for agents is in
+`skills/bytecode-to-source/SKILL.md`.
 # Call sites and access control from bytecode (inferred): where every
 # CALL/DELEGATECALL/STATICCALL/CREATE target, selector and value comes from,
 # ORIGIN/CALLER uses and guards per function, with coverage

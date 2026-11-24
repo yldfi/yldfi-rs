@@ -304,7 +304,141 @@ pub struct Fingerprint {
     /// 20 non-zero bytes). Immutable addresses look like this, and so do
     /// address constants, so this is only an upper bound on immutables.
     pub address_like_push32: usize,
+    /// Optimizer runs inferred from how constants are written: "likely high
+    /// (≥ ~5000)", "likely mid (≈1000-4000)", "likely low (≈200)",
+    /// "likely < ~5000", "likely ≥ ~1000", "likely ≤ ~2000" or "unknown"
+    pub optimizer_runs_hint: String,
+    pub optimizer_runs_evidence: RunsEvidence,
+    /// Selectors found by the dispatcher scan
+    pub selector_count: usize,
+    /// Set when there is no selector dispatcher but reached code reads
+    /// calldata: "no selector dispatcher: fallback-only / packed-calldata
+    /// executor"
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub dispatcher: Option<String>,
+    /// Reached CALLDATALOAD / CALLDATACOPY pcs, when `dispatcher` is set
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub calldata_reads: Vec<usize>,
     pub notes: Vec<String>,
+}
+
+/// Where constants were found written out (high runs) or computed (low runs)
+#[derive(Debug, Clone, Serialize, Default, PartialEq)]
+pub struct RunsEvidence {
+    /// `PUSH32 0x08c379a0..` (Error(string) selector written out)
+    pub error_selector_literal: Vec<usize>,
+    /// `PUSH3 0x461bcd PUSH1 0xe5 SHL` (the same selector computed)
+    pub error_selector_shifted: Vec<usize>,
+    /// Other constants written out: PUSH32 of a 1-4 byte value followed by
+    /// zero bytes, PUSH32 of mostly 0xff, PUSH20 of all 0xff
+    pub other_literal: Vec<usize>,
+    /// Other constants computed: `PUSHn v PUSH1 s SHL` (s ≥ 0x60), `PUSHn v NOT`
+    pub other_shifted: Vec<usize>,
+}
+
+/// Label used when the code has no selector dispatcher but reads calldata
+pub const FALLBACK_ONLY: &str = "no selector dispatcher: fallback-only / packed-calldata executor";
+
+/// Reached CALLDATALOAD / CALLDATACOPY pcs
+pub fn calldata_reads(code: &[u8], visited: &[bool]) -> Vec<usize> {
+    linear_sweep(code)
+        .into_iter()
+        .filter(|(pc, op)| matches!(op, 0x35 | 0x37) && visited.get(*pc).copied().unwrap_or(false))
+        .map(|(pc, _)| pc)
+        .collect()
+}
+
+/// Read solc's constant optimizer choices from reached code. With few runs
+/// it computes wide constants (`PUSH3 0x461bcd PUSH1 0xe5 SHL`); with many
+/// it writes them out (`PUSH32 0x08c379a0..`). Each constant switches at its
+/// own run count: measured with solc 0.8.29 (legacy pipeline), selector and
+/// address masks are written out from about 1000 runs, the `Error(string)`
+/// selector only from about 5000.
+pub fn optimizer_runs_hint(code: &[u8], visited: &[bool]) -> (String, RunsEvidence) {
+    let ins: Vec<(usize, u8)> = linear_sweep(code);
+    let seen = |pc: usize| visited.get(pc).copied().unwrap_or(false);
+    let arg = |pc: usize, op: u8| {
+        &code[(pc + 1).min(code.len())..(pc + 1 + push_size(op)).min(code.len())]
+    };
+    let mut ev = RunsEvidence::default();
+    let shifts_reached = ins
+        .iter()
+        .any(|(pc, op)| (0x1b..=0x1d).contains(op) && seen(*pc));
+    for (k, &(pc, op)) in ins.iter().enumerate() {
+        if !seen(pc) {
+            continue;
+        }
+        let a = arg(pc, op);
+        if op == 0x7f && a.len() == 32 {
+            let nz = a.iter().rposition(|b| *b != 0).map_or(0, |p| p + 1);
+            if a[..4] == [0x08, 0xc3, 0x79, 0xa0] && nz == 4 {
+                ev.error_selector_literal.push(pc);
+            } else if (a[0] != 0 && nz <= 4) || a.iter().filter(|b| **b == 0xff).count() >= 28 {
+                ev.other_literal.push(pc);
+            }
+        } else if op == 0x73 && a.iter().all(|b| *b == 0xff) {
+            ev.other_literal.push(pc);
+        } else if (0x60..=0x63).contains(&op) {
+            let next = ins.get(k + 1).copied();
+            let after = ins.get(k + 2).copied();
+            if let (Some((p1, 0x60)), Some((_, 0x1b))) = (next, after) {
+                let s = arg(p1, 0x60).first().copied().unwrap_or(0);
+                if s >= 0x60 {
+                    if a == [0x46, 0x1b, 0xcd] && s == 0xe5 {
+                        ev.error_selector_shifted.push(pc);
+                    } else {
+                        ev.other_shifted.push(pc);
+                    }
+                }
+            } else if let (Some((_, 0x19)), false) = (next, a == [0x1f]) {
+                // `PUSH1 0x1f NOT` (round down to 32) stays at any runs
+                ev.other_shifted.push(pc);
+            }
+        }
+    }
+    (runs_from_evidence(&ev, shifts_reached).to_string(), ev)
+}
+
+/// The hint for a set of evidence. The `Error(string)` selector decides
+/// high against low (one side must outnumber the other 3:1); the share of
+/// other constants written out separates mid from low.
+fn runs_from_evidence(ev: &RunsEvidence, shifts_reached: bool) -> &'static str {
+    // Pre-Constantinople code has no shift opcodes and builds constants
+    // with EXP, which is not read here
+    if !shifts_reached {
+        return "unknown";
+    }
+    let (l, s) = (
+        ev.error_selector_literal.len(),
+        ev.error_selector_shifted.len(),
+    );
+    let (lo, sh) = (ev.other_literal.len(), ev.other_shifted.len());
+    let share = if lo + sh == 0 {
+        None
+    } else {
+        Some(lo as f64 / (lo + sh) as f64)
+    };
+    if l > 0 && l >= 3 * s {
+        if sh <= lo {
+            "likely high (≥ ~5000)"
+        } else {
+            "unknown"
+        }
+    } else if s > 0 && s >= 3 * l {
+        match share {
+            None | Some(0.0) => "likely low (≈200)",
+            Some(x) if x >= 0.1 => "likely mid (≈1000-4000)",
+            Some(_) => "likely < ~5000",
+        }
+    } else if l == 0 && s == 0 {
+        match share {
+            Some(x) if x >= 0.9 => "likely ≥ ~1000",
+            Some(0.0) => "likely ≤ ~2000",
+            _ => "unknown",
+        }
+    } else {
+        "unknown"
+    }
 }
 
 /// Opcodes introduced by each fork, newest first
@@ -463,7 +597,22 @@ pub fn fingerprint(code: &[u8], visited: &[bool]) -> Fingerprint {
             notes.push("Metadata has no version: solc before 0.5.9".to_string());
         }
     }
+    let (optimizer_runs_hint, optimizer_runs_evidence) = optimizer_runs_hint(code, visited);
+    if optimizer_runs_hint != "unknown" {
+        notes.push("The optimizer runs hint reads how solc's legacy optimizer wrote constants (measured with 0.8.29); confirm by compiling at the suggested runs. Optimizer off or via-IR code can mislead it".to_string());
+    }
+    let selector_count = super::extract_selectors(code).len();
+    let reads = if selector_count == 0 {
+        calldata_reads(code, visited)
+    } else {
+        Vec::new()
+    };
     Fingerprint {
+        optimizer_runs_hint,
+        optimizer_runs_evidence,
+        selector_count,
+        dispatcher: (!reads.is_empty()).then(|| FALLBACK_ONLY.to_string()),
+        calldata_reads: reads,
         code_size: code.len(),
         code_hash: format!("{:#x}", alloy::primitives::keccak256(code)),
         metadata: trailing.clone(),
@@ -483,6 +632,59 @@ pub fn fingerprint(code: &[u8], visited: &[bool]) -> Fingerprint {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn all_visited(code: &[u8]) -> Vec<bool> {
+        vec![true; code.len()]
+    }
+
+    #[test]
+    fn runs_hint_reads_constant_forms() {
+        let sel32 = format!("7f08c379a0{}", "00".repeat(28));
+        let mask20 = format!("73{}", "ff".repeat(20));
+        // High: selector and mask written out; a SHR so shifts exist
+        let high = hex::decode(format!("{sel32}50{mask20}5060e01c00")).unwrap();
+        let (h, ev) = optimizer_runs_hint(&high, &all_visited(&high));
+        assert_eq!(h, "likely high (≥ ~5000)");
+        assert_eq!(ev.error_selector_literal, vec![0]);
+        assert_eq!(ev.other_literal, vec![34]);
+        // Low: PUSH3 0x461bcd PUSH1 0xe5 SHL, PUSH1 1 PUSH1 0xa0 SHL
+        let low = hex::decode("62461bcd60e51b50600160a01b5000").unwrap();
+        let (h, ev) = optimizer_runs_hint(&low, &all_visited(&low));
+        assert_eq!(h, "likely low (≈200)");
+        assert_eq!(ev.error_selector_shifted, vec![0]);
+        assert_eq!(ev.other_shifted, vec![8]);
+        // Mid: selector computed, masks written out
+        let mid = hex::decode(format!("62461bcd60e51b50{mask20}5000")).unwrap();
+        assert_eq!(
+            optimizer_runs_hint(&mid, &all_visited(&mid)).0,
+            "likely mid (≈1000-4000)"
+        );
+        // Unreached code does not count; `PUSH1 0x1f NOT` is never evidence
+        assert_eq!(
+            optimizer_runs_hint(&low, &vec![false; low.len()]).0,
+            "unknown"
+        );
+        let round = hex::decode("601f1960e01c00").unwrap();
+        let (h, ev) = optimizer_runs_hint(&round, &all_visited(&round));
+        assert_eq!(h, "unknown");
+        assert!(ev.other_shifted.is_empty());
+        // No shift opcodes at all (pre-Constantinople): unknown
+        let old = hex::decode(format!("{sel32}5000")).unwrap();
+        assert_eq!(optimizer_runs_hint(&old, &all_visited(&old)).0, "unknown");
+    }
+
+    #[test]
+    fn fallback_only_code_is_named() {
+        // calldataload(0) then stop: no selector dispatcher
+        let code = hex::decode("5f3550600060006000376000").unwrap();
+        let fp = fingerprint(&code, &all_visited(&code));
+        assert_eq!(fp.selector_count, 0);
+        assert_eq!(fp.dispatcher.as_deref(), Some(FALLBACK_ONLY));
+        assert_eq!(fp.calldata_reads, vec![1, 9]);
+        // Nothing reached: no claim
+        let fp = fingerprint(&code, &vec![false; code.len()]);
+        assert!(fp.dispatcher.is_none());
+    }
 
     // solc 0.8.21 ipfs metadata, as at the end of a real contract
     const TAIL: &str = "a26469706673582212208b5d96ae75ef7e28d88d1c3820279a801b63c4e1319cce2a5166f9a221abe79564736f6c63430008150033";

@@ -158,8 +158,9 @@ single facts.
 ## More
 
 - Unverified contract, want source that compiles to it: follow
-  `skills/bytecode-to-source/SKILL.md` (`contract fingerprint`, optional
-  `contract decompile`, `contract match`).
+  `skills/bytecode-to-source/SKILL.md` (`contract fingerprint`, which also
+  hints the optimizer runs, optional `contract decompile`, `contract match
+  --diff`).
 
 - `ethcli <command> --help` for every option, or `ethcli --help-json` for
   the command tree as JSON.
