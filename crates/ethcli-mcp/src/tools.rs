@@ -7701,20 +7701,22 @@ pub async fn uniswap_position_value(
 }
 
 pub async fn uniswap_lp_positions(
-    owner: &str,
-    chain: Option<&str>,
-    all: bool,
-    block: Option<u64>,
-    no_price: bool,
+    input: &crate::types::UniswapLpPositionsInput,
 ) -> Result<String, ToolError> {
-    let block = block.map(|b| b.to_string());
+    let block = input.block.map(|b| b.to_string());
+    let from_block = input.from_block.map(|b| b.to_string());
+    let max_requests = input.max_log_requests.map(|n| n.to_string());
     ArgsBuilder::new("uniswap")
         .subcommand("lp-positions")
-        .opt("--owner", Some(owner))
-        .opt_flag("--all", all)
+        .opt("--owner", Some(input.owner.as_str()))
+        .opt_flag("--all", input.all.unwrap_or(false))
         .opt("--block", block.as_deref())
-        .opt_flag("--no-price", no_price)
-        .chain(chain)
+        .opt_flag("--no-price", input.no_price.unwrap_or(false))
+        .opt("--version", input.version.as_deref())
+        .opt("--from-block", from_block.as_deref())
+        .opt("--v4-source", input.v4_source.as_deref())
+        .opt("--max-log-requests", max_requests.as_deref())
+        .chain(Some(input.chain.as_str()))
         .format_json()
         .execute()
         .await

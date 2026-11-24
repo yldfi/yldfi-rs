@@ -413,7 +413,13 @@ async fn run(args: Vec<String>) -> anyhow::Result<()> {
         }
 
         Commands::Uniswap { action } => {
-            return ethcli::cli::uniswap::handle(action, &cli.chain, cli.quiet).await;
+            return ethcli::cli::uniswap::handle(
+                action,
+                &cli.chain,
+                etherscan_key.clone(),
+                cli.quiet,
+            )
+            .await;
         }
 
         Commands::Kong { action } => {

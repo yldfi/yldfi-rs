@@ -43,6 +43,10 @@ const ACCOUNT_APPROVALS_TIMEOUT: Duration = Duration::from_secs(180);
 /// Timeout for `rpc find-change`: about log2(range) state reads per change,
 /// and with `--all` a search per change
 const FIND_CHANGE_TIMEOUT: Duration = Duration::from_secs(180);
+/// Timeout for `uniswap lp-positions`: the v4 ids come from an eth_getLogs
+/// scan from the PositionManager's deployment block, which on a slow endpoint
+/// takes minutes
+const LP_POSITIONS_TIMEOUT: Duration = Duration::from_secs(600);
 
 /// Timeout for `contract decompile`: the CLI kills evmdec after its own
 /// --timeout (60 s by default, at most 100 s through MCP) per backend, and
@@ -1176,6 +1180,9 @@ fn get_timeout(args: &[&str]) -> Duration {
     }
     if command == "rpc" && sub == "find-change" {
         return FIND_CHANGE_TIMEOUT;
+    }
+    if command == "uniswap" && sub == "lp-positions" {
+        return LP_POSITIONS_TIMEOUT;
     }
     if command == "endpoints" && sub == "optimize" {
         return ENDPOINTS_OPTIMIZE_TIMEOUT;
@@ -2317,6 +2324,10 @@ mod tests {
             "SELECT 1",
         ];
         assert_eq!(get_timeout(&sql), DUNE_EXECUTE_TIMEOUT);
+        assert_eq!(
+            get_timeout(&["uniswap", "lp-positions", "--owner", "0x1"]),
+            LP_POSITIONS_TIMEOUT
+        );
         assert_eq!(
             get_timeout(&["dune", "query", "execute", "--timeout", "300", "1"]),
             DUNE_EXECUTE_TIMEOUT

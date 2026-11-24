@@ -52,6 +52,7 @@ pub mod tx;
 pub mod uniswap;
 pub mod uniswap_lp;
 mod uniswap_lp_reads;
+mod uniswap_lp_v4_scan;
 pub mod update;
 pub mod velora;
 pub mod yields;
