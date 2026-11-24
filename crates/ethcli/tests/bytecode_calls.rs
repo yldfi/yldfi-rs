@@ -219,6 +219,21 @@ fn solc_sub_peephole_owner_checks_are_guards() {
     }
 }
 
+/// Banana Gun router: the UniV3 `swap` call in 0x70fef1da is reached with
+/// a resolved selector only by the second pass (capped values and unknown
+/// memory words keep an identity)
+#[test]
+fn bananagun_swap_recovered_by_second_pass() {
+    let r = report("bananagun_router");
+    let site = r
+        .call_sites
+        .iter()
+        .find(|c| c.pc == 16124 && c.functions.iter().any(|f| f == "0x70fef1da"))
+        .expect("site 16124 under 0x70fef1da");
+    assert!(has_value(&site.selector, "constant", "0x128acb08"));
+    assert!(site.args[0].iter().any(|p| p.kind == "address_this"));
+}
+
 #[test]
 #[ignore]
 fn dump() {

@@ -9,6 +9,21 @@
 //! at every `JUMPI` whose condition is not constant, and are cut by a step
 //! budget, a time budget and a cap on distinct states per pc.
 //!
+//! A second pass runs when the first dropped states, read memory through
+//! an address holding a plain `Unknown`, or ran out of steps. It runs on a
+//! step budget (three quarters of the first pass's): a value that grows
+//! past the size caps, or an unknown word read from memory, keeps an
+//! identity (`V::Fresh`), so `p + 4` after a capped `p` still addresses
+//! the same memory. Its facts are only added to the first pass's;
+//! `coverage.second_pass` describes it. If the time budget runs out
+//! before it can run, a note says facts may be fewer than a full analysis.
+//! A term holding a plain `Unknown` never makes two memory addresses
+//! equal. Fresh terms are treated like any other symbolic term: as
+//! unsigned and in range, so `p + 4` is above `p`, and a write at the end
+//! of a copy of fresh length L does not reach back into the copy. That is
+//! the assumption already made for calldata terms; it is wrong only when
+//! a length is 0 or an offset wraps.
+//!
 //! The containing function is the dispatcher branch taken: a `JUMPI` on
 //! `selector == PUSH4` (or a jump to an entry evmole found), or an entry of a
 //! calldata-indexed jump table. Everything is reported as inferred, and what
@@ -61,6 +76,8 @@ struct Bx {
     v: Box<V>,
     depth: u8,
     nodes: u8,
+    /// Holds a `V::Fresh`
+    fresh: bool,
 }
 
 impl std::ops::Deref for Bx {
@@ -82,6 +99,8 @@ struct Args {
     v: Vec<V>,
     depth: u8,
     nodes: u8,
+    /// Holds a `V::Fresh`
+    fresh: bool,
 }
 
 impl std::ops::Deref for Args {
@@ -118,12 +137,98 @@ enum V {
     /// Environment value with no useful provenance (opcode)
     Env(u8),
     Unknown,
+    /// A value that grew past the caps: unknown, but with an identity, so
+    /// copies of it (DUP, a memory round trip) compare equal and a memory
+    /// address built on it stays exact (`p + 4` after `p` was capped).
+    /// Each capping makes a new one, so two values are never wrongly the
+    /// same. Dedup compares stacks with these erased ([`erase`])
+    Fresh(u64),
+}
+
+thread_local! {
+    /// Next id for [`V::Fresh`], reset for each analysis
+    static NEXT_FRESH: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
+    /// Whether capped values become `Fresh` (second pass) or `Unknown`
+    static FRESH_ON: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    /// Set when a memory read went through an opaque address (one holding a
+    /// plain `Unknown`): the second pass may resolve it
+    static OPAQUE_READ: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// A new value standing for one that exceeded the caps
+fn fresh() -> V {
+    if !FRESH_ON.with(|c| c.get()) {
+        return V::Unknown;
+    }
+    NEXT_FRESH.with(|n| {
+        let id = n.get();
+        n.set(id + 1);
+        V::Fresh(id)
+    })
+}
+
+/// Cached: O(1)
+fn has_fresh(v: &V) -> bool {
+    match v {
+        V::Fresh(_) => true,
+        V::CallData(x) | V::SLoad(x) | V::TLoad(x) => x.fresh,
+        V::Hash(xs) | V::Op(_, xs) => xs.fresh,
+        _ => false,
+    }
+}
+
+/// `v` with every `V::Fresh` replaced by `Unknown`: the shape dedup
+/// compares, so states that differ only in which unknowns are known equal
+/// merge as they would without fresh values (dropping a state can only
+/// lose facts, never add one)
+fn erase(v: &V) -> V {
+    if !has_fresh(v) {
+        return v.clone();
+    }
+    match v {
+        V::Fresh(_) => V::Unknown,
+        V::CallData(b) | V::SLoad(b) | V::TLoad(b) => {
+            let b = Bx {
+                v: Box::new(erase(&b.v)),
+                depth: b.depth,
+                nodes: b.nodes,
+                fresh: false,
+            };
+            match v {
+                V::CallData(_) => V::CallData(b),
+                V::SLoad(_) => V::SLoad(b),
+                _ => V::TLoad(b),
+            }
+        }
+        V::Hash(a) | V::Op(_, a) => {
+            let a = Args {
+                v: a.v.iter().map(erase).collect(),
+                depth: a.depth,
+                nodes: a.nodes,
+                fresh: false,
+            };
+            match v {
+                V::Op(c, _) => V::Op(*c, a),
+                _ => V::Hash(a),
+            }
+        }
+        other => other.clone(),
+    }
+}
+
+fn erase_stack(stack: &[V]) -> std::borrow::Cow<'_, [V]> {
+    if FRESH_ON.with(|c| c.get()) && stack.iter().any(has_fresh) {
+        std::borrow::Cow::Owned(stack.iter().map(erase).collect())
+    } else {
+        std::borrow::Cow::Borrowed(stack)
+    }
 }
 
 /// Box a child, or `None` when the result would exceed the caps
 fn bx(v: V) -> Option<Bx> {
     let (depth, nodes) = (v.depth() + 1, v.nodes() + 1);
     (depth <= MAX_DEPTH && nodes <= MAX_NODES).then(|| Bx {
+        fresh: has_fresh(&v),
         v: Box::new(v),
         depth: depth as u8,
         nodes: nodes as u8,
@@ -133,7 +238,8 @@ fn bx(v: V) -> Option<Bx> {
 fn args(v: Vec<V>) -> Option<Args> {
     let depth = 1 + v.iter().map(V::depth).max().unwrap_or(0);
     let nodes = 1 + v.iter().map(V::nodes).sum::<usize>();
-    (depth <= MAX_DEPTH && nodes <= MAX_NODES).then_some(Args {
+    (depth <= MAX_DEPTH && nodes <= MAX_NODES).then(|| Args {
+        fresh: v.iter().any(has_fresh),
         v,
         depth: depth as u8,
         nodes: nodes as u8,
@@ -141,18 +247,18 @@ fn args(v: Vec<V>) -> Option<Args> {
 }
 
 // Every nesting constructor goes through these: past the caps the value
-// is Unknown
+// is a fresh unknown (`V::Fresh`)
 fn calldata(off: V) -> V {
-    bx(off).map_or(V::Unknown, V::CallData)
+    bx(off).map_or_else(fresh, V::CallData)
 }
 fn sload(slot: V) -> V {
-    bx(slot).map_or(V::Unknown, V::SLoad)
+    bx(slot).map_or_else(fresh, V::SLoad)
 }
 fn tload(slot: V) -> V {
-    bx(slot).map_or(V::Unknown, V::TLoad)
+    bx(slot).map_or_else(fresh, V::TLoad)
 }
 fn hash(words: Vec<V>) -> V {
-    args(words).map_or(V::Unknown, V::Hash)
+    args(words).map_or_else(fresh, V::Hash)
 }
 fn op(code: u8, a: Vec<V>) -> V {
     if code == 0x01 {
@@ -174,16 +280,17 @@ fn op(code: u8, a: Vec<V>) -> V {
             V::Op(
                 code,
                 Args {
+                    fresh: a.iter().any(has_fresh),
                     v: a,
                     depth: depth as u8,
                     nodes: nodes as u8,
                 },
             )
         } else {
-            V::Unknown
+            fresh()
         };
     }
-    args(a).map_or(V::Unknown, |a| V::Op(code, a))
+    args(a).map_or_else(fresh, |a| V::Op(code, a))
 }
 
 /// `t >= l` for every value: `t` is `l`, or `l` rounded up to 32 bytes
@@ -528,7 +635,7 @@ fn provenance(v: &V) -> Provenance {
             p.call_pc = Some(*pc);
             p
         }
-        V::Unknown | V::Env(_) => Provenance::kind("unresolved"),
+        V::Unknown | V::Fresh(_) | V::Env(_) => Provenance::kind("unresolved"),
         V::Hash(words) => {
             let mut p = Provenance::kind("keccak");
             let inputs: Vec<String> = words.iter().map(describe_short).collect();
@@ -584,7 +691,7 @@ fn collect_sources(v: &V, out: &mut BTreeSet<&'static str>) {
         V::Ret(_) => {
             out.insert("call_return");
         }
-        V::Unknown | V::Env(_) => {
+        V::Unknown | V::Fresh(_) | V::Env(_) => {
             out.insert("unresolved");
         }
         _ => {}
@@ -716,11 +823,14 @@ fn affine(v: &V) -> Option<Addr> {
         .map(term_lower_bound)
         .fold(k, u64::saturating_add)
         .saturating_sub(ADDR_BIAS);
-    // A bare unknown term can stand for anything, so two of them are never
-    // the same address: only the lower bound counts. (A term that merely
-    // contains an unknown, like `32 * n`, is the same expression on both
-    // sides of one path and is compared as such.)
-    let opaque = terms.iter().any(|t| matches!(t, V::Unknown));
+    // An unknown can stand for anything, so a term holding one (bare, or
+    // inside, like `32 * n`) never makes two addresses the same: two
+    // unknowns that print alike may be different values. Only the lower
+    // bound counts. (A capped value with an identity, `V::Fresh`, is
+    // compared as itself.)
+    let opaque = terms
+        .iter()
+        .any(|t| t.contains(&|x| matches!(x, V::Unknown)));
     let mut floor_terms = Vec::new();
     let mut floor_k = k as i128;
     for t in &terms {
@@ -843,6 +953,8 @@ struct Memory {
 }
 
 const MAX_MEM_WRITES: usize = 192;
+/// Smallest step budget of the second pass (small contracts finish in ms)
+const MIN_SECOND_PASS_STEPS: u64 = 50_000;
 
 impl Memory {
     fn write(&mut self, addr: &V, len: Option<u64>, val: MemVal) {
@@ -894,8 +1006,12 @@ impl Memory {
     /// past them does not make it unknown (a selector followed by arguments)
     fn read_prefix(&self, code: &[u8], addr: &V, n: u64) -> V {
         let Some(at) = affine(addr) else {
+            OPAQUE_READ.with(|c| c.set(true));
             return V::Unknown;
         };
+        if at.opaque {
+            OPAQUE_READ.with(|c| c.set(true));
+        }
         let off = at.k;
         // A copy of symbolic length L that covers the read (same base): a
         // newer write exactly at its end (base + L) is taken not to reach
@@ -1155,6 +1271,24 @@ pub struct Coverage {
     pub invalid_opcodes: Vec<usize>,
     /// True when no budget was hit and nothing was pruned or unresolved
     pub complete: bool,
+    /// The second pass (run when the first pruned states): its own steps
+    /// and budgets. `cfg_blocks_analysed`, `opcode_sites[].reached` and
+    /// the facts include what it reached; `jumpdests_added` counts the
+    /// blocks only it reached. Everything else above is the first pass's
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub second_pass: Option<SecondPass>,
+}
+
+/// Coverage of the second pass of [`analyze_calls`]
+#[derive(Debug, Clone, Serialize, Default)]
+pub struct SecondPass {
+    pub steps: u64,
+    pub step_limit: u64,
+    pub step_budget_hit: bool,
+    /// The overall time limit cut it short: its facts may then differ
+    /// between runs
+    pub time_budget_hit: bool,
+    pub jumpdests_added: usize,
 }
 
 /// Result of [`analyze_calls`]
@@ -1414,6 +1548,114 @@ impl<'a> Interp<'a> {
         }
     }
 
+    /// Add the facts of the second pass. Its own coverage is returned for
+    /// the report; this run's budgets, prunes and unresolved jumps stay as
+    /// they were. Where this run already has facts (a site, an SSTORE pc,
+    /// a guard pc), only resolved values are added, within the per-field
+    /// cap and at their own argument position; an unresolved target is
+    /// added too, so a site the second pass could not resolve is not
+    /// reported as resolved. New sites and pcs are added whole.
+    fn absorb(&mut self, o: Interp<'_>) -> SecondPass {
+        let fully = |p: &Provenance| !p.describe().contains("unresolved");
+        // A hash over partly unknown words is still the hash a call used
+        let usable = |p: &Provenance| fully(p) || p.kind == "keccak";
+        // Where the second pass resolved a field the first left unresolved,
+        // the unresolved entry is dropped (the target excepted: an
+        // unresolved target says some path's target is unknown)
+        let settle = |set: &mut BTreeSet<Provenance>, added: bool| {
+            if added && set.iter().any(|p| !p.is_unresolved()) {
+                set.retain(|p| !p.is_unresolved());
+            }
+        };
+        let add = |set: &mut BTreeSet<Provenance>, p: Provenance| {
+            if !set.contains(&p) && set.len() < MAX_PROVENANCE_PER_FIELD {
+                set.insert(p);
+            }
+        };
+        for (k, acc) in o.sites {
+            let Some(mine) = self.sites.get_mut(&k) else {
+                self.sites.insert(k, acc);
+                continue;
+            };
+            for p in acc.target {
+                if fully(&p) || p.is_unresolved() {
+                    add(&mut mine.target, p);
+                }
+            }
+            let fields = [
+                (&mut mine.selector, acc.selector),
+                (&mut mine.value, acc.value),
+                (&mut mine.args_len, acc.args_len),
+            ];
+            for (set, more) in fields {
+                let mut added = false;
+                for p in more.into_iter().filter(usable) {
+                    added |= !set.contains(&p);
+                    add(set, p);
+                }
+                settle(set, added);
+            }
+            for (set, more) in mine.args.iter_mut().zip(acc.args) {
+                let mut added = false;
+                for p in more.into_iter().filter(usable) {
+                    added |= !set.contains(&p);
+                    add(set, p);
+                }
+                settle(set, added);
+            }
+        }
+        for (ctx, f) in o.fns {
+            let mine = self.fns.entry(ctx).or_default();
+            mine.origin.extend(f.origin);
+            mine.caller.extend(f.caller);
+            mine.calls.extend(f.calls);
+            mine.delegatecall.extend(f.delegatecall);
+            mine.selfdestruct.extend(f.selfdestruct);
+            mine.create.extend(f.create);
+            let (first_guards, first_stores) = (mine.guards.clone(), mine.sstores.clone());
+            mine.guards.extend(f.guards);
+            mine.sstores.extend(f.sstores);
+            // A less precise second-pass duplicate (holding an unresolved
+            // part) is dropped where the same pc has a fully resolved entry
+            let resolved_guards: BTreeSet<usize> = mine
+                .guards
+                .iter()
+                .filter(|g| fully(&g.against))
+                .map(|g| g.pc)
+                .collect();
+            mine.guards.retain(|g| {
+                first_guards.contains(g) || fully(&g.against) || !resolved_guards.contains(&g.pc)
+            });
+            let resolved_stores: BTreeSet<usize> = mine
+                .sstores
+                .iter()
+                .filter(|x| fully(&x.slot))
+                .map(|x| x.pc)
+                .collect();
+            mine.sstores.retain(|x| {
+                first_stores.contains(x) || fully(&x.slot) || !resolved_stores.contains(&x.pc)
+            });
+        }
+        let mut blocks_added = 0;
+        for (pc, (v, w)) in self.visited.iter_mut().zip(o.visited).enumerate() {
+            if w && !*v && self.jumpdests[pc] {
+                blocks_added += 1;
+            }
+            *v |= w;
+        }
+        self.invalid_opcodes.extend(o.invalid_opcodes);
+        for (pc, t) in o.jump_tables {
+            self.jump_tables.entry(pc).or_insert(t);
+        }
+        SecondPass {
+            steps: o.steps,
+            step_limit: o.budget.max_steps,
+            step_budget_hit: o.step_hit,
+            time_budget_hit: o.time_hit,
+            jumpdests_added: blocks_added,
+        }
+    }
+
     fn fnacc(&mut self, ctx: Ctx) -> &mut FnAcc {
         self.fns.entry(ctx).or_default()
     }
@@ -1556,18 +1798,24 @@ impl<'a> Interp<'a> {
         // later call a different target or selector. Memory variants get
         // their own small cap, so they cannot use up the stack budget and
         // starve other paths. Every dropped state is counted.
+        // Stacks are compared with fresh values erased (see [`erase`])
         let cap = self.budget.max_states_per_pc;
+        let stack = erase_stack(&s.stack);
+        // Memory is compared as is: erasing its fresh values costs a
+        // rebuild of the whole log at every block, and a state kept apart
+        // by them is only explored, never wrong
+        let mem = s.mem.clone();
         let stacks = self.seen.entry((s.pc, s.ctx)).or_default();
-        match stacks.get_mut(&s.stack) {
+        match stacks.get_mut(&*stack) {
             Some(mems) => {
-                if mems.iter().any(|(m, c)| *m == s.mem && *c == s.last_call) {
+                if mems.iter().any(|(m, c)| *m == mem && *c == s.last_call) {
                     return Admit::Seen;
                 }
                 if mems.len() >= MEMORY_VARIANTS_PER_STACK {
                     self.pruned += 1;
                     return Admit::Seen;
                 }
-                mems.push((s.mem.clone(), s.last_call));
+                mems.push((mem, s.last_call));
                 Admit::Variant
             }
             None => {
@@ -1575,7 +1823,7 @@ impl<'a> Interp<'a> {
                     self.pruned += 1;
                     return Admit::Seen;
                 }
-                stacks.insert(s.stack.clone(), vec![(s.mem.clone(), s.last_call)]);
+                stacks.insert(stack.into_owned(), vec![(mem, s.last_call)]);
                 Admit::New
             }
         }
@@ -1695,7 +1943,7 @@ impl<'a> Interp<'a> {
                                     .collect();
                                 hash(words)
                             }
-                            _ => V::Unknown,
+                            _ => fresh(),
                         };
                         push!(v);
                     }
@@ -1764,7 +2012,12 @@ impl<'a> Interp<'a> {
                     }
                     0x51 => {
                         let a = pop!();
-                        let v = s.mem.read(self.code, &a);
+                        // An unknown word read from memory is one value: copies
+                        // of it are equal, other reads are not
+                        let v = match s.mem.read(self.code, &a) {
+                            V::Unknown => fresh(),
+                            v => v,
+                        };
                         push!(v)
                     }
                     0x52 => {
@@ -1798,6 +2051,7 @@ impl<'a> Interp<'a> {
                                 }
                                 // Display only: wrap without the cap, the key is already bounded
                                 None => provenance(&V::SLoad(Bx {
+                                    fresh: has_fresh(&k),
                                     depth: (k.depth() + 1) as u8,
                                     nodes: (k.nodes() + 1).min(255) as u8,
                                     v: Box::new(k),
@@ -2109,7 +2363,7 @@ impl<'a> Interp<'a> {
                 self.code,
                 &mk(0x01, vec![args_off.clone(), V::c(U256::from(4 + 32 * i))]),
             );
-            if matches!(a, V::Unknown) && i > 0 {
+            if matches!(a, V::Unknown | V::Fresh(_)) && i > 0 {
                 break;
             }
             insert_capped(&mut site.args[i as usize], provenance(&a));
@@ -2165,8 +2419,43 @@ pub fn analyze_calls_with(
         };
     }
     let entry_map: HashMap<usize, u32> = entries.iter().map(|(s, pc)| (*pc, *s)).collect();
-    let mut it = Interp::new(code, entry_map, budget);
+    let mut it = Interp::new(code, entry_map.clone(), budget);
+    FRESH_ON.with(|c| c.set(false));
+    OPAQUE_READ.with(|c| c.set(false));
     it.run();
+    let opaque_read = OPAQUE_READ.with(|c| c.get());
+    // Second pass, when the first dropped states, read memory through an
+    // address holding a plain unknown, or ran out of steps: a value past
+    // the size caps, or an unknown word read from memory, keeps an
+    // identity (`V::Fresh`) instead of becoming `Unknown`, so memory
+    // addressed by a capped free-memory pointer can still be read back.
+    // Its facts are added to the first pass's (see `absorb`). It is
+    // limited by steps only (three quarters of the first pass's, at least
+    // `MIN_SECOND_PASS_STEPS`), so its results do not depend on machine
+    // speed; the overall time limit stays as a safety net and, if it cuts
+    // the pass short, says so in coverage
+    let mut second_pass = None;
+    if it.time_hit {
+        notes.push(
+            "The time budget ran out, so the second pass (which can resolve values the first \
+             could not) did not run: facts may be fewer than a full analysis finds"
+                .into(),
+        );
+    } else if it.pruned > 0 || opaque_read || it.step_hit {
+        let second = CallsBudget {
+            max_steps: (it.steps / 4 * 3)
+                .max(MIN_SECOND_PASS_STEPS)
+                .min(budget.max_steps),
+            max_time: budget.max_time.saturating_sub(it.started.elapsed()),
+            ..budget
+        };
+        let mut w = Interp::new(code, entry_map, second);
+        NEXT_FRESH.with(|n| n.set(0));
+        FRESH_ON.with(|c| c.set(true));
+        w.run();
+        FRESH_ON.with(|c| c.set(false));
+        second_pass = Some(it.absorb(w));
+    }
 
     // Merge per-(pc, ctx) sites that carry the same facts
     let mut call_sites: Vec<CallSite> = Vec::new();
@@ -2178,12 +2467,19 @@ pub fn analyze_calls_with(
             target: acc.target.iter().cloned().collect(),
             selector: acc.selector.iter().cloned().collect(),
             value: acc.value.iter().cloned().collect(),
-            args: acc
-                .args
-                .iter()
-                .filter(|a| !a.is_empty())
-                .map(|a| a.iter().cloned().collect())
-                .collect(),
+            args: {
+                // Keep positions: an empty middle slot stays (as an empty
+                // list) so a later word is never reported as an earlier one
+                let n = acc
+                    .args
+                    .iter()
+                    .rposition(|a| !a.is_empty())
+                    .map_or(0, |i| i + 1);
+                acc.args[..n]
+                    .iter()
+                    .map(|a| a.iter().cloned().collect())
+                    .collect()
+            },
             args_len: acc.args_len.iter().cloned().collect(),
             resolved: !acc.target.iter().any(Provenance::is_unresolved),
         };
@@ -2311,6 +2607,7 @@ pub fn analyze_calls_with(
             && it.unresolved_jumps.is_empty()
             && it.invalid_opcodes.is_empty()
             && unresolved_call_sites == 0,
+        second_pass,
     };
     if coverage.step_budget_hit || coverage.time_budget_hit {
         notes.push("A budget was hit: results are partial".into());
@@ -2717,5 +3014,96 @@ mod tests {
         // Stored keys are the full stacks, not hashes
         let stacks = &it.seen[&(0, Ctx::Dispatcher)];
         assert!(stacks.contains_key(&vec![V::Caller]) && stacks.contains_key(&vec![V::Origin]));
+    }
+
+    /// A value past the caps keeps an identity: memory addressed by it
+    /// still reads back, so a selector written at a capped free-memory
+    /// pointer is found
+    #[test]
+    fn capped_values_keep_their_identity() {
+        FRESH_ON.with(|c| c.set(true));
+        let p = fresh();
+        let mut m = Memory::default();
+        let sel = V::c(U256::from(0xa9059cbbu64) << 224);
+        m.write(&p, Some(32), MemVal::Word(sel.clone()));
+        assert_eq!(m.read(&[], &p), sel);
+        // An unknown address stays unknown: two of them may differ
+        let mut u = Memory::default();
+        u.write(&V::Unknown, Some(32), MemVal::Word(sel));
+        assert_eq!(u.read(&[], &V::Unknown), V::Unknown);
+        // Two cappings give two different values, compared as different
+        let (x, y) = (fresh(), fresh());
+        assert_ne!(x, y);
+        assert_eq!(erase(&x), erase(&y));
+        // and the value reports as unresolved, like any unknown
+        assert!(provenance(&x).is_unresolved());
+        FRESH_ON.with(|c| c.set(false));
+    }
+
+    fn has_value(ps: &[Provenance], value: &str) -> bool {
+        ps.iter().any(|p| p.value.as_deref() == Some(value))
+    }
+
+    /// Adversarial loop: counters i and j = i + 0x1000. The selector and
+    /// target are written at 0x80 + 32 i and read at 0x80 + 32 j, never the
+    /// same word, so neither may resolve
+    #[test]
+    fn distinct_unknown_offsets_are_not_the_same_address() {
+        let r = run(concat!(
+            "60006110005b60010190600101905f3561001857610005565b7fa9059cbb",
+            "000000000000000000000000000000000000000000000000000000008260",
+            "051b608001527300000000000000000000000000000000deadbeef826005",
+            "1b608401525f5f60448360051b6080015f8560051b608401515af100"
+        ));
+        let site = &r.call_sites[0];
+        assert!(!has_value(&site.selector, "0xa9059cbb"));
+        assert!(site.target.iter().all(|p| p.value.is_none()));
+    }
+
+    /// `if (i == j) selfdestruct` with j = i + 0x1000 can never run
+    #[test]
+    fn infeasible_branch_is_not_reached() {
+        let r = run(concat!(
+            "60006110005b60010190600101905f3561001857610005565b",
+            "81811461002157005b33ff"
+        ));
+        assert!(r.functions.iter().all(|f| f.selfdestruct_pcs.is_empty()));
+    }
+
+    /// The call reads its selector at a capped storage value p before this
+    /// iteration writes there; the last write was at the previous p. Two
+    /// unknowns that print alike are not the same address. When the write
+    /// comes first (same p), the selector is found, through the second
+    /// pass's identity for capped values
+    #[test]
+    fn capped_address_from_an_earlier_iteration_is_not_reused() {
+        let before = run(concat!(
+            "5f355f5b600101905454545454545454545f5f6004835f73000000000000",
+            "00000000000000000000deadbeef5af1507fa9059cbb0000000000000000",
+            "00000000000000000000000000000000000000008152905f3561005d5761",
+            "0003565b00"
+        ));
+        assert!(!has_value(&before.call_sites[0].selector, "0xa9059cbb"));
+        let after = run(concat!(
+            "5f355f5b600101905454545454545454547fa9059cbb0000000000000000",
+            "00000000000000000000000000000000000000008152",
+            "5f5f6004835f7300000000000000000000000000000000deadbeef5af150",
+            "905f3561005d57610003565b00"
+        ));
+        assert!(has_value(&after.call_sites[0].selector, "0xa9059cbb"));
+    }
+
+    /// No loop, nothing pruned: p = (mload(calldataload(0)) & 0xffe0) +
+    /// 0x100 is opaque to the first pass, so the second pass must run and
+    /// find the selector written at p
+    #[test]
+    fn opaque_read_alone_starts_the_second_pass() {
+        let r = run(concat!(
+            "5f355161ffe016610100017fa9059cbb00000000000000000000000000000000",
+            "00000000000000000000000081525f5f6004835f7300000000000000000000",
+            "000000000000deadbeef5af100"
+        ));
+        assert!(has_value(&r.call_sites[0].selector, "0xa9059cbb"));
+        assert!(r.coverage.second_pass.is_some());
     }
 }
