@@ -525,6 +525,8 @@ work.
 ```bash
 ethcli sig lookup <hex>                       # 4-byte selector or 32-byte topic, picked by length
 ethcli sig error <revert data>                # decode Error, Panic or a custom error
+ethcli sig hash "balanceOf(address)(uint256)" # selector and topic, computed locally
+ethcli rpc call <addr> -s "balanceOf(address)(uint256)" -a <holder>  # return form decodes
 ethcli cast index <key_type> <key> <slot>     # storage slot of a mapping entry
 ethcli tx <hash> --rpc-url <url>              # analyze against one endpoint
 ```
@@ -646,7 +648,15 @@ ethcli contract match <addr> --artifact <forge-or-solc-json> [--contract Name] [
   constant equal to the implementation (EIP-1167). Safe proxies are matched
   by exact runtime code (1.0.0-1.5.0) and their singleton read from slot 0.
   Anything else with a slot set is analysed as its own code, with a warning,
-  and the own code is censused whenever another code is analysed.
+  and the own code is censused whenever another code is analysed. Such a
+  value goes in `target.proxy_slot` (kind, value, followed, reason,
+  `force_with`); `--follow-proxy` (conflicts with `--no-follow-proxy`)
+  follows it anyway. A dispatcher-path DELEGATECALL whose target is a code
+  constant equal to the EIP-1967/legacy slot value (Yearn V3 tokenized
+  strategies: immutable TokenizedStrategy, also stored in the slot) sets
+  `ProxyCheck::constant_target` and is never followed by default
+  (`not_followed_reason` builds the message; fixture
+  `tests/fixtures/match/yearn_v3_strategy_runtime.hex`).
 - `--block` takes a decimal or hex number, a tag or a time; anything else is
   an error.
 - `match --creation-tx` must be the transaction that created the analysed
@@ -677,11 +687,24 @@ ethcli contract match <addr> --artifact <forge-or-solc-json> [--contract Name] [
   to 4M cells, else patience anchors; a piece with no anchor is shown as
   replaced and `diff_method` says APPROXIMATE). Rows are bucketed by artifact
   label; deployed-only rows take the label before them. Masked artifact
-  bytes match any deployed value. 3 rows of context, 200 rows per function.
+  bytes match any deployed value. When the sizes differ, a PUSH2/PUSH3
+  operand is ignored only when it points at a JUMPDEST of its own code
+  (both sides); other constants must match. Rows carry `artifact_pc_hex` /
+  `onchain_pc_hex`. With different sizes the alignment also runs without
+  `--diff`, and a `different` function whose rows are all equal becomes
+  `equal_shifted`; `--only-different` keeps only `different` rows
+  (`functions_hidden`). 3 rows of context, 200 rows per function.
 - Fingerprint `optimizer_runs_hint` (`metadata::optimizer_runs_hint`):
   calibrated with solc 0.8.29 legacy: selectors and address masks are
   written out from about 1000 runs, the `Error(string)` selector from about
-  5000; `PUSH1 0x1f NOT` stays at any runs and is ignored. Optimizer-off code
+  5000; `PUSH1 0x1f NOT` stays at any runs and is ignored, and so is the
+  address mask `PUSH1 1 PUSH1 0xa0 SHL` (`address_mask_shifted`; solc 0.8.23
+  keeps it at 10000 runs). `optimizer_runs_bucket` maps only the three clear
+  hints to low (≤200) / medium (~1000) / high (≥5000), else `unknown`.
+  EVM bounds: `push0_executed` (visited pcs) and `push0_in_code` (linear
+  sweep before the trailing metadata); `max_evm_version: paris` only for
+  solc ≥ 0.8.20 with no PUSH0 in the sweep and no shanghai/cancun opcode
+  executed; reasons in `evm_version_reasons`. Optimizer-off code
   reads high; no shift opcodes reached gives `unknown`. `dispatcher` /
   `calldata_reads` (also in `contract inspect`'s `interface`) are set when no
   selector is found and reached code reads calldata.

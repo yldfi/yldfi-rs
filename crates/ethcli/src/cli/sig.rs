@@ -50,6 +50,21 @@ pub enum SigCommands {
         format: crate::cli::OutputFormat,
     },
 
+    /// Hash a signature locally to its 4-byte selector and 32-byte topic
+    ///
+    /// No network. Accepts "transfer(address,uint256)", the return form
+    /// "balanceOf(address)(uint256)" (the return part is not hashed), and
+    /// parameter names, which are dropped
+    Hash {
+        /// Function, event or error signature
+        #[arg(value_name = "SIGNATURE")]
+        signature: String,
+
+        /// Output format
+        #[arg(long, short = 'o', visible_alias = "output", default_value = "table")]
+        format: crate::cli::OutputFormat,
+    },
+
     /// Show signature cache statistics
     CacheStats,
 
@@ -73,6 +88,19 @@ pub async fn handle(
 
     match action {
         SigCommands::Lookup { .. } => unreachable!("lookup is resolved to fn or event above"),
+
+        SigCommands::Hash { signature, format } => {
+            let h = hash_signature(signature)?;
+            if format.is_table() {
+                println!("signature {}", h["signature"].as_str().unwrap_or(""));
+                println!("selector  {}", h["selector"].as_str().unwrap_or(""));
+                println!("topic     {}", h["topic"].as_str().unwrap_or(""));
+            } else if format.is_ndjson() {
+                println!("{}", serde_json::to_string(&h)?);
+            } else {
+                println!("{}", serde_json::to_string_pretty(&h)?);
+            }
+        }
 
         SigCommands::Error { data, format } => {
             let bytes = hex::decode(data.strip_prefix("0x").unwrap_or(data))
@@ -238,5 +266,74 @@ mod tests {
         ));
         assert!(classify_lookup("0x1234").is_err());
         assert!(classify_lookup("transfer").is_err());
+    }
+}
+
+/// Canonical form, selector and topic of a signature, computed locally. A
+/// `"name(args)(returns)"` return part is cut off; parameter names and
+/// spaces are dropped, and `uint`/`int` become `uint256`/`int256`
+pub fn hash_signature(signature: &str) -> anyhow::Result<serde_json::Value> {
+    let sig = signature.trim();
+    let sig = sig
+        .strip_prefix("function ")
+        .or_else(|| sig.strip_prefix("event "))
+        .or_else(|| sig.strip_prefix("error "))
+        .unwrap_or(sig)
+        .trim();
+    let open = sig
+        .find('(')
+        .ok_or_else(|| anyhow::anyhow!("'{signature}' is not a signature: no '('"))?;
+    let mut depth = 0usize;
+    let mut close = None;
+    for (i, ch) in sig[open..].char_indices() {
+        match ch {
+            '(' => depth += 1,
+            ')' => {
+                depth -= 1;
+                if depth == 0 {
+                    close = Some(open + i);
+                    break;
+                }
+            }
+            _ => {}
+        }
+    }
+    let close = close.ok_or_else(|| anyhow::anyhow!("'{signature}': unbalanced parentheses"))?;
+    let head = &sig[..=close];
+    let function = alloy::json_abi::Function::parse(head)
+        .map_err(|e| anyhow::anyhow!("Cannot parse '{head}': {e}"))?;
+    let canonical = function.signature();
+    let hash = alloy::primitives::keccak256(canonical.as_bytes());
+    Ok(serde_json::json!({
+        "signature": canonical,
+        "selector": format!("0x{}", hex::encode(&hash[..4])),
+        "topic": format!("{hash:#x}"),
+        "returns_ignored": sig[close + 1..].trim().starts_with('('),
+    }))
+}
+
+#[cfg(test)]
+mod hash_tests {
+    use super::hash_signature;
+
+    #[test]
+    fn hashes_signatures_locally() {
+        let h = hash_signature("transfer(address,uint256)").unwrap();
+        assert_eq!(h["selector"], "0xa9059cbb");
+        let h = hash_signature("balanceOf(address)(uint256)").unwrap();
+        assert_eq!(h["signature"], "balanceOf(address)");
+        assert_eq!(h["selector"], "0x70a08231");
+        assert_eq!(h["returns_ignored"], true);
+        let h = hash_signature(
+            "event Transfer(address indexed from, address indexed to, uint256 value)",
+        )
+        .unwrap();
+        assert_eq!(
+            h["topic"],
+            "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"
+        );
+        let h = hash_signature("transfer(address to, uint amount)").unwrap();
+        assert_eq!(h["signature"], "transfer(address,uint256)");
+        assert!(hash_signature("nope").is_err());
     }
 }

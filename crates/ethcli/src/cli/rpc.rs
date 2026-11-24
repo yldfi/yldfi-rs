@@ -64,7 +64,9 @@ pub enum RpcCommands {
         #[arg(value_name = "DATA")]
         data: Option<String>,
 
-        /// Function signature (e.g., "balanceOf(address)")
+        /// Function signature, e.g. "balanceOf(address)". The form with
+        /// return types, "balanceOf(address)(uint256)", also decodes the
+        /// result (as --decode would)
         #[arg(long, short, conflicts_with = "data", value_name = "SIG")]
         sig: Option<String>,
 
@@ -550,8 +552,18 @@ async fn run_action(
             let to_addr =
                 Address::from_str(to).map_err(|e| anyhow::anyhow!("Invalid address: {}", e))?;
 
-            // Build calldata from either raw data or signature + args
-            let calldata = if let Some(signature) = sig {
+            // "name(args)(returns)": encode as multicall does and decode the
+            // result with the declared return types
+            let mut decode = decode.clone();
+            let calldata = if let Some(returns) = sig.as_deref().and_then(return_types_of) {
+                let signature = sig.as_deref().unwrap_or_default();
+                let func_args = args.as_deref().unwrap_or(&[]);
+                let (_, calldata) = super::contract::encode_signature_call(signature, func_args)?;
+                if decode.is_none() && !returns.is_empty() {
+                    decode = Some(returns);
+                }
+                calldata
+            } else if let Some(signature) = sig {
                 // Encode from function signature
                 let func_args = args.as_deref().unwrap_or(&[]);
                 let encoded = super::cast::abi_encode(signature, func_args)?;
@@ -601,12 +613,12 @@ async fn run_action(
                     "block": block,
                     "raw": format!("0x{}", hex::encode(&result)),
                 });
-                if let Some(type_sig) = decode {
+                if let Some(type_sig) = decode.as_deref() {
                     out["type"] = serde_json::json!(type_sig);
                     out["decoded"] = decode_output_json(&result, type_sig)?;
                 }
                 print_json(&out, *format)?;
-            } else if let Some(type_sig) = decode {
+            } else if let Some(type_sig) = decode.as_deref() {
                 let decoded = decode_output(&result, type_sig)?;
                 println!("{}", decoded);
             } else {
@@ -1060,6 +1072,47 @@ pub fn parse_block_id(block: &str) -> anyhow::Result<alloy::eips::BlockId> {
             }
         }
     }
+}
+
+/// The return types of a `"name(args)(returns)"` signature as one type
+/// string for `--decode`: the bare type for one return value, a tuple for
+/// several, empty for `()`. `None` when the signature has no return part
+pub(super) fn return_types_of(signature: &str) -> Option<String> {
+    let sig = signature.trim();
+    let open = sig.find('(')?;
+    let mut depth = 0usize;
+    let mut close = None;
+    for (i, ch) in sig[open..].char_indices() {
+        match ch {
+            '(' => depth += 1,
+            ')' => {
+                depth -= 1;
+                if depth == 0 {
+                    close = Some(open + i);
+                    break;
+                }
+            }
+            _ => {}
+        }
+    }
+    let rest = sig[close? + 1..].trim();
+    let inner = rest.strip_prefix('(')?.strip_suffix(')')?.trim();
+    // One top-level type stays bare; several make a tuple
+    let mut depth = 0i32;
+    let top_level_comma = inner.chars().any(|c| {
+        match c {
+            '(' => depth += 1,
+            ')' => depth -= 1,
+            ',' if depth == 0 => return true,
+            _ => {}
+        }
+        false
+    });
+    Some(if top_level_comma {
+        format!("({inner})")
+    } else {
+        inner.to_string()
+    })
 }
 
 /// The address an EOA delegates to under EIP-7702, read from its code
@@ -1522,6 +1575,31 @@ mod tests {
 
     use super::*;
     use alloy::eips::{BlockId, BlockNumberOrTag};
+
+    #[test]
+    fn return_types_from_signature() {
+        assert_eq!(return_types_of("balanceOf(address)"), None);
+        assert_eq!(
+            return_types_of("balanceOf(address)(uint256)").as_deref(),
+            Some("uint256")
+        );
+        assert_eq!(
+            return_types_of("getReserves()(uint112,uint112,uint32)").as_deref(),
+            Some("(uint112,uint112,uint32)")
+        );
+        assert_eq!(
+            return_types_of("f((uint256,address))((uint256,address))").as_deref(),
+            Some("(uint256,address)")
+        );
+        assert_eq!(return_types_of("f()()").as_deref(), Some(""));
+        // The return form encodes the same calldata as the plain one
+        let (_, plain) = super::super::contract::encode_signature_call(
+            "balanceOf(address)(uint256)",
+            &["0x0000000000000000000000000000000000000001".to_string()],
+        )
+        .unwrap();
+        assert_eq!(hex::encode(&plain[..4]), "70a08231");
+    }
 
     #[test]
     fn decode_output_json_keeps_big_integers_as_strings() {

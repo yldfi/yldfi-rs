@@ -280,6 +280,9 @@ pub struct ContractDecompileInput {
     /// Decompile the address's own code even if it is a proxy
     #[serde(default)]
     pub no_follow_proxy: bool,
+    /// Follow a proxy slot or implementation() getter even when the call analysis does not confirm the code delegates every unmatched call to it
+    #[serde(default)]
+    pub follow_proxy: bool,
     /// Seconds before each decompiler is killed (1-100, default 60)
     pub timeout: Option<u32>,
     /// Decompiler: "evmdec" (default), "heimdall", or "all" (every installed one)
@@ -298,6 +301,9 @@ pub struct ContractFingerprintInput {
     /// Use the address's own code even if it is a proxy
     #[serde(default)]
     pub no_follow_proxy: bool,
+    /// Follow a proxy slot or implementation() getter even when the call analysis does not confirm the code delegates every unmatched call to it (target.proxy_slot reports such values; by default the address's own code is used)
+    #[serde(default)]
+    pub follow_proxy: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -320,9 +326,15 @@ pub struct ContractMatchInput {
     /// Use the address's own code even if it is a proxy
     #[serde(default)]
     pub no_follow_proxy: bool,
+    /// Follow a proxy slot or implementation() getter even when the call analysis does not confirm the code delegates every unmatched call to it (target.proxy_slot reports such values; by default the address's own code is used)
+    #[serde(default)]
+    pub follow_proxy: bool,
     /// On a mismatch, add an aligned artifact/deployed instruction diff to each function marked different (functions[].diff; up to 200 rows per function)
     #[serde(default)]
     pub diff: bool,
+    /// List only the functions marked different (functions_hidden counts the equal and equal_shifted ones left out)
+    #[serde(default)]
+    pub only_different: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -542,6 +554,12 @@ pub struct SigLookupInput {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct SigHashInput {
+    /// Function, event or error signature, e.g. "transfer(address,uint256)" or "balanceOf(address)(uint256)"
+    pub signature: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct SigErrorInput {
     /// Revert data as 0x hex (selector plus encoded arguments), or a bare 4-byte error selector
     pub data: String,
@@ -642,8 +660,12 @@ pub struct CastAbiDecodeInput {
 pub struct RpcCallInput {
     /// Contract address
     pub to: String,
-    /// Calldata (hex encoded)
-    pub data: String,
+    /// Calldata (hex encoded). Give this or sig
+    pub data: Option<String>,
+    /// Function signature instead of data, e.g. "balanceOf(address)"; the form "balanceOf(address)(uint256)" also decodes the result
+    pub sig: Option<String>,
+    /// Arguments for sig, in order
+    pub args: Option<Vec<String>>,
     /// Chain name
     #[serde(default = "default_chain")]
     pub chain: String,
