@@ -1,6 +1,6 @@
 [package]
 name = "ethcli"
-version = "0.30.15"
+version = "0.30.16"
 edition = "2021"
 rust-version = "1.95"
 description = "Comprehensive Ethereum CLI for logs, transactions, accounts, and contracts"
