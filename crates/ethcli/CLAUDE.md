@@ -712,20 +712,25 @@ ethcli contract twins <addr> --submit-similarity # WRITES to Sourcify
   time (15 s; 10 s in analyze), distinct states per (pc, function) (24
   distinct stacks, plus up to 4 memory/last-call variants per stack,
   explored after every other path so they never crowd one out; all drops
-  counted in `states_pruned`). When the first pass prunes, a second
-  pass runs on steps only (three quarters of the first pass's, at least 50k; the
-  overall time limit is a safety net, and hitting it shows in
-  `coverage.second_pass.time_budget_hit`): capped values and unknown
-  words read from memory become `V::Fresh` (an unknown with an identity;
-  dedup compares stacks with them erased). Its facts are only added:
-  at a site the first pass saw, resolved values at their own argument
-  position plus an unresolved target; a less precise second-pass
-  SSTORE/guard duplicate is dropped. Argument slots keep their
-  positions (an empty middle slot stays). `coverage.second_pass` gives
-  its steps, budgets and `jumpdests_added`; the rest of coverage is the
-  first pass's except `cfg_blocks_analysed` and `reached`, which include
-  it. A memory address term that holds a plain `Unknown` anywhere is
-  opaque (never the same address as another).
+  counted in `states_pruned`). A second pass runs when the first
+  pruned, read memory through an address holding a plain `Unknown`, or
+  hit its step budget (if the time budget ran out, a note says facts may
+  be fewer than a full analysis). It runs on steps only (three quarters
+  of the first pass's, at least 50k; the overall time limit is a safety
+  net, shown in `coverage.second_pass.time_budget_hit`): capped values
+  and unknown words read from memory become `V::Fresh` (an unknown with
+  an identity; dedup compares stacks with them erased). Its facts are
+  only added: at a site the first pass saw, resolved values (and hashes)
+  at their own argument position, plus an unresolved target; where it
+  resolves a non-target field the first left unresolved, that
+  unresolved entry is dropped; a less precise second-pass SSTORE/guard
+  duplicate is dropped. Argument slots keep their positions (an empty
+  middle slot stays). `coverage.second_pass` gives its steps, budgets
+  and `jumpdests_added`; the rest of coverage is the first pass's except
+  `cfg_blocks_analysed` and `reached`, which include it. A memory
+  address term holding a plain `Unknown` anywhere is opaque; fresh terms
+  are taken as unsigned and in range like calldata terms (wrong only if
+  a length is 0 or an offset wraps).
   `tests/calls_corpus.rs` (ignored) writes
   every fact for a directory of bytecode, for A/B runs between builds.
   `coverage` gives evmole

@@ -220,8 +220,8 @@ fn solc_sub_peephole_owner_checks_are_guards() {
 }
 
 /// Banana Gun router: the UniV3 `swap` call in 0x70fef1da is reached with
-/// a resolved selector only by the second pass (capped values keep an
-/// identity, states over the cap are widened)
+/// a resolved selector only by the second pass (capped values and unknown
+/// memory words keep an identity)
 #[test]
 fn bananagun_swap_recovered_by_second_pass() {
     let r = report("bananagun_router");

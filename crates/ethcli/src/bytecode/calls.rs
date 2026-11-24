@@ -9,14 +9,20 @@
 //! at every `JUMPI` whose condition is not constant, and are cut by a step
 //! budget, a time budget and a cap on distinct states per pc.
 //!
-//! When that first pass drops states, a second pass runs on a step
-//! budget (three quarters of the first pass's steps): a value that grows past the
-//! size caps, or an unknown word read from memory, keeps an identity
-//! (`V::Fresh`), so `p + 4` after a capped `p` still addresses the same
-//! memory. Its facts are only added to the first pass's, so the result
-//! never has fewer facts than the plain analysis; `coverage.second_pass`
-//! describes it. A term holding a plain `Unknown` never makes two memory
-//! addresses equal.
+//! A second pass runs when the first dropped states, read memory through
+//! an address holding a plain `Unknown`, or ran out of steps. It runs on a
+//! step budget (three quarters of the first pass's): a value that grows
+//! past the size caps, or an unknown word read from memory, keeps an
+//! identity (`V::Fresh`), so `p + 4` after a capped `p` still addresses
+//! the same memory. Its facts are only added to the first pass's;
+//! `coverage.second_pass` describes it. If the time budget runs out
+//! before it can run, a note says facts may be fewer than a full analysis.
+//! A term holding a plain `Unknown` never makes two memory addresses
+//! equal. Fresh terms are treated like any other symbolic term: as
+//! unsigned and in range, so `p + 4` is above `p`, and a write at the end
+//! of a copy of fresh length L does not reach back into the copy. That is
+//! the assumption already made for calldata terms; it is wrong only when
+//! a length is 0 or an offset wraps.
 //!
 //! The containing function is the dispatcher branch taken: a `JUMPI` on
 //! `selector == PUSH4` (or a jump to an entry evmole found), or an entry of a
@@ -144,6 +150,9 @@ thread_local! {
     static NEXT_FRESH: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
     /// Whether capped values become `Fresh` (second pass) or `Unknown`
     static FRESH_ON: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    /// Set when a memory read went through an opaque address (one holding a
+    /// plain `Unknown`): the second pass may resolve it
+    static OPAQUE_READ: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
 }
 
 /// A new value standing for one that exceeded the caps
@@ -997,8 +1006,12 @@ impl Memory {
     /// past them does not make it unknown (a selector followed by arguments)
     fn read_prefix(&self, code: &[u8], addr: &V, n: u64) -> V {
         let Some(at) = affine(addr) else {
+            OPAQUE_READ.with(|c| c.set(true));
             return V::Unknown;
         };
+        if at.opaque {
+            OPAQUE_READ.with(|c| c.set(true));
+        }
         let off = at.k;
         // A copy of symbolic length L that covers the read (same base): a
         // newer write exactly at its end (base + L) is taken not to reach
@@ -1544,6 +1557,16 @@ impl<'a> Interp<'a> {
     /// reported as resolved. New sites and pcs are added whole.
     fn absorb(&mut self, o: Interp<'_>) -> SecondPass {
         let fully = |p: &Provenance| !p.describe().contains("unresolved");
+        // A hash over partly unknown words is still the hash a call used
+        let usable = |p: &Provenance| fully(p) || p.kind == "keccak";
+        // Where the second pass resolved a field the first left unresolved,
+        // the unresolved entry is dropped (the target excepted: an
+        // unresolved target says some path's target is unknown)
+        let settle = |set: &mut BTreeSet<Provenance>, added: bool| {
+            if added && set.iter().any(|p| !p.is_unresolved()) {
+                set.retain(|p| !p.is_unresolved());
+            }
+        };
         let add = |set: &mut BTreeSet<Provenance>, p: Provenance| {
             if !set.contains(&p) && set.len() < MAX_PROVENANCE_PER_FIELD {
                 set.insert(p);
@@ -1565,14 +1588,20 @@ impl<'a> Interp<'a> {
                 (&mut mine.args_len, acc.args_len),
             ];
             for (set, more) in fields {
-                for p in more.into_iter().filter(fully) {
+                let mut added = false;
+                for p in more.into_iter().filter(usable) {
+                    added |= !set.contains(&p);
                     add(set, p);
                 }
+                settle(set, added);
             }
             for (set, more) in mine.args.iter_mut().zip(acc.args) {
-                for p in more.into_iter().filter(fully) {
+                let mut added = false;
+                for p in more.into_iter().filter(usable) {
+                    added |= !set.contains(&p);
                     add(set, p);
                 }
+                settle(set, added);
             }
         }
         for (ctx, f) in o.fns {
@@ -2392,18 +2421,27 @@ pub fn analyze_calls_with(
     let entry_map: HashMap<usize, u32> = entries.iter().map(|(s, pc)| (*pc, *s)).collect();
     let mut it = Interp::new(code, entry_map.clone(), budget);
     FRESH_ON.with(|c| c.set(false));
+    OPAQUE_READ.with(|c| c.set(false));
     it.run();
-    // Second pass, only when the first dropped states and finished within
-    // its budgets: a value past the size caps keeps an identity
-    // (`V::Fresh`) instead of becoming `Unknown`, so memory addressed by a
-    // capped free-memory pointer can still be read back. Its facts are
-    // added to the first pass's (see `absorb`), so nothing the plain
-    // analysis reports is lost. It is limited by steps only (three
-    // quarters of the first pass's, at least `MIN_SECOND_PASS_STEPS`), so its results do
-    // not depend on machine speed; the overall time limit stays as a
-    // safety net and, if it cuts the pass short, says so in coverage
+    let opaque_read = OPAQUE_READ.with(|c| c.get());
+    // Second pass, when the first dropped states, read memory through an
+    // address holding a plain unknown, or ran out of steps: a value past
+    // the size caps, or an unknown word read from memory, keeps an
+    // identity (`V::Fresh`) instead of becoming `Unknown`, so memory
+    // addressed by a capped free-memory pointer can still be read back.
+    // Its facts are added to the first pass's (see `absorb`). It is
+    // limited by steps only (three quarters of the first pass's, at least
+    // `MIN_SECOND_PASS_STEPS`), so its results do not depend on machine
+    // speed; the overall time limit stays as a safety net and, if it cuts
+    // the pass short, says so in coverage
     let mut second_pass = None;
-    if it.pruned > 0 && !it.step_hit && !it.time_hit {
+    if it.time_hit {
+        notes.push(
+            "The time budget ran out, so the second pass (which can resolve values the first \
+             could not) did not run: facts may be fewer than a full analysis finds"
+                .into(),
+        );
+    } else if it.pruned > 0 || opaque_read || it.step_hit {
         let second = CallsBudget {
             max_steps: (it.steps / 4 * 3)
                 .max(MIN_SECOND_PASS_STEPS)
@@ -3053,5 +3091,19 @@ mod tests {
             "905f3561005d57610003565b00"
         ));
         assert!(has_value(&after.call_sites[0].selector, "0xa9059cbb"));
+    }
+
+    /// No loop, nothing pruned: p = (mload(calldataload(0)) & 0xffe0) +
+    /// 0x100 is opaque to the first pass, so the second pass must run and
+    /// find the selector written at p
+    #[test]
+    fn opaque_read_alone_starts_the_second_pass() {
+        let r = run(concat!(
+            "5f355161ffe016610100017fa9059cbb00000000000000000000000000000000",
+            "00000000000000000000000081525f5f6004835f7300000000000000000000",
+            "000000000000deadbeef5af100"
+        ));
+        assert!(has_value(&r.call_sites[0].selector, "0xa9059cbb"));
+        assert!(r.coverage.second_pass.is_some());
     }
 }
