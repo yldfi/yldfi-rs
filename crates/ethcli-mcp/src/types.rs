@@ -1130,6 +1130,26 @@ pub struct UniswapLpPositionsInput {
     pub block: Option<u64>,
     /// Skip USD pricing
     pub no_price: Option<bool>,
+    /// Versions to list: "v3", "v4" or "all" (default all)
+    #[serde(default)]
+    pub version: Option<String>,
+    /// First block of the v4 Transfer log scan (default: the v4
+    /// PositionManager's deployment block; required on chains where it is
+    /// not known)
+    #[serde(default)]
+    pub from_block: Option<u64>,
+    /// Where v4 token ids come from: "logs" (PositionManager Transfer logs,
+    /// default) or "explorer" (Etherscan ERC-721 transfers; needs a key).
+    /// Ownership is always confirmed on-chain
+    #[serde(default)]
+    pub v4_source: Option<String>,
+    /// Cap on eth_getLogs requests for the v4 scan (default 2000)
+    #[serde(default)]
+    pub max_log_requests: Option<u64>,
+    /// Time limit of the v4 discovery scan in seconds (default 240); when
+    /// reached v4 is reported as incomplete and v3 is still listed
+    #[serde(default)]
+    pub max_scan_seconds: Option<u64>,
 }
 
 // --- Curve ---

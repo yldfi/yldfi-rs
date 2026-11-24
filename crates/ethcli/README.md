@@ -1321,7 +1321,27 @@ ethcli uniswap positions <address> --format json
 ethcli uniswap position 1234567                         # v3 NFT
 ethcli uniswap position 12345 --version v4              # v4 NFT
 ethcli uniswap position --v2 <pair> --owner <address>   # v2-style pair, also Sushi and other forks
-ethcli uniswap lp-positions --owner <address> --json    # all open v3 positions (--all for closed)
+ethcli uniswap lp-positions --owner <address> --json    # all open v3 and v4 positions (--all for closed)
+ethcli uniswap lp-positions --owner <address> --version v4 --from-block 22000000
+```
+
+`lp-positions` lists v3 ids from the NonfungiblePositionManager. The v4
+PositionManager cannot be enumerated, so v4 ids are found from its ERC-721
+`Transfer` logs to the owner, from its deployment block (built in for Ethereum,
+Optimism, BNB Chain, Polygon, Base, Arbitrum and Avalanche; found with a binary
+search on the contract's code elsewhere) up to the valuation block, then
+confirmed with `ownerOf` at that block (ids transferred away or burned are
+dropped). The scan adapts its block range to the endpoint's limits and stops
+after `--max-log-requests` (default 2000) or `--max-scan-seconds` (default
+240). `--v4-source explorer` takes candidates from the block explorer's ERC-721
+transfer list instead (needs an Etherscan key). The output's `v4_discovery`
+says how the ids were found (source, block range, requests, candidates, still
+owned); if v4 could not be listed in full, `complete` is false, `incomplete`
+gives the reason and `total_value_usd` is null, while v3 is still listed.
+v4 fees are computed from fee growth (v4 pays accrued fees on every liquidity
+change), not read.
+
+```bash
 ethcli uniswap position 1234567 --block 21000000 --no-price
 
 # Well-known addresses

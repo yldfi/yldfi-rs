@@ -57,7 +57,7 @@ pub enum UniswapCommands {
     /// Value one LP position on-chain: a v3/v4 NFT id, or a v2-style pair with --v2
     Position(super::uniswap_lp::PositionArgs),
 
-    /// List and value every open v3 LP position an address owns (on-chain)
+    /// List and value the open v3 and v4 LP positions an address owns (on-chain)
     LpPositions(super::uniswap_lp::LpPositionsArgs),
 
     /// Get token balance for an account
@@ -304,7 +304,12 @@ fn rpc_url_for(rpc_arg: Option<&str>, chain: crate::config::Chain) -> anyhow::Re
 ///
 /// `chain` is the global `--chain`, used by the on-chain lens commands
 /// (`pool`, `liquidity`, `balance`).
-pub async fn handle(action: &UniswapCommands, chain: &str, quiet: bool) -> anyhow::Result<()> {
+pub async fn handle(
+    action: &UniswapCommands,
+    chain: &str,
+    etherscan_key: Option<String>,
+    quiet: bool,
+) -> anyhow::Result<()> {
     use alloy::primitives::Address;
     use unswp::{factories, pools, subgraph_ids, tokens, LensClient, SubgraphClient};
 
@@ -314,7 +319,7 @@ pub async fn handle(action: &UniswapCommands, chain: &str, quiet: bool) -> anyho
         }
 
         UniswapCommands::LpPositions(args) => {
-            return super::uniswap_lp::handle_lp_positions(args, chain, quiet).await;
+            return super::uniswap_lp::handle_lp_positions(args, chain, etherscan_key, quiet).await;
         }
 
         UniswapCommands::Pool(args) => {

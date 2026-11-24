@@ -350,7 +350,8 @@ ethcli uniswap positions <addr>     # LP positions (subgraph)
 ethcli uniswap position <id>                      # Value a v3 position on-chain (fees cross-checked with a collect eth_call)
 ethcli uniswap position <id> --version v4         # Value a v4 position
 ethcli uniswap position --v2 <pair> --owner <a>   # Share of a v2-style pair (Sushi etc.)
-ethcli uniswap lp-positions --owner <addr>        # Every open v3 position, valued (--all adds closed ones)
+ethcli uniswap lp-positions --owner <addr>        # Every open v3 and v4 position, valued (--all adds closed ones)
+ethcli uniswap lp-positions --owner <addr> --version v4 --from-block <n>   # v4 ids from PositionManager Transfer logs, confirmed with ownerOf
 ```
 
 ### Yearn/Kong

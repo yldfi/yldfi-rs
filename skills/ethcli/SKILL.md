@@ -34,7 +34,7 @@ ethcli does not sign or send transactions.
 | Verified copy of the same code? | `ethcli contract twins <addr> --json` | `contract_twins` |
 | Open approvals and amount at risk | `ethcli account approvals <addr> --json` | `account_approvals` |
 | Value a Uniswap LP position | `ethcli uniswap position <id> [--version v4] --json`, or `--v2 <pair> --owner <addr>` | `uniswap_position_value` |
-| All v3 LP positions of an address | `ethcli uniswap lp-positions --owner <addr> --json` | `uniswap_lp_positions` |
+| All v3 and v4 LP positions of an address (v4 ids from PositionManager Transfer logs, confirmed with `ownerOf`; check `complete` and `v4_discovery`) | `ethcli uniswap lp-positions --owner <addr> [--version v3\|v4\|all] [--from-block N] --json` | `uniswap_lp_positions` |
 
 These replace chains of smaller calls. `contract inspect` covers `rpc code`,
 `contract selectors`, `contract abi`, `contract creation` and `token info`.

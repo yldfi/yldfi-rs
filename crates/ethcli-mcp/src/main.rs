@@ -1501,22 +1501,14 @@ impl EthcliMcpServer {
     }
 
     #[tool(
-        description = "List and value every open Uniswap v3 LP position an address owns, on-chain (no subgraph). v4 positions are not enumerable on-chain; value them one by one with uniswap_position_value",
+        description = "List and value the open Uniswap v3 and v4 LP positions an address owns, on-chain (no subgraph). v3 ids are enumerated from the NonfungiblePositionManager; v4 ids are found from the v4 PositionManager's Transfer logs to the owner (from its deployment block, or from_block) and confirmed with ownerOf at the valuation block. The result's v4_discovery gives the source, block range, candidates and still-owned count; complete is false and total_value_usd null when any part could not be listed (reasons in incomplete). The v4 scan stops after max_scan_seconds (default 240)",
         annotations(read_only_hint = true, open_world_hint = true)
     )]
     async fn uniswap_lp_positions(
         &self,
         Parameters(input): Parameters<UniswapLpPositionsInput>,
     ) -> CallToolResult {
-        tools::uniswap_lp_positions(
-            &input.owner,
-            Some(&input.chain),
-            input.all.unwrap_or(false),
-            input.block,
-            input.no_price.unwrap_or(false),
-        )
-        .await
-        .to_response()
+        tools::uniswap_lp_positions(&input).await.to_response()
     }
 
     // =========================================================================

@@ -27,6 +27,7 @@ use serde::Serialize;
 use std::collections::HashMap;
 
 use super::uniswap_lp_reads::{dedup, Call, ChainReader, Outcome, Reader};
+pub use super::uniswap_lp_v4_scan::V4Discovery;
 use uniswap_v4_sdk::prelude::sdk_core::addresses::{ChainAddresses, CHAIN_TO_ADDRESSES_MAP};
 use uniswap_v4_sdk::prelude::sdk_core::prelude::FractionBase;
 
@@ -99,6 +100,9 @@ const DYNAMIC_FEE_FLAG: u32 = 0x80_0000;
 const MULTICALL3: Address =
     alloy::primitives::address!("0xcA11bde05977b3631167028862bE2a173976CA11");
 
+/// Block ranges of the v4 Transfer log scan requested at once
+const LOG_SCAN_SEGMENTS: u64 = 4;
+
 /// DefiLlama search window for historical prices
 const HISTORICAL_SEARCH_WIDTH: &str = "4h";
 
@@ -114,6 +118,25 @@ pub enum NftVersion {
     V3,
     /// Uniswap v4 PositionManager
     V4,
+}
+
+/// Versions `lp-positions` lists
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, ValueEnum)]
+pub enum ListVersion {
+    V3,
+    V4,
+    #[default]
+    All,
+}
+
+/// Where `lp-positions` finds v4 token ids
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, ValueEnum)]
+pub enum V4Source {
+    /// PositionManager `Transfer` logs to the owner (eth_getLogs)
+    #[default]
+    Logs,
+    /// The block explorer's ERC-721 transfer list (Etherscan API key)
+    Explorer,
 }
 
 /// Arguments for `uniswap position`
@@ -162,6 +185,33 @@ pub struct LpPositionsArgs {
     /// Include closed positions (no liquidity and nothing to collect)
     #[arg(long)]
     pub all: bool,
+
+    /// Which positions to list: v3 (enumerable on-chain), v4 (found from the
+    /// PositionManager's Transfer logs) or both
+    #[arg(long, value_enum, default_value = "all")]
+    pub version: ListVersion,
+
+    /// First block of the v4 Transfer log scan (default: the PositionManager's
+    /// deployment block; required on chains where that is not known)
+    #[arg(long)]
+    pub from_block: Option<u64>,
+
+    /// Where v4 token ids come from: PositionManager Transfer logs over RPC,
+    /// or the block explorer's ERC-721 transfer list (needs an Etherscan key).
+    /// Ownership is always confirmed on-chain
+    #[arg(long, value_enum, default_value = "logs")]
+    pub v4_source: V4Source,
+
+    /// Cap on eth_getLogs requests for the v4 scan, shared by its parallel
+    /// segments (explorer pages: at most 100); when reached, v4 is reported
+    /// as incomplete
+    #[arg(long, default_value_t = super::uniswap_lp_v4_scan::DEFAULT_MAX_REQUESTS)]
+    pub max_log_requests: u64,
+
+    /// Time limit of the v4 discovery scan; when reached, v4 is reported as
+    /// incomplete and v3 is still listed
+    #[arg(long, default_value_t = 240)]
+    pub max_scan_seconds: u64,
 
     /// Block number to value at (default: latest)
     #[arg(long)]
@@ -431,13 +481,26 @@ struct Ctx {
     block: u64,
     /// The block was given with --block (so prices should be historical)
     historical: bool,
-    /// Contract reads at `block` (Multicall3 batches where it exists)
+    /// The block reads are pinned to: by number, or by hash once known
+    block_id: BlockId,
+    /// Contract reads at `block_id` (Multicall3 batches where it exists)
     reader: ChainReader,
 }
 
 impl Ctx {
     fn block_id(&self) -> BlockId {
-        BlockId::number(self.block)
+        self.block_id
+    }
+
+    /// Move every later read to `block`, by its hash when given
+    fn repin(&mut self, block: u64, hash: Option<B256>) {
+        self.block = block;
+        self.block_id = hash.map_or(BlockId::number(block), BlockId::hash);
+        self.reader = ChainReader::new(
+            self.provider.clone(),
+            self.block_id,
+            self.reader.via_multicall(),
+        );
     }
 
     async fn block_timestamp(&self) -> anyhow::Result<u64> {
@@ -487,6 +550,7 @@ async fn connect(rpc_arg: Option<&str>, chain: &str, block: Option<u64>) -> anyh
         .is_empty();
     Ok(Ctx {
         reader: ChainReader::new(provider.clone(), block_id, multicall),
+        block_id,
         provider,
         chain,
         block,
@@ -1136,74 +1200,172 @@ pub fn decode_v4_state(w: &[B256]) -> Option<V4State> {
 }
 
 async fn value_v4(ctx: &Ctx, token_id: U256) -> anyhow::Result<LpPosition> {
-    value_v4_with(ctx, &ctx.reader, token_id).await
+    value_v4_many(ctx, &ctx.reader, &[token_id], true)
+        .await
+        .pop()
+        .expect("one result per id")
+        .map(|p| p.expect("closed positions are kept with include_closed"))
 }
 
-/// Value a v4 position in two batched stages at one block:
-///
-/// 1. PositionManager `ownerOf`, `getPoolAndPositionInfo`, `getPositionLiquidity`
-/// 2. `decimals` and `symbol` of each ERC-20 currency, and one PoolManager
-///    `extsload(bytes32[])` of the pool, tick and position slots
-async fn value_v4_with(ctx: &Ctx, r: &dyn Reader, token_id: U256) -> anyhow::Result<LpPosition> {
-    use uniswap_v4_sdk::prelude::sdk_core::prelude::{Currency, Ether, Token};
-    use uniswap_v4_sdk::prelude::{calculate_position_key, Pool, Position};
-    use IV4PositionManagerLite as Pm;
+/// What stage 1 read for one v4 position
+struct V4Stage1 {
+    token_id: U256,
+    owner: Address,
+    key: IV4PositionManagerLite::PoolKey,
+    tl: i32,
+    tu: i32,
+    tl24: I24,
+    tu24: I24,
+    pool_id: B256,
+    liquidity: u128,
+}
 
+/// The v4 PositionManager and PoolManager of the chain
+fn v4_contracts(ctx: &Ctx) -> anyhow::Result<(Address, Address)> {
     let addrs = ctx.addresses()?;
-    let (pm, manager) = match (addrs.v4_position_manager, addrs.v4_pool_manager) {
-        (Some(pm), Some(m)) => (pm, m),
+    match (addrs.v4_position_manager, addrs.v4_pool_manager) {
+        (Some(pm), Some(m)) => Ok((pm, m)),
         _ => anyhow::bail!("No Uniswap v4 deployment known for {}", ctx.chain.name()),
+    }
+}
+
+/// Value v4 positions with batched reads at one block:
+///
+/// 1. PositionManager `ownerOf`, `getPoolAndPositionInfo` and
+///    `getPositionLiquidity` of every id
+/// 2. `decimals` and `symbol` of each distinct ERC-20 currency, and one
+///    PoolManager `extsload(bytes32[])` per position of its pool, tick and
+///    position slots
+///
+/// Results are in the order of `ids`. `Ok(None)` is a closed position (no
+/// liquidity) skipped because `include_closed` is false: v4 credits fees to
+/// the owner whenever liquidity changes, so a position with no liquidity has
+/// nothing left to collect. A position whose reads failed is an `Err` with
+/// the reason, without affecting the others.
+async fn value_v4_many(
+    ctx: &Ctx,
+    r: &dyn Reader,
+    ids: &[U256],
+    include_closed: bool,
+) -> Vec<anyhow::Result<Option<LpPosition>>> {
+    use uniswap_v4_sdk::prelude::calculate_position_key;
+    use IV4PositionManagerLite as Pm;
+    if ids.is_empty() {
+        return Vec::new();
+    }
+    let (pm, manager) = match v4_contracts(ctx) {
+        Ok(c) => c,
+        Err(e) => {
+            let msg = e.to_string();
+            return ids
+                .iter()
+                .map(|_| Err(anyhow::anyhow!(msg.clone())))
+                .collect();
+        }
     };
-    let chain_id = ctx.chain.chain_id();
 
     // Stage 1
-    let out = r
-        .read(vec![
-            Call::new(pm, Pm::ownerOfCall { tokenId: token_id }),
-            Call::new(pm, Pm::getPoolAndPositionInfoCall { tokenId: token_id }),
-            Call::new(pm, Pm::getPositionLiquidityCall { tokenId: token_id }),
-        ])
-        .await;
-    if out[0].is_revert() {
-        return Err(not_found(token_id));
+    let mut calls = Vec::with_capacity(ids.len() * 3);
+    for id in ids {
+        calls.push(Call::new(pm, Pm::ownerOfCall { tokenId: *id }));
+        calls.push(Call::new(
+            pm,
+            Pm::getPoolAndPositionInfoCall { tokenId: *id },
+        ));
+        calls.push(Call::new(pm, Pm::getPositionLiquidityCall { tokenId: *id }));
     }
-    let owner = out[0]
-        .decode::<Pm::ownerOfCall>("ownerOf()")
-        .map_err(rpc_err)?;
-    let info = out[1]
-        .decode::<Pm::getPoolAndPositionInfoCall>("getPoolAndPositionInfo()")
-        .map_err(rpc_err)?;
-    let pos_liq = out[2]
-        .decode::<Pm::getPositionLiquidityCall>("getPositionLiquidity()")
-        .map_err(rpc_err)?;
-    let key = info.poolKey;
-    let (tl, tu) = decode_v4_position_info(info.info);
+    let out = r.read(calls).await;
+    let stage1: Vec<anyhow::Result<Option<V4Stage1>>> = ids
+        .iter()
+        .enumerate()
+        .map(|(i, id)| {
+            let o = &out[3 * i..3 * i + 3];
+            if o[0].is_revert() {
+                return Err(not_found(*id));
+            }
+            let owner = o[0]
+                .decode::<Pm::ownerOfCall>("ownerOf()")
+                .map_err(rpc_err)?;
+            let info = o[1]
+                .decode::<Pm::getPoolAndPositionInfoCall>("getPoolAndPositionInfo()")
+                .map_err(rpc_err)?;
+            let liquidity = o[2]
+                .decode::<Pm::getPositionLiquidityCall>("getPositionLiquidity()")
+                .map_err(rpc_err)?;
+            if liquidity == 0 && !include_closed {
+                return Ok(None);
+            }
+            let (tl, tu) = decode_v4_position_info(info.info);
+            let key = info.poolKey;
+            Ok(Some(V4Stage1 {
+                token_id: *id,
+                owner,
+                pool_id: v4_pool_id(&key),
+                key,
+                tl,
+                tu,
+                tl24: I24::try_from(tl).map_err(|e| anyhow::anyhow!("tick {tl}: {e}"))?,
+                tu24: I24::try_from(tu).map_err(|e| anyhow::anyhow!("tick {tu}: {e}"))?,
+                liquidity,
+            }))
+        })
+        .collect();
 
     // Stage 2: currency metadata and the PoolManager state together
-    let pool_id = v4_pool_id(&key);
-    let (tl24, tu24) = (
-        I24::try_from(tl).map_err(|e| anyhow::anyhow!("tick {tl}: {e}"))?,
-        I24::try_from(tu).map_err(|e| anyhow::anyhow!("tick {tu}: {e}"))?,
-    );
-    // PoolManager position: owner = PositionManager, salt = tokenId
-    let pkey = calculate_position_key(pm, tl24, tu24, B256::from(token_id));
-    let erc20s: Vec<Address> = [key.currency0, key.currency1]
-        .into_iter()
+    let open: Vec<&V4Stage1> = stage1
+        .iter()
+        .filter_map(|s| s.as_ref().ok().and_then(|s| s.as_ref()))
+        .collect();
+    let erc20s: Vec<Address> = open
+        .iter()
+        .flat_map(|s| [s.key.currency0, s.key.currency1])
         .filter(|a| *a != Address::ZERO)
         .collect();
     let (erc20s, _) = dedup(&erc20s);
-    let (meta, rest) = read_token_meta(
-        r,
-        &erc20s,
-        vec![Call::new(
-            manager,
-            IPoolManagerExtsloadLite::extsloadCall {
-                slots: v4_state_slots(pool_id, tl24, tu24, pkey),
-            },
-        )],
-    )
-    .await;
-    let words = rest[0]
+    let loads = open
+        .iter()
+        .map(|s| {
+            // PoolManager position: owner = PositionManager, salt = tokenId
+            let pkey = calculate_position_key(pm, s.tl24, s.tu24, B256::from(s.token_id));
+            Call::new(
+                manager,
+                IPoolManagerExtsloadLite::extsloadCall {
+                    slots: v4_state_slots(s.pool_id, s.tl24, s.tu24, pkey),
+                },
+            )
+        })
+        .collect();
+    let (meta, rest) = read_token_meta(r, &erc20s, loads).await;
+
+    let mut rest = rest.into_iter();
+    stage1
+        .into_iter()
+        .map(|s| match s {
+            Ok(Some(s)) => {
+                let load = rest.next().expect("one extsload per open position");
+                assemble_v4(ctx, pm, &s, &meta, &load)
+                    .map(Some)
+                    .map_err(|e| anyhow::anyhow!("v4 position {}: {e}", s.token_id))
+            }
+            other => other.map(|_| None),
+        })
+        .collect()
+}
+
+/// Build one v4 position from its reads
+fn assemble_v4(
+    ctx: &Ctx,
+    pm: Address,
+    s: &V4Stage1,
+    meta: &HashMap<Address, Result<(u8, String), String>>,
+    load: &Outcome,
+) -> anyhow::Result<LpPosition> {
+    use uniswap_v4_sdk::prelude::sdk_core::prelude::{Currency, Ether, Token};
+    use uniswap_v4_sdk::prelude::{Pool, Position};
+
+    let chain_id = ctx.chain.chain_id();
+    let (key, tl, tu, pool_id) = (&s.key, s.tl, s.tu, s.pool_id);
+    let words = load
         .decode::<IPoolManagerExtsloadLite::extsloadCall>("extsload()")
         .map_err(rpc_err)?;
     let st = decode_v4_state(&words)
@@ -1218,8 +1380,8 @@ async fn value_v4_with(ctx: &Ctx, r: &dyn Reader, token_id: U256) -> anyhow::Res
             tokens.push(native_info(ctx.chain));
             currencies.push(Currency::NativeCurrency(Ether::on_chain(chain_id)));
         } else {
-            let (d, s) = token_meta(&meta, a)?;
-            tokens.push(erc20_info(a, s, d));
+            let (d, sym) = token_meta(meta, a)?;
+            tokens.push(erc20_info(a, sym, d));
             currencies.push(Currency::Token(Token::new(
                 chain_id, a, d, None, None, 0, 0,
             )));
@@ -1232,11 +1394,9 @@ async fn value_v4_with(ctx: &Ctx, r: &dyn Reader, token_id: U256) -> anyhow::Res
         key.tickSpacing.as_i32(),
         key.hooks,
     )
-    .map_err(|e| anyhow::anyhow!("v4 position {token_id}: {e}"))?;
+    .map_err(|e| anyhow::anyhow!("{e}"))?;
     if sdk_pool_id != pool_id {
-        anyhow::bail!(
-            "v4 position {token_id}: pool id {pool_id:#x} differs from the SDK's {sdk_pool_id:#x}"
-        );
+        anyhow::bail!("pool id {pool_id:#x} differs from the SDK's {sdk_pool_id:#x}");
     }
     let mut c = currencies.into_iter();
     let pool = Pool::new(
@@ -1248,8 +1408,8 @@ async fn value_v4_with(ctx: &Ctx, r: &dyn Reader, token_id: U256) -> anyhow::Res
         st.sqrt_price_x96,
         st.liquidity,
     )
-    .map_err(|e| anyhow::anyhow!("v4 position {token_id}: {e}"))?;
-    let pos = Position::new(pool, pos_liq, tl, tu);
+    .map_err(|e| anyhow::anyhow!("{e}"))?;
+    let pos = Position::new(pool, s.liquidity, tl, tu);
 
     let a0 = bigint_to_u256(pos.amount0().map_err(rpc_err)?.quotient())?;
     let a1 = bigint_to_u256(pos.amount1().map_err(rpc_err)?.quotient())?;
@@ -1267,8 +1427,6 @@ async fn value_v4_with(ctx: &Ctx, r: &dyn Reader, token_id: U256) -> anyhow::Res
     let liq = st.position_liquidity;
     let (last0, last1) = st.position_last;
     let (f0, f1) = uniswap_v3_sdk::prelude::get_tokens_owed(last0, last1, liq, in0, in1);
-    let lp_fee = st.lp_fee;
-    let tick_now = st.tick;
 
     let mut notes = Vec::new();
     if liq != pos.liquidity {
@@ -1281,24 +1439,24 @@ async fn value_v4_with(ctx: &Ctx, r: &dyn Reader, token_id: U256) -> anyhow::Res
     let declared_fee = key.fee.to::<u32>();
     let fee = if declared_fee == DYNAMIC_FEE_FLAG {
         notes.push("dynamic-fee pool: fee_tier is the current LP fee from slot0".into());
-        lp_fee
+        st.lp_fee
     } else {
         declared_fee
     };
 
     let hooks = key.hooks;
-    let mut method = "amounts: uniswap-v4-sdk Position on the pool read from the PositionManager and PoolManager (liquidity at the current sqrt price); fees: PoolManager fee growth inside the range minus the position's feeGrowthInsideLast (pool, tick and position slots read with PoolManager.extsload, as PoolManagerLens does), times liquidity".to_string();
+    let mut method = "amounts: uniswap-v4-sdk Position on the pool read from the PositionManager and PoolManager (liquidity at the current sqrt price); fees: computed, not read: PoolManager fee growth inside the range minus the position's feeGrowthInsideLast (pool, tick and position slots read with PoolManager.extsload, as PoolManagerLens does), times liquidity. v4 pays accrued fees to the owner on every liquidity change, so these are the fees since the last one".to_string();
     if hooks != Address::ZERO {
         method.push_str("; hooked pool: hooks can take or add value outside the PoolManager fee growth, which this does not include");
     }
 
-    let tick = tick_now;
+    let tick = st.tick;
     Ok(LpPosition {
         protocol: "uniswap-v4".into(),
         chain: ctx.chain.name().to_string(),
         block: ctx.block,
-        token_id: Some(token_id.to_string()),
-        owner: format!("{owner:#x}"),
+        token_id: Some(s.token_id.to_string()),
+        owner: format!("{:#x}", s.owner),
         contract: format!("{pm:#x}"),
         pool: format!("{pool_id:#x}"),
         hooks: Some(format!("{hooks:#x}")),
@@ -1689,22 +1847,70 @@ pub struct FailedPosition {
 }
 
 /// Total of `value_usd.total` across positions; None when any position has
-/// no total, nothing was priced, or any position failed
-pub fn list_total(positions: &[LpPosition], failed: &[FailedPosition]) -> Option<f64> {
-    if !failed.is_empty() || positions.iter().any(|p| p.prices.is_empty()) {
+/// no total, nothing was priced, any position failed, or the list is known
+/// to be incomplete
+pub fn list_total(
+    positions: &[LpPosition],
+    failed: &[FailedPosition],
+    incomplete: bool,
+) -> Option<f64> {
+    if incomplete || !failed.is_empty() || positions.iter().any(|p| p.prices.is_empty()) {
         return None;
     }
     positions.iter().map(|p| p.value_usd.total).sum()
 }
 
-/// `nft_count` is Some for `lp-positions` (a list), None for one position
+/// What `lp-positions` reports besides the positions
+#[derive(Debug, Clone, Default, Serialize)]
+pub struct ListInfo {
+    /// Position NFTs found (v3 owned + v4 still owned), open or closed
+    pub nft_count: usize,
+    /// v3 position NFTs the owner holds (null when v3 was not listed)
+    pub v3_nft_count: Option<usize>,
+    /// How v4 ids were found (null when v4 was not listed)
+    pub v4_discovery: Option<V4Discovery>,
+    /// Why part of the list may be missing (empty when complete)
+    pub incomplete: Vec<String>,
+    /// Other remarks (a chain without v4, ...)
+    pub notes: Vec<String>,
+}
+
+impl ListInfo {
+    fn complete(&self, failed: &[FailedPosition]) -> bool {
+        failed.is_empty() && self.incomplete.is_empty()
+    }
+}
+
+fn print_discovery(d: &V4Discovery) {
+    println!(
+        "v4 discovery: {} ({}), blocks {}-{} ({} from {}), {} requests, {} candidates, {} still owned ({} transferred out, {} burned, {} unknown){}",
+        d.source,
+        d.position_manager,
+        d.from_block,
+        d.to_block,
+        if d.complete { "complete" } else { "INCOMPLETE" },
+        d.from_block_source,
+        d.requests,
+        d.candidates,
+        d.still_owned,
+        d.transferred_out,
+        d.burned,
+        d.owner_unknown,
+        d.error
+            .as_deref()
+            .map(|e| format!("; stopped: {e}"))
+            .unwrap_or_default()
+    );
+}
+
+/// `list` is Some for `lp-positions`, None for one position
 fn emit(
     positions: &[LpPosition],
     failed: &[FailedPosition],
-    nft_count: Option<usize>,
+    list: Option<&ListInfo>,
     format: OutputFormat,
 ) -> anyhow::Result<()> {
-    let single = nft_count.is_none();
+    let incomplete = list.is_some_and(|l| !l.incomplete.is_empty());
     match format {
         OutputFormat::Table => {
             if positions.is_empty() {
@@ -1716,20 +1922,31 @@ fn emit(
                 }
                 print_table(p);
             }
-            if !single {
+            if let Some(l) = list {
                 for f in failed {
                     println!("\nFAILED position {}: {}", f.token_id, f.error);
                 }
-                match list_total(positions, failed) {
+                println!();
+                if let Some(d) = &l.v4_discovery {
+                    print_discovery(d);
+                }
+                for n in &l.notes {
+                    println!("note: {n}");
+                }
+                for r in &l.incomplete {
+                    println!("INCOMPLETE: {r}");
+                }
+                match list_total(positions, failed, incomplete) {
                     Some(sum) if !positions.is_empty() => println!(
-                        "\nTotal value: ${sum:.2} across {} positions",
+                        "Total value: ${sum:.2} across {} positions",
                         positions.len()
                     ),
                     _ if !failed.is_empty() => println!(
-                        "\nINCOMPLETE: {} of {} positions could not be valued; no total",
+                        "INCOMPLETE: {} of {} positions could not be valued; no total",
                         failed.len(),
                         positions.len() + failed.len()
                     ),
+                    _ if incomplete => println!("No total: the list may be incomplete"),
                     _ => {}
                 }
             }
@@ -1738,33 +1955,41 @@ fn emit(
             for p in positions {
                 println!("{}", serde_json::to_string(p)?);
             }
-            if !single {
+            if let Some(l) = list {
                 println!(
                     "{}",
                     serde_json::json!({
                         "summary": true,
-                        "complete": failed.is_empty(),
+                        "complete": l.complete(failed),
+                        "incomplete": l.incomplete,
                         "failed": failed,
-                        "total_value_usd": list_total(positions, failed),
+                        "nft_count": l.nft_count,
+                        "v3_nft_count": l.v3_nft_count,
+                        "v4_discovery": l.v4_discovery,
+                        "notes": l.notes,
+                        "total_value_usd": list_total(positions, failed, incomplete),
                     })
                 );
             }
         }
-        OutputFormat::Json => {
-            if single {
-                println!("{}", serde_json::to_string_pretty(&positions[0])?);
-            } else {
+        OutputFormat::Json => match list {
+            None => println!("{}", serde_json::to_string_pretty(&positions[0])?),
+            Some(l) => {
                 let out = serde_json::json!({
-                    "complete": failed.is_empty(),
-                    "nft_count": nft_count,
+                    "complete": l.complete(failed),
+                    "incomplete": l.incomplete,
+                    "nft_count": l.nft_count,
+                    "v3_nft_count": l.v3_nft_count,
+                    "v4_discovery": l.v4_discovery,
+                    "notes": l.notes,
                     "count": positions.len(),
                     "failed": failed,
-                    "total_value_usd": list_total(positions, failed),
+                    "total_value_usd": list_total(positions, failed, incomplete),
                     "positions": positions,
                 });
                 println!("{}", serde_json::to_string_pretty(&out)?);
             }
-        }
+        },
     }
     Ok(())
 }
@@ -1808,55 +2033,374 @@ pub async fn handle_position(args: &PositionArgs, chain: &str, quiet: bool) -> a
     emit(std::slice::from_ref(&pos), &[], None, args.format)
 }
 
+/// Candidate v4 ids from the explorer's ERC-721 transfer list of the
+/// PositionManager for `owner` (transfers to the owner): the ids, the pages
+/// read, the last block of any listed transfer, and why the walk stopped
+/// early, if it did
+async fn explorer_v4_candidates(
+    ctx: &Ctx,
+    pm: Address,
+    owner: Address,
+    from: u64,
+    max_pages: u64,
+    etherscan_key: Option<String>,
+) -> anyhow::Result<(Vec<U256>, u64, Option<u64>, Option<String>)> {
+    use foundry_block_explorers::account::{Sort, TokenQueryOption, TxListParams};
+    let key = etherscan_key
+        .ok_or_else(|| anyhow::anyhow!("--v4-source explorer needs an Etherscan API key"))?;
+    let client = crate::etherscan::Client::new(ctx.chain, Some(key))?;
+    client.ensure_api_supported()?;
+    let client = &client;
+    let block_of = |t: &foundry_block_explorers::account::ERC721TokenTransferEvent| {
+        t.block_number
+            .as_number()
+            .map(|n| n.to::<u64>())
+            .unwrap_or(0)
+    };
+    let fetched = super::account::fetch_all_pages(
+        from,
+        ctx.block,
+        true,
+        max_pages,
+        super::account::PAGE_DELAY,
+        move |page, start, end| async move {
+            Ok(client
+                .get_erc721_token_transfer_events(
+                    TokenQueryOption::ByAddressAndContract(owner, pm),
+                    Some(TxListParams {
+                        start_block: start,
+                        end_block: end,
+                        page,
+                        offset: super::account::ALL_PAGE_SIZE,
+                        sort: Sort::Asc,
+                    }),
+                )
+                .await?)
+        },
+        block_of,
+    )
+    .await?;
+    let mut ids = std::collections::BTreeSet::new();
+    for t in &fetched.rows {
+        if t.contract_address == pm && t.to == Some(owner) {
+            ids.insert(parse_token_id(&t.token_id)?);
+        }
+    }
+    let last = fetched.rows.iter().map(block_of).max();
+    let stopped = (!fetched.complete).then(|| {
+        format!(
+            "the explorer listing stopped after {} pages before the end of the owner's transfers",
+            fetched.requests
+        )
+    });
+    Ok((ids.into_iter().collect(), fetched.requests, last, stopped))
+}
+
+/// What v4 discovery found
+struct V4Found {
+    discovery: V4Discovery,
+    owned: Vec<U256>,
+    /// Candidates whose owner could not be read
+    unknown: Vec<FailedPosition>,
+    /// Why the v4 list may be incomplete
+    incomplete: Vec<String>,
+    notes: Vec<String>,
+}
+
+/// Find the v4 ids `owner` holds, and pin `ctx` to the block they were
+/// found at:
+///
+/// 1. the start block: `--from-block`, the built-in deployment block, or
+///    one found by binary search on eth_getCode;
+/// 2. candidates from Transfer logs (or the explorer, plus a log scan of
+///    the blocks after its last listed transfer);
+/// 3. without `--block`, the blocks mined during the scan are scanned too
+///    and the valuation block moves to the new head, so a long scan does
+///    not leave the reads on a block a non-archive endpoint has pruned;
+/// 4. `ctx` is pinned to that block's hash (a reorg then fails the reads
+///    instead of mixing chains), and `ownerOf` of every candidate is read
+///    there.
+async fn discover_v4(
+    ctx: &mut Ctx,
+    owner: Address,
+    args: &LpPositionsArgs,
+    pm: Address,
+    etherscan_key: Option<String>,
+) -> anyhow::Result<V4Found> {
+    use super::uniswap_lp_v4_scan::{
+        classify_owner, deployment_block, find_deployment_block, plan_start, scan_transfers,
+        CodeSource, Ownership, ProviderCode, ProviderLogs, ScanOpts, StartPlan,
+    };
+    let deadline =
+        tokio::time::Instant::now() + std::time::Duration::from_secs(args.max_scan_seconds);
+    let chain_id = ctx.chain.chain_id();
+    let code = ProviderCode {
+        provider: ctx.provider.clone(),
+        address: pm,
+    };
+    let mut notes = Vec::new();
+    let mut incomplete = Vec::new();
+
+    // 1. Where to start
+    let mut deployment = deployment_block(chain_id, pm).map(|b| (b, "deployment"));
+    if deployment.is_none() {
+        match code.has_code(ctx.block).await {
+            Ok(false) => {
+                notes.push(format!(
+                    "the v4 PositionManager has no code at block {}: no v4 positions",
+                    ctx.block
+                ));
+                deployment = Some((ctx.block + 1, "code_search"));
+            }
+            Ok(true) => match find_deployment_block(&code, ctx.block).await {
+                Ok((b, reads)) => {
+                    notes.push(format!(
+                        "v4 PositionManager deployment block {b} found with {reads} eth_getCode reads"
+                    ));
+                    deployment = Some((b, "code_search"));
+                }
+                Err(e) => notes.push(format!(
+                    "could not find the v4 PositionManager's deployment block: {e}"
+                )),
+            },
+            Err(e) => notes.push(format!(
+                "could not find the v4 PositionManager's deployment block: {e}"
+            )),
+        }
+    }
+    let code_before_from = match (args.from_block, deployment) {
+        (Some(f), None) if f > 0 => code.has_code(f - 1).await.ok(),
+        _ => None,
+    };
+    let explorer = args.v4_source == V4Source::Explorer;
+    let plan = plan_start(
+        args.from_block,
+        deployment,
+        ctx.block,
+        code_before_from,
+        explorer,
+    )
+    .map_err(|e| anyhow::anyhow!(e))?;
+    let empty = |from, source: &str, deployed| V4Discovery {
+        source: if explorer { "explorer" } else { "logs" }.into(),
+        position_manager: format!("{pm:#x}"),
+        from_block: from,
+        from_block_source: source.into(),
+        deployment_block: deployed,
+        to_block: 0,
+        explorer_last_block: None,
+        logs_from: None,
+        scanned_to: None,
+        complete: true,
+        requests: 0,
+        candidates: 0,
+        still_owned: 0,
+        transferred_out: 0,
+        burned: 0,
+        owner_unknown: 0,
+        error: None,
+    };
+    let (from, from_source) = match plan {
+        StartPlan::NotDeployed { deployed } => {
+            if !notes.iter().any(|n| n.contains("no code at block")) {
+                notes.push(format!(
+                    "the v4 PositionManager was deployed at block {deployed}, after the valuation block {}: no v4 positions",
+                    ctx.block
+                ));
+            }
+            let mut d = empty(deployed, deployment.map_or("deployment", |x| x.1), None);
+            d.to_block = ctx.block;
+            return Ok(V4Found {
+                discovery: d,
+                owned: Vec::new(),
+                unknown: Vec::new(),
+                incomplete,
+                notes,
+            });
+        }
+        StartPlan::Scan { from, source, gap } => {
+            incomplete.extend(gap);
+            (from, source)
+        }
+    };
+
+    // 2. Candidates
+    let logs = ProviderLogs {
+        provider: ctx.provider.clone(),
+        pm,
+        owner,
+    };
+    let opts = ScanOpts {
+        max_requests: args.max_log_requests,
+        retry_delay: std::time::Duration::from_millis(500),
+        segments: LOG_SCAN_SEGMENTS,
+        deadline: Some(deadline),
+    };
+    let mut ids = std::collections::BTreeSet::new();
+    let mut requests = 0;
+    let mut errors = Vec::new();
+    let mut explorer_last = None;
+    let logs_from;
+    if explorer {
+        let (found, pages, last, stopped) = explorer_v4_candidates(
+            ctx,
+            pm,
+            owner,
+            from,
+            args.max_log_requests.min(100),
+            etherscan_key,
+        )
+        .await?;
+        ids.extend(found);
+        requests += pages;
+        errors.extend(stopped);
+        explorer_last = last;
+        // The explorer may lag the chain: scan what it may not have
+        // indexed yet (from its last listed transfer, or the start)
+        logs_from = last.unwrap_or(from).max(from);
+    } else {
+        logs_from = from;
+    }
+    let mut scanned_to = None;
+    if logs_from <= ctx.block {
+        let o = scan_transfers(&logs, pm, owner, logs_from, ctx.block, &opts).await;
+        ids.extend(o.ids);
+        requests += o.requests;
+        scanned_to = o.scanned_to;
+        errors.extend(o.error);
+    }
+
+    // 3. Move to the head reached during the scan
+    let mut to = ctx.block;
+    if !ctx.historical && errors.is_empty() {
+        match ctx.provider.get_block_number().await {
+            Ok(head) if head > to => {
+                let o = scan_transfers(&logs, pm, owner, to + 1, head, &opts).await;
+                ids.extend(o.ids);
+                requests += o.requests;
+                match o.error {
+                    None => {
+                        to = head;
+                        scanned_to = Some(head);
+                    }
+                    Some(e) => notes.push(format!(
+                        "kept valuation block {to}: scanning the blocks mined since failed: {e}"
+                    )),
+                }
+            }
+            Ok(_) => {}
+            Err(e) => notes.push(format!(
+                "kept valuation block {to}: could not read the head: {}",
+                rpc_err(e)
+            )),
+        }
+    }
+
+    // 4. Pin every read to that block's hash
+    match ctx.provider.get_block_by_number(to.into()).await {
+        Ok(Some(b)) => ctx.repin(to, Some(b.header.hash)),
+        Ok(None) => {
+            ctx.repin(to, None);
+            incomplete.push(format!(
+                "the endpoint does not have block {to} (it lags the scan's end), so recent v4 transfers may be missing"
+            ));
+        }
+        Err(e) => {
+            ctx.repin(to, None);
+            incomplete.push(format!(
+                "could not confirm block {to} on the endpoint: {}",
+                rpc_err(e)
+            ));
+        }
+    }
+    let ids: Vec<U256> = ids.into_iter().collect();
+
+    use IV4PositionManagerLite as Pm;
+    let out = ctx
+        .reader
+        .read(
+            ids.iter()
+                .map(|id| Call::new(pm, Pm::ownerOfCall { tokenId: *id }))
+                .collect(),
+        )
+        .await;
+    let (mut owned, mut unknown) = (Vec::new(), Vec::new());
+    let (mut moved, mut burned) = (0, 0);
+    for (id, o) in ids.iter().zip(&out) {
+        match classify_owner(o, owner) {
+            Ownership::Owned => owned.push(*id),
+            Ownership::TransferredOut => moved += 1,
+            Ownership::Burned => burned += 1,
+            Ownership::Unknown(e) => unknown.push(FailedPosition {
+                token_id: id.to_string(),
+                error: format!("v4 ownership unknown: {e}"),
+            }),
+        }
+    }
+    if !unknown.is_empty() {
+        incomplete.push(format!(
+            "ownership of {} v4 candidate(s) could not be read (listed in failed)",
+            unknown.len()
+        ));
+    }
+    let error = (!errors.is_empty()).then(|| errors.join("; "));
+    if let Some(e) = &error {
+        incomplete.push(format!(
+            "v4 discovery covered blocks {logs_from}-{} of {logs_from}-{to}: {e}",
+            scanned_to.map_or("none".to_string(), |b| b.to_string()),
+        ));
+    }
+    let mut d = empty(from, from_source, deployment.map(|x| x.0));
+    d.to_block = to;
+    d.explorer_last_block = explorer_last;
+    d.logs_from = explorer.then_some(logs_from);
+    d.scanned_to = scanned_to;
+    d.complete = incomplete.is_empty();
+    d.requests = requests;
+    d.candidates = ids.len();
+    d.still_owned = owned.len();
+    d.transferred_out = moved;
+    d.burned = burned;
+    d.owner_unknown = unknown.len();
+    d.error = error;
+    Ok(V4Found {
+        discovery: d,
+        owned,
+        unknown,
+        incomplete,
+        notes,
+    })
+}
+
 /// `uniswap lp-positions`
 pub async fn handle_lp_positions(
     args: &LpPositionsArgs,
     chain: &str,
+    etherscan_key: Option<String>,
     quiet: bool,
 ) -> anyhow::Result<()> {
     use uniswap_v3_sdk::extensions::get_all_positions_by_owner;
 
-    let ctx = connect(args.rpc_url.as_deref(), chain, args.block).await?;
+    let mut ctx = connect(args.rpc_url.as_deref(), chain, args.block).await?;
     let owner = parse_addr(&args.owner, "owner")?;
-    let npm = ctx.addresses()?.nonfungible_position_manager;
-    if !quiet {
-        eprintln!(
-            "Listing v3 positions of {owner:#x} on {} at block {}...",
-            ctx.chain, ctx.block
-        );
-    }
-    let states = get_all_positions_by_owner(npm, owner, ctx.provider.clone(), Some(ctx.block_id()))
-        .await
-        .map_err(|e| rpc_err(format!("listing v3 positions: {e}")))?;
-    let total = states.len();
-    let ids: Vec<U256> = states
-        .iter()
-        .filter(|s| {
-            args.all
-                || s.position.liquidity > 0
-                || s.position.tokensOwed0 > 0
-                || s.position.tokensOwed1 > 0
-        })
-        .map(|s| s.tokenId)
-        .collect();
-    if !quiet {
-        eprintln!(
-            "{total} v3 position NFT(s); valuing {} {}",
-            ids.len(),
-            if args.all {
-                ""
-            } else {
-                "open (use --all for closed ones)"
-            }
-        );
-    }
-
-    let results = value_v3_many(&ctx, &ctx.reader, &ids).await;
-    let mut positions = Vec::with_capacity(results.len());
+    let addrs = ctx.addresses()?;
+    let mut info = ListInfo::default();
+    let mut positions = Vec::new();
     let mut failed = Vec::new();
-    for (id, r) in ids.iter().zip(results) {
+    let closed_hint = if args.all {
+        ""
+    } else {
+        " open (use --all for closed ones)"
+    };
+    fn record(
+        positions: &mut Vec<LpPosition>,
+        failed: &mut Vec<FailedPosition>,
+        id: &U256,
+        r: anyhow::Result<Option<LpPosition>>,
+    ) {
         match r {
-            Ok(p) => positions.push(p),
+            Ok(Some(p)) => positions.push(p),
+            Ok(None) => {}
             Err(e) => {
                 eprintln!("Warning: position {id}: {e}");
                 failed.push(FailedPosition {
@@ -1866,13 +2410,117 @@ pub async fn handle_lp_positions(
             }
         }
     }
+
+    // v4 first: its discovery fixes the block every read is pinned to
+    let mut v4_ids = Vec::new();
+    if args.version != ListVersion::V3 {
+        match addrs.v4_position_manager {
+            None if args.version == ListVersion::All => info.notes.push(format!(
+                "no Uniswap v4 PositionManager on {}",
+                ctx.chain.name()
+            )),
+            None => anyhow::bail!("No Uniswap v4 deployment known for {}", ctx.chain.name()),
+            Some(pm) => {
+                if !quiet {
+                    eprintln!(
+                        "Finding v4 positions of {owner:#x} from PositionManager Transfer {} (up to {} s)...",
+                        match args.v4_source {
+                            V4Source::Logs => "logs",
+                            V4Source::Explorer => "events on the explorer",
+                        },
+                        args.max_scan_seconds
+                    );
+                }
+                match discover_v4(&mut ctx, owner, args, pm, etherscan_key).await {
+                    Ok(f) => {
+                        let d = &f.discovery;
+                        if !quiet {
+                            eprintln!(
+                                "v4: {} candidate(s) from {} request(s), {} still owned at block {}",
+                                d.candidates, d.requests, d.still_owned, d.to_block
+                            );
+                        }
+                        for r in &f.incomplete {
+                            eprintln!("Warning: {r}");
+                        }
+                        info.incomplete.extend(f.incomplete);
+                        info.notes.extend(f.notes);
+                        failed.extend(f.unknown);
+                        v4_ids = f.owned;
+                        info.v4_discovery = Some(f.discovery);
+                    }
+                    Err(e) => {
+                        let e = crate::utils::url::redact_urls_in_text(&e.to_string());
+                        eprintln!("Warning: v4 positions not listed: {e}");
+                        info.incomplete
+                            .push(format!("v4 positions not listed: {e}"));
+                    }
+                }
+            }
+        }
+    }
+
+    // v3: the NonfungiblePositionManager is enumerable
+    if args.version != ListVersion::V4 {
+        let npm = addrs.nonfungible_position_manager;
+        if !quiet {
+            eprintln!(
+                "Listing v3 positions of {owner:#x} on {} at block {}...",
+                ctx.chain, ctx.block
+            );
+        }
+        match get_all_positions_by_owner(npm, owner, ctx.provider.clone(), Some(ctx.block_id()))
+            .await
+        {
+            Ok(states) => {
+                info.v3_nft_count = Some(states.len());
+                let ids: Vec<U256> = states
+                    .iter()
+                    .filter(|s| {
+                        args.all
+                            || s.position.liquidity > 0
+                            || s.position.tokensOwed0 > 0
+                            || s.position.tokensOwed1 > 0
+                    })
+                    .map(|s| s.tokenId)
+                    .collect();
+                if !quiet {
+                    eprintln!(
+                        "{} v3 position NFT(s); valuing {}{closed_hint}",
+                        states.len(),
+                        ids.len()
+                    );
+                }
+                let results = value_v3_many(&ctx, &ctx.reader, &ids).await;
+                for (id, r) in ids.iter().zip(results) {
+                    record(&mut positions, &mut failed, id, r.map(Some));
+                }
+            }
+            Err(e) => {
+                let e = crate::utils::url::redact_urls_in_text(&e.to_string());
+                eprintln!("Warning: v3 positions not listed: {e}");
+                info.incomplete
+                    .push(format!("v3 positions not listed: {e}"));
+            }
+        }
+    }
+
+    if !v4_ids.is_empty() {
+        if !quiet {
+            eprintln!("Valuing {} v4 position NFT(s){closed_hint}", v4_ids.len());
+        }
+        let results = value_v4_many(&ctx, &ctx.reader, &v4_ids, args.all).await;
+        for (id, r) in v4_ids.iter().zip(results) {
+            record(&mut positions, &mut failed, id, r);
+        }
+    }
+
+    info.nft_count =
+        info.v3_nft_count.unwrap_or(0) + info.v4_discovery.as_ref().map_or(0, |d| d.still_owned);
     if !args.no_price {
         price_positions(&mut positions, &ctx).await;
     }
-    if !quiet {
-        eprintln!("Note: v4 positions are not listed (the v4 PositionManager is not enumerable on-chain); value one with `uniswap position <id> --version v4`");
-    }
-    emit(&positions, &failed, Some(total), args.format)
+    emit(&positions, &failed, Some(&info), args.format)
 }
 
 #[cfg(test)]
@@ -2094,12 +2742,15 @@ mod tests {
     fn list_total_is_null_when_any_position_failed() {
         let mut p = sample(Some(vec![]));
         apply_usd(&mut p);
-        assert_eq!(list_total(std::slice::from_ref(&p), &[]), Some(3002.0));
+        assert_eq!(
+            list_total(std::slice::from_ref(&p), &[], false),
+            Some(3002.0)
+        );
         let f = FailedPosition {
             token_id: "1".into(),
             error: "x".into(),
         };
-        assert_eq!(list_total(&[p], &[f]), None);
+        assert_eq!(list_total(&[p], &[f], false), None);
     }
 
     #[test]
@@ -2201,6 +2852,7 @@ mod tests {
             .erased();
         Ctx {
             reader: ChainReader::new(provider.clone(), BlockId::number(1), true),
+            block_id: BlockId::number(1),
             provider,
             chain: crate::config::Chain::Ethereum,
             block: 1,
@@ -2443,6 +3095,131 @@ mod tests {
         )
         .unwrap();
         assert_eq!(v4_pool_id(&key), sdk);
+    }
+
+    /// Answer the v4 reads of one position in pool A/B (fee 3000, spacing
+    /// 60, no hooks, price 1) with range -60..60 and `liq` liquidity
+    fn set_v4_position(m: &mut MockReader, id: u64, liq: u128) {
+        use uniswap_v4_sdk::prelude::calculate_position_key;
+        use IV4PositionManagerLite as Pm;
+        let addrs = CHAIN_TO_ADDRESSES_MAP.get(&1).unwrap();
+        let (pm, manager) = (
+            addrs.v4_position_manager.unwrap(),
+            addrs.v4_pool_manager.unwrap(),
+        );
+        let id = U256::from(id);
+        m.set(
+            pm,
+            Pm::ownerOfCall { tokenId: id },
+            ok::<Pm::ownerOfCall>(&OWNER),
+        );
+        let key = Pm::PoolKey {
+            currency0: A,
+            currency1: B,
+            fee: U24::from(3000u32),
+            tickSpacing: i24(60),
+            hooks: Address::ZERO,
+        };
+        let lo = (-60i32 as u32) & 0xFF_FFFF;
+        let info = (U256::from(60u32) << 32) | (U256::from(lo) << 8);
+        m.set(
+            pm,
+            Pm::getPoolAndPositionInfoCall { tokenId: id },
+            ok::<Pm::getPoolAndPositionInfoCall>(&Pm::getPoolAndPositionInfoReturn {
+                poolKey: key.clone(),
+                info,
+            }),
+        );
+        m.set(
+            pm,
+            Pm::getPositionLiquidityCall { tokenId: id },
+            ok::<Pm::getPositionLiquidityCall>(&liq),
+        );
+        let pkey = calculate_position_key(pm, i24(-60), i24(60), B256::from(id));
+        let mut s0 = [0u8; 32];
+        s0[3..6].copy_from_slice(&[0x00, 0x0b, 0xb8]); // lp fee 3000
+        s0[12..32].copy_from_slice(&U160::from(1u8).wrapping_shl(96).to_be_bytes::<20>());
+        let mut words = vec![B256::from(s0), B256::from(U256::from(10_000u32))];
+        words.extend((0..6).map(|_| B256::ZERO));
+        words.push(B256::from(U256::from(liq)));
+        words.extend((0..2).map(|_| B256::ZERO));
+        m.set(
+            manager,
+            IPoolManagerExtsloadLite::extsloadCall {
+                slots: v4_state_slots(v4_pool_id(&key), i24(-60), i24(60), pkey),
+            },
+            ok::<IPoolManagerExtsloadLite::extsloadCall>(&words),
+        );
+    }
+
+    #[tokio::test]
+    async fn v4_batches_in_two_stages_and_skips_closed() {
+        let mut m = MockReader::default();
+        set_token(&mut m, A, "AAA");
+        set_token(&mut m, B, "BBB");
+        set_v4_position(&mut m, 1, 5_000);
+        set_v4_position(&mut m, 2, 0); // closed
+        set_v4_position(&mut m, 4, 7_000);
+        // 3 was never answered: ownerOf reverts (burned)
+        let ids: Vec<U256> = [1u64, 2, 3, 4].into_iter().map(U256::from).collect();
+        let res = value_v4_many(&test_ctx(), &m, &ids, false).await;
+
+        // 1: (ownerOf, getPoolAndPositionInfo, getPositionLiquidity) x 4
+        // 2: decimals + symbol of A and B, one extsload per open position
+        assert_eq!(m.batch_sizes(), vec![12, 2 * 2 + 2]);
+        assert_eq!(res.len(), 4);
+        let p1 = res[0].as_ref().unwrap().as_ref().unwrap();
+        assert_eq!(p1.protocol, "uniswap-v4");
+        assert_eq!(p1.liquidity, "5000");
+        assert_eq!(p1.tokens[1].symbol, "BBB");
+        assert_eq!(p1.in_range, Some(true));
+        assert!(p1.notes.is_empty(), "{:?}", p1.notes);
+        assert!(p1.method.contains("computed, not read"));
+        assert!(res[1].as_ref().unwrap().is_none(), "closed is skipped");
+        let e = res[2].as_ref().unwrap_err().to_string();
+        assert!(e.starts_with("not_found:"), "{e}");
+        assert_eq!(res[3].as_ref().unwrap().as_ref().unwrap().liquidity, "7000");
+
+        // --all keeps the closed one
+        let res = value_v4_many(&test_ctx(), &m, &ids[..2], true).await;
+        let p2 = res[1].as_ref().unwrap().as_ref().unwrap();
+        assert_eq!(p2.liquidity, "0");
+        assert_eq!(p2.amounts[0].raw, "0");
+    }
+
+    #[tokio::test]
+    async fn v4_failed_load_fails_only_that_position() {
+        let mut m = MockReader::default();
+        set_token(&mut m, A, "AAA");
+        set_token(&mut m, B, "BBB");
+        set_v4_position(&mut m, 1, 5_000);
+        set_v4_position(&mut m, 2, 6_000);
+        // Break position 2's PoolManager read
+        let mut m2 = MockReader::default();
+        set_v4_position(&mut m2, 2, 6_000);
+        for call in m2.answers.keys() {
+            if call.target
+                == CHAIN_TO_ADDRESSES_MAP
+                    .get(&1)
+                    .unwrap()
+                    .v4_pool_manager
+                    .unwrap()
+            {
+                m.answers
+                    .insert(call.clone(), Outcome::Failed("boom".into()));
+            }
+        }
+        let ids = [U256::from(1u8), U256::from(2u8)];
+        let res = value_v4_many(&test_ctx(), &m, &ids, false).await;
+        assert!(res[0].as_ref().unwrap().is_some());
+        let e = res[1].as_ref().unwrap_err().to_string();
+        assert!(e.contains("extsload() failed: boom"), "{e}");
+    }
+
+    #[test]
+    fn list_total_is_null_when_list_incomplete() {
+        assert_eq!(list_total(&[], &[], true), None);
+        assert_eq!(list_total(&[], &[], false), Some(0.0));
     }
 
     #[test]
