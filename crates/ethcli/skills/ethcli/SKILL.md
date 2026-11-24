@@ -160,6 +160,60 @@ single facts.
   free method. `labels` then shows only the address book and built-in labels,
   with a note saying why.
 
+## MCP inputs
+
+- `contract_call`: `sig` is a bare function name or a full signature (use
+  the full one for overloads); arguments go in `args`, e.g.
+  `{"address": "0x…", "sig": "symbol()", "args": [], "chain": "ethereum"}`.
+- `cast_abi_decode`: `transfer(address,uint256)` for calldata that starts
+  with the selector; bare types (`uint256`, `(address,uint256)`) for
+  selector-free data. Not return-type syntax such as `symbol()(string)`.
+- `contract_analyze` / `contract_selectors` on proxies: `follow_proxy: true`
+  analyses the implementation; `lookup: true` names selectors;
+  `dispatcher: true` and `checks: true` add selector-to-handler offsets and
+  guard/external-call heuristics. It is bytecode analysis, not source.
+
+## Other reads
+
+- `rpc ...` for raw JSON-RPC (`rpc receipt <hash>`, `rpc code`, `rpc storage`).
+- `contract abi|source|creation` and `account txs|internal-txs|erc20|erc721|erc1155`
+  use the explorer (Etherscan, falling back to Sourcify/Blockscout for
+  sources); set `ETHERSCAN_API_KEY` when rate limits matter. `tx --enrich`
+  adds explorer names and symbols.
+- `logs -c <addr> -e "Transfer(address,address,uint256)" -f <from> -t <to>`,
+  `ens resolve|lookup`, `gas oracle`.
+- `ethcli cast` replaces Foundry `cast` for local helpers: `to-wei`,
+  `from-wei`, `to-hex`, `to-dec`, `keccak`, `sig`, `topic`, `checksum`,
+  `compute-address`, `create2`, `abi-encode`, `abi-decode`, `index`.
+
+## Simulation and keys
+
+- `ethcli simulate call <to> --sig "fn(types)" <args> --from <addr> --via tenderly`
+  (or `--data 0x…`). `--via tenderly|debug|trace|alchemy` need no Foundry;
+  `--via cast` (default) and `--via anvil` do.
+- Saved Tenderly runs: `simulate get|info <uuid>`; a truncated (non
+  36-character) id gives "not found".
+- Keys are set by `ethcli config set-<service>` (`set-tenderly`,
+  `set-etherscan-key`, `set-alchemy`, ...) or environment variables
+  (`TENDERLY_ACCESS_KEY` + `TENDERLY_ACCOUNT` + `TENDERLY_PROJECT`,
+  `ETHERSCAN_API_KEY`, `ALCHEMY_API_KEY`, ...). Never print the config file or
+  copy key values into output; `config show` and `endpoints list` redact them.
+
+## Diagnostics and upgrading
+
+- A key or endpoint failure: `ethcli doctor`; `ethcli endpoints health --probes 1`
+  for a quick endpoint check.
+- `ethcli upgrade` updates `ethcli` and the matching `ethcli-mcp` in place
+  (follows symlinks, verifies, rolls back on failure) and refreshes installed
+  skills. It runs the installed version's code. Restart the MCP server
+  afterwards. Never put a wrapper script where `ethcli` could resolve to
+  `ethcli-mcp`.
+
+## When not to use ethcli
+
+Writes and local Solidity work belong to Foundry: `cast send`, `forge`
+build/test/script/deploy, `anvil` forks.
+
 ## More
 
 - Unverified contract, want source that compiles to it: follow

@@ -158,8 +158,14 @@ source for unverified contracts. Two ways to install them:
   ```
 
   Locations match the `skills` CLI below (`$CLAUDE_CONFIG_DIR` is honoured).
-  Each file written is recorded with its hash in `skills-installed.json` in
-  ethcli's config folder (not the main config file). A file ethcli did not
+  Each file written is recorded with its hash and host name in
+  `skills-installed.json` in a per-machine state folder, not the config folder
+  (which is often copied between machines): `$XDG_STATE_HOME/ethcli` or
+  `~/.local/state/ethcli` on Linux, `~/Library/Application Support/ethcli-state`
+  on macOS, `%LOCALAPPDATA%\ethcli` on Windows, or `$ETHCLI_STATE_DIR`. A
+  manifest left in the config folder by an earlier release is imported once
+  (only entries whose files exist here unchanged) and then ignored; it is not
+  deleted. Entries recorded by another host are ignored. A file ethcli did not
   write, or one you have edited, is never replaced silently: `install`
   refuses it and `update` skips it. `install --force` replaces it and keeps
   a `.bak-<timestamp>` copy. Skill hashes use the same algorithm as the

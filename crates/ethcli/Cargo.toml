@@ -144,3 +144,6 @@ wiremock = "0.6"
 
 [lints]
 workspace = true
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"  # gethostname for the skills manifest

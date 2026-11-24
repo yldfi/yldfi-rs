@@ -50,7 +50,7 @@ ethcli endpoints  # Manage RPC endpoints
 ethcli config     # Manage configuration
 ethcli update     # Check for updates
 ethcli upgrade    # Download and install the latest release (ethcli + ethcli-mcp; symlink/wrapper-safe with rollback since 0.23.5)
-ethcli skills     # Embedded agent skills: list, show, install (claude/codex/dir, --project), update, status; upgrade runs `skills update`
+ethcli skills     # Embedded agent skills: list, show, install (claude/codex/dir, --project), update, status; upgrade runs `skills update`. Manifest is per machine (state dir, `ETHCLI_STATE_DIR`; entries carry the host), never in the config dir
 ethcli doctor     # Diagnose configuration and connectivity
 ethcli chainlist  # Browse chains and discover RPC endpoints from chainlist.org
 ethcli completions # Generate shell completions (bash, zsh, fish, powershell)

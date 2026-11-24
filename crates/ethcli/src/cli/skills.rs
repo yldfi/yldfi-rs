@@ -2,8 +2,11 @@
 //!
 //! Every file under `crates/ethcli/skills/<name>/` is embedded at build time
 //! (see `build.rs`). `skills install` writes them to an agent's skills folder
-//! and records what it wrote in a manifest next to ethcli's other local data
-//! (never in the main config file). A destination whose content does not match
+//! and records what it wrote in a manifest in a per-machine state folder
+//! (see [`state_dir`]), not in the config folder: config folders get copied
+//! between machines, and a manifest is only true for the machine that wrote
+//! it. Each entry also records the host name, and entries from another host
+//! are ignored. A destination whose content does not match
 //! what ethcli last wrote there is treated as the user's and is not replaced
 //! without `--force`.
 
@@ -165,6 +168,79 @@ pub struct ManifestEntry {
     pub version: String,
     pub sha256: String,
     pub installed_at: u64,
+    /// Host that wrote the file. Entries for another host are ignored.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub host: Option<String>,
+}
+
+impl ManifestEntry {
+    /// True when this entry belongs to `host` (entries without a host count
+    /// as local).
+    pub fn is_for(&self, host: &str) -> bool {
+        self.host.as_deref().is_none_or(|h| h == host)
+    }
+}
+
+/// This machine's host name ("unknown" if it cannot be read).
+pub fn hostname() -> String {
+    #[cfg(unix)]
+    {
+        let mut buf = [0u8; 256];
+        // SAFETY: buf is valid for buf.len() bytes.
+        let rc = unsafe { libc::gethostname(buf.as_mut_ptr().cast(), buf.len()) };
+        if rc == 0 {
+            let end = buf.iter().position(|&b| b == 0).unwrap_or(buf.len());
+            let h = String::from_utf8_lossy(&buf[..end]).trim().to_string();
+            if !h.is_empty() {
+                return h;
+            }
+        }
+    }
+    #[cfg(windows)]
+    if let Ok(h) = std::env::var("COMPUTERNAME") {
+        if !h.trim().is_empty() {
+            return h.trim().to_string();
+        }
+    }
+    "unknown".to_string()
+}
+
+/// Per-machine state folder for the manifest: `$ETHCLI_STATE_DIR`, else
+/// `$XDG_STATE_HOME/ethcli` or `~/.local/state/ethcli` on Linux,
+/// `~/Library/Application Support/ethcli-state` on macOS and
+/// `%LOCALAPPDATA%\ethcli` on Windows. Never the config folder.
+pub fn state_dir() -> PathBuf {
+    if let Ok(dir) = std::env::var("ETHCLI_STATE_DIR") {
+        if !dir.trim().is_empty() {
+            return PathBuf::from(dir.trim());
+        }
+    }
+    let home_rel = |p: &str| {
+        dirs::home_dir()
+            .unwrap_or_else(|| PathBuf::from("."))
+            .join(p)
+    };
+    if cfg!(target_os = "macos") {
+        dirs::data_local_dir()
+            .unwrap_or_else(|| home_rel("Library/Application Support"))
+            .join("ethcli-state")
+    } else if cfg!(windows) {
+        dirs::data_local_dir()
+            .unwrap_or_else(|| PathBuf::from("."))
+            .join("ethcli")
+    } else {
+        dirs::state_dir()
+            .unwrap_or_else(|| home_rel(".local/state"))
+            .join("ethcli")
+    }
+}
+
+/// What happened to a manifest found in the old (config folder) location.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Migration {
+    pub from: PathBuf,
+    pub imported: usize,
+    pub skipped: usize,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
@@ -175,6 +251,12 @@ pub struct Manifest {
 
 impl Manifest {
     pub fn default_path() -> PathBuf {
+        state_dir().join(MANIFEST_FILE)
+    }
+
+    /// Where earlier releases kept the manifest: ethcli's config folder.
+    /// No longer written; read once for migration.
+    pub fn legacy_path() -> PathBuf {
         if let Ok(dir) = std::env::var("ETHCLI_CONFIG_DIR") {
             return PathBuf::from(dir).join(MANIFEST_FILE);
         }
@@ -191,6 +273,50 @@ impl Manifest {
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(Self::default()),
             Err(e) => Err(anyhow::anyhow!("cannot read {}: {e}", path.display())),
         }
+    }
+
+    /// Load the manifest at `path`. If it does not exist and `legacy` does,
+    /// import the legacy entries that are true on this machine (host unset
+    /// or `host`; the file exists, is not a symlink, and holds what was
+    /// recorded or what this binary ships), save the result at `path` and
+    /// leave `legacy` untouched.
+    pub fn load_or_migrate(
+        path: &Path,
+        legacy: &Path,
+        host: &str,
+    ) -> anyhow::Result<(Self, Option<Migration>)> {
+        if path.exists() || path == legacy || !legacy.is_file() {
+            return Ok((Self::load(path)?, None));
+        }
+        let old = Self::load(legacy)?;
+        let mut new = Self::default();
+        let mut skipped = 0;
+        for e in old.entries {
+            let keep = e.is_for(host)
+                && !is_symlink(&e.path)
+                && !e.path.parent().is_some_and(is_symlink)
+                && std::fs::read(&e.path).is_ok_and(|b| {
+                    let h = sha256_hex(&b);
+                    h == e.sha256
+                        || embedded_file(&e.skill, &e.file)
+                            .is_some_and(|x| sha256_hex(x.as_bytes()) == h)
+                });
+            if keep {
+                new.record(ManifestEntry {
+                    host: Some(host.to_string()),
+                    ..e
+                });
+            } else {
+                skipped += 1;
+            }
+        }
+        new.save(path)?;
+        let m = Migration {
+            from: legacy.to_path_buf(),
+            imported: new.entries.len(),
+            skipped,
+        };
+        Ok((new, Some(m)))
     }
 
     pub fn save(&self, path: &Path) -> anyhow::Result<()> {
@@ -345,6 +471,7 @@ pub fn install(
     names: &[String],
     force: bool,
     manifest: &mut Manifest,
+    host: &str,
 ) -> anyhow::Result<Vec<InstallResult>> {
     let skills = embedded_skills();
     for n in names {
@@ -373,7 +500,9 @@ pub fn install(
                 Err(e) => anyhow::bail!("cannot read {}: {e}", path.display()),
                 Ok(existing) => {
                     let current = sha256_hex(&existing);
-                    let ours = manifest.get(&path).is_some_and(|e| e.sha256 == current);
+                    let ours = manifest
+                        .get(&path)
+                        .is_some_and(|e| e.is_for(host) && e.sha256 == current);
                     if current == new_hash {
                         InstallOutcome::Unchanged
                     } else if ours {
@@ -406,6 +535,7 @@ pub fn install(
                     version: SKILLS_VERSION.to_string(),
                     sha256: new_hash,
                     installed_at: now_secs(),
+                    host: Some(host.to_string()),
                 });
             }
             out.push(InstallResult {
@@ -466,9 +596,15 @@ pub struct UpdateResult {
 }
 
 /// Refresh every manifest entry that is unchanged since ethcli wrote it.
-pub fn update(manifest: &mut Manifest) -> anyhow::Result<Vec<UpdateResult>> {
+/// Entries recorded for another host are left alone.
+pub fn update(manifest: &mut Manifest, host: &str) -> anyhow::Result<Vec<UpdateResult>> {
     let mut out = Vec::new();
-    let entries = manifest.entries.clone();
+    let entries: Vec<_> = manifest
+        .entries
+        .iter()
+        .filter(|e| e.is_for(host))
+        .cloned()
+        .collect();
     for entry in entries {
         let state = entry_state(&entry);
         let mut refreshed = false;
@@ -486,12 +622,14 @@ pub fn update(manifest: &mut Manifest) -> anyhow::Result<Vec<UpdateResult>> {
                 version: SKILLS_VERSION.to_string(),
                 sha256: sha256_hex(body.as_bytes()),
                 installed_at: now_secs(),
+                host: Some(host.to_string()),
                 ..entry.clone()
             });
             refreshed = true;
         } else if state == EntryState::Current && entry.version != SKILLS_VERSION {
             manifest.record(ManifestEntry {
                 version: SKILLS_VERSION.to_string(),
+                host: Some(host.to_string()),
                 ..entry.clone()
             });
         }
@@ -514,6 +652,23 @@ fn state_word(s: EntryState) -> &'static str {
         EntryState::NotShipped => "not shipped",
         EntryState::Symlink => "symlink",
     }
+}
+
+/// Load the per-machine manifest, migrating from the config folder once.
+/// Notes go to stderr so `--json` output stays clean.
+fn open_manifest(path: &Path, host: &str) -> anyhow::Result<Manifest> {
+    let legacy = Manifest::legacy_path();
+    let (m, migration) = Manifest::load_or_migrate(path, &legacy, host)?;
+    if let Some(mg) = migration {
+        eprintln!(
+            "note: the skills manifest now lives in {} (per machine). Imported {} entries from {}; skipped {} not valid on this machine. The old file is no longer used and was left in place.",
+            path.display(),
+            mg.imported,
+            mg.from.display(),
+            mg.skipped
+        );
+    }
+    Ok(m)
 }
 
 pub fn handle(action: SkillsCommands) -> anyhow::Result<()> {
@@ -557,10 +712,11 @@ pub fn handle(action: SkillsCommands) -> anyhow::Result<()> {
                 None
             };
             let root = target_root(target, dir.as_deref(), cwd.as_deref())?;
+            let host = hostname();
             let manifest_path = Manifest::default_path();
-            let mut manifest = Manifest::load(&manifest_path)?;
+            let mut manifest = open_manifest(&manifest_path, &host)?;
             let anchor = cwd.clone().unwrap_or_else(|| root.clone());
-            let results = install(&root, &anchor, &names, force, &mut manifest)?;
+            let results = install(&root, &anchor, &names, force, &mut manifest, &host)?;
             manifest.save(&manifest_path)?;
             let mut refused = 0;
             for r in &results {
@@ -586,13 +742,16 @@ pub fn handle(action: SkillsCommands) -> anyhow::Result<()> {
             }
         }
         SkillsCommands::Update => {
+            let host = hostname();
             let manifest_path = Manifest::default_path();
-            let mut manifest = Manifest::load(&manifest_path)?;
-            if manifest.entries.is_empty() {
-                println!("No installed skills recorded; run `ethcli skills install`.");
+            let mut manifest = open_manifest(&manifest_path, &host)?;
+            if !manifest.entries.iter().any(|e| e.is_for(&host)) {
+                println!(
+                    "No installed skills recorded on this machine; run `ethcli skills install`."
+                );
                 return Ok(());
             }
-            let results = update(&mut manifest)?;
+            let results = update(&mut manifest, &host)?;
             manifest.save(&manifest_path)?;
             for r in &results {
                 let what = match (r.refreshed, r.state) {
@@ -604,9 +763,14 @@ pub fn handle(action: SkillsCommands) -> anyhow::Result<()> {
             }
         }
         SkillsCommands::Status { json } => {
-            let manifest = Manifest::load(&Manifest::default_path())?;
-            let rows: Vec<_> = manifest
+            let host = hostname();
+            let manifest = open_manifest(&Manifest::default_path(), &host)?;
+            let local: Vec<_> = manifest
                 .entries
+                .iter()
+                .filter(|e| e.is_for(&host))
+                .collect();
+            let rows: Vec<_> = local
                 .iter()
                 .map(|e| {
                     serde_json::json!({
@@ -620,10 +784,10 @@ pub fn handle(action: SkillsCommands) -> anyhow::Result<()> {
                 .collect();
             if json {
                 println!("{}", serde_json::to_string_pretty(&rows)?);
-            } else if manifest.entries.is_empty() {
-                println!("No installed skills recorded.");
+            } else if local.is_empty() {
+                println!("No installed skills recorded on this machine.");
             } else {
-                for e in &manifest.entries {
+                for e in &local {
                     println!(
                         "{:<10} v{:<8} {}",
                         state_word(entry_state(e)),
@@ -692,14 +856,14 @@ mod tests {
         let root = tmp.path().join("skills");
         let mut m = Manifest::default();
 
-        let r = install(&root, &root, &names(), false, &mut m).unwrap();
+        let r = install(&root, &root, &names(), false, &mut m, "h").unwrap();
         assert!(r.iter().all(|r| r.outcome == InstallOutcome::Written));
         let skill_md = root.join("ethcli/SKILL.md");
         assert!(skill_md.is_file());
         assert_eq!(m.entries.len(), r.len());
 
         // Re-install: unchanged
-        let r = install(&root, &root, &names(), false, &mut m).unwrap();
+        let r = install(&root, &root, &names(), false, &mut m, "h").unwrap();
         assert!(r.iter().all(|r| r.outcome == InstallOutcome::Unchanged));
 
         // Manifest round trip
@@ -711,19 +875,19 @@ mod tests {
         std::fs::write(&skill_md, "my own notes").unwrap();
         let e = m.get(&skill_md).unwrap().clone();
         assert_eq!(entry_state(&e), EntryState::Modified);
-        let r = install(&root, &root, &["ethcli".into()], false, &mut m).unwrap();
+        let r = install(&root, &root, &["ethcli".into()], false, &mut m, "h").unwrap();
         assert_eq!(r[0].outcome, InstallOutcome::Refused);
         assert_eq!(std::fs::read_to_string(&skill_md).unwrap(), "my own notes");
 
         // Update skips modified
-        let u = update(&mut m).unwrap();
+        let u = update(&mut m, "h").unwrap();
         let row = u.iter().find(|u| u.path == skill_md).unwrap();
         assert!(!row.refreshed);
         assert_eq!(row.state, EntryState::Modified);
         assert_eq!(std::fs::read_to_string(&skill_md).unwrap(), "my own notes");
 
         // --force replaces and keeps a backup
-        let r = install(&root, &root, &["ethcli".into()], true, &mut m).unwrap();
+        let r = install(&root, &root, &["ethcli".into()], true, &mut m, "h").unwrap();
         let InstallOutcome::Replaced { backup } = &r[0].outcome else {
             panic!("expected Replaced, got {:?}", r[0].outcome)
         };
@@ -741,7 +905,15 @@ mod tests {
         std::fs::create_dir_all(p.parent().unwrap()).unwrap();
         std::fs::write(&p, "custom").unwrap();
         let mut m = Manifest::default();
-        let r = install(root, root, &["bytecode-to-source".into()], false, &mut m).unwrap();
+        let r = install(
+            root,
+            root,
+            &["bytecode-to-source".into()],
+            false,
+            &mut m,
+            "h",
+        )
+        .unwrap();
         assert_eq!(r[0].outcome, InstallOutcome::Refused);
         assert!(m.entries.is_empty());
         assert_eq!(std::fs::read_to_string(&p).unwrap(), "custom");
@@ -761,9 +933,10 @@ mod tests {
             version: "0.0.1".into(),
             sha256: sha256_hex(old.as_bytes()),
             installed_at: 0,
+            host: None,
         });
         assert_eq!(entry_state(&m.entries[0]), EntryState::Outdated);
-        let u = update(&mut m).unwrap();
+        let u = update(&mut m, "h").unwrap();
         assert!(u[0].refreshed);
         assert_eq!(
             std::fs::read_to_string(&p).unwrap(),
@@ -774,7 +947,7 @@ mod tests {
 
         // Missing file is reported, not recreated
         std::fs::remove_file(&p).unwrap();
-        let u = update(&mut m).unwrap();
+        let u = update(&mut m, "h").unwrap();
         assert_eq!(u[0].state, EntryState::Missing);
         assert!(!p.exists());
     }
@@ -846,7 +1019,7 @@ mod tests {
             symlink(&outside, project.join(".claude")).unwrap();
             let root = project.join(".claude/skills");
             let mut m = Manifest::default();
-            assert!(install(&root, &project, &[], false, &mut m).is_err());
+            assert!(install(&root, &project, &[], false, &mut m, "h").is_err());
             assert!(empty_dir(&outside));
             assert!(m.entries.is_empty());
         }
@@ -858,7 +1031,7 @@ mod tests {
             std::fs::create_dir_all(&root).unwrap();
             symlink(&outside, root.join("ethcli")).unwrap();
             let mut m = Manifest::default();
-            assert!(install(&root, &project, &["ethcli".into()], true, &mut m).is_err());
+            assert!(install(&root, &project, &["ethcli".into()], true, &mut m, "h").is_err());
             assert!(empty_dir(&outside));
         }
 
@@ -871,7 +1044,7 @@ mod tests {
             std::fs::write(&target, "secret").unwrap();
             symlink(&target, root.join("ethcli/SKILL.md")).unwrap();
             let mut m = Manifest::default();
-            assert!(install(&root, &project, &["ethcli".into()], true, &mut m).is_err());
+            assert!(install(&root, &project, &["ethcli".into()], true, &mut m, "h").is_err());
             assert_eq!(std::fs::read_to_string(&target).unwrap(), "secret");
             assert_eq!(std::fs::read_dir(&outside).unwrap().count(), 1);
         }
@@ -890,7 +1063,7 @@ mod tests {
                 symlink(&target, root.join(format!("ethcli/SKILL.md.bak-{t}"))).unwrap();
             }
             let mut m = Manifest::default();
-            assert!(install(&root, &project, &["ethcli".into()], true, &mut m).is_err());
+            assert!(install(&root, &project, &["ethcli".into()], true, &mut m, "h").is_err());
             assert!(!target.exists());
             assert_eq!(std::fs::read_to_string(&skill_md).unwrap(), "custom");
         }
@@ -900,14 +1073,14 @@ mod tests {
             let (_t, project, outside) = setup();
             let root = project.join(".claude/skills");
             let mut m = Manifest::default();
-            install(&root, &project, &["ethcli".into()], false, &mut m).unwrap();
+            install(&root, &project, &["ethcli".into()], false, &mut m, "h").unwrap();
             let p = root.join("ethcli/SKILL.md");
             m.entries[0].sha256 = sha256_hex(b"old");
             let target = outside.join("victim");
             std::fs::write(&target, "old").unwrap();
             std::fs::remove_file(&p).unwrap();
             symlink(&target, &p).unwrap();
-            let u = update(&mut m).unwrap();
+            let u = update(&mut m, "h").unwrap();
             assert_eq!(u[0].state, EntryState::Symlink);
             assert!(!u[0].refreshed);
             assert_eq!(std::fs::read_to_string(&target).unwrap(), "old");
@@ -915,15 +1088,123 @@ mod tests {
             std::fs::remove_file(&p).unwrap();
             std::fs::remove_dir(root.join("ethcli")).unwrap();
             symlink(&outside, root.join("ethcli")).unwrap();
-            let u = update(&mut m).unwrap();
+            let u = update(&mut m, "h").unwrap();
             assert_eq!(u[0].state, EntryState::Symlink);
         }
+    }
+
+    fn entry(path: &Path, sha: &str, host: Option<&str>) -> ManifestEntry {
+        ManifestEntry {
+            path: path.to_path_buf(),
+            skill: "ethcli".into(),
+            file: "SKILL.md".into(),
+            version: "0.0.1".into(),
+            sha256: sha.into(),
+            installed_at: 0,
+            host: host.map(str::to_string),
+        }
+    }
+
+    #[test]
+    fn migrates_only_entries_valid_on_this_machine() {
+        let tmp = tempfile::tempdir().unwrap();
+        let config = tmp.path().join("config");
+        let state = tmp.path().join("state");
+        let legacy = config.join(MANIFEST_FILE);
+        let new_path = state.join(MANIFEST_FILE);
+
+        // Local file unchanged since recorded
+        let a = tmp.path().join("a/ethcli/SKILL.md");
+        write_atomic(&a, b"old").unwrap();
+        // Local file holding the shipped version, with a stale hash
+        let b = tmp.path().join("b/ethcli/SKILL.md");
+        write_atomic(&b, embedded_file("ethcli", "SKILL.md").unwrap().as_bytes()).unwrap();
+        // Local file edited by the user
+        let c = tmp.path().join("c/ethcli/SKILL.md");
+        write_atomic(&c, b"edited").unwrap();
+        // Path from another machine
+        let d = tmp.path().join("elsewhere/ethcli/SKILL.md");
+        // Existing file but recorded by another host
+        let e = tmp.path().join("e/ethcli/SKILL.md");
+        write_atomic(&e, b"old").unwrap();
+
+        let old = Manifest {
+            entries: vec![
+                entry(&a, &sha256_hex(b"old"), None),
+                entry(&b, &sha256_hex(b"stale"), None),
+                entry(&c, &sha256_hex(b"old"), None),
+                entry(&d, &sha256_hex(b"old"), None),
+                entry(&e, &sha256_hex(b"old"), Some("other-host")),
+            ],
+        };
+        old.save(&legacy).unwrap();
+        let legacy_text = std::fs::read_to_string(&legacy).unwrap();
+
+        let (m, mg) = Manifest::load_or_migrate(&new_path, &legacy, "h").unwrap();
+        let mg = mg.expect("migration ran");
+        assert_eq!((mg.imported, mg.skipped), (2, 3));
+        let paths: Vec<_> = m.entries.iter().map(|e| e.path.clone()).collect();
+        assert_eq!(paths, vec![a.clone(), b.clone()]);
+        assert!(m.entries.iter().all(|e| e.host.as_deref() == Some("h")));
+        assert_eq!(Manifest::load(&new_path).unwrap(), m);
+        // Old file left alone
+        assert_eq!(std::fs::read_to_string(&legacy).unwrap(), legacy_text);
+
+        // Second run: new manifest exists, no migration
+        let (m2, mg2) = Manifest::load_or_migrate(&new_path, &legacy, "h").unwrap();
+        assert!(mg2.is_none());
+        assert_eq!(m2, m);
+
+        // No legacy file: empty, nothing written
+        let other = tmp.path().join("state2").join(MANIFEST_FILE);
+        let (m3, mg3) =
+            Manifest::load_or_migrate(&other, &tmp.path().join("none.json"), "h").unwrap();
+        assert!(mg3.is_none() && m3.entries.is_empty() && !other.exists());
+    }
+
+    #[test]
+    fn foreign_host_entries_are_ignored_and_kept() {
+        let tmp = tempfile::tempdir().unwrap();
+        let p = tmp.path().join("ethcli/SKILL.md");
+        write_atomic(&p, b"old").unwrap();
+        let mut m = Manifest::default();
+        m.record(entry(&p, &sha256_hex(b"old"), Some("other-host")));
+        // update does not touch the other host's entry
+        let u = update(&mut m, "h").unwrap();
+        assert!(u.is_empty());
+        assert_eq!(std::fs::read_to_string(&p).unwrap(), "old");
+        assert_eq!(m.entries[0].host.as_deref(), Some("other-host"));
+        // install does not treat it as ethcli-written on this host
+        let root = tmp.path();
+        let r = install(root, root, &["ethcli".into()], false, &mut m, "h").unwrap();
+        assert_eq!(r[0].outcome, InstallOutcome::Refused);
+        // the same host does
+        let u = update(&mut m, "other-host").unwrap();
+        assert!(u[0].refreshed);
+    }
+
+    #[test]
+    fn state_dir_override_and_not_config_dir() {
+        // Read-only checks; no env mutation (tests run in parallel)
+        if std::env::var("ETHCLI_STATE_DIR").is_err() {
+            let s = state_dir();
+            assert!(s.ends_with("ethcli") || s.ends_with("ethcli-state"));
+            if std::env::var("ETHCLI_CONFIG_DIR").is_err() {
+                assert_ne!(s, Manifest::legacy_path().parent().unwrap());
+            }
+        }
+        assert_eq!(Manifest::default_path().file_name().unwrap(), MANIFEST_FILE);
+    }
+
+    #[test]
+    fn hostname_is_not_empty() {
+        assert!(!hostname().is_empty());
     }
 
     #[test]
     fn unknown_skill_name_errors() {
         let tmp = tempfile::tempdir().unwrap();
         let mut m = Manifest::default();
-        assert!(install(tmp.path(), tmp.path(), &["nope".into()], false, &mut m).is_err());
+        assert!(install(tmp.path(), tmp.path(), &["nope".into()], false, &mut m, "h").is_err());
     }
 }
