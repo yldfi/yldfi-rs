@@ -657,6 +657,27 @@ pub fn function_diffs(
         Some(k)
     };
     let (steps, approximate) = align(ia.len(), ic.len(), &eq, &key_l, &key_r);
+    // JUMPDESTs the alignment pairs: a jump operand that was ignored above
+    // counts as equal only when its two targets are such a pair
+    let jumpdest_pairs: std::collections::HashMap<usize, usize> = steps
+        .iter()
+        .filter_map(|s| match *s {
+            Step::Equal(i, j) if ia[i].1 == 0x5b => Some((ia[i].0, ic[j].0)),
+            _ => None,
+        })
+        .collect();
+    let operand_value = |code: &[u8], pc: usize, op: u8| {
+        code[operand(code, pc, op)]
+            .iter()
+            .fold(0usize, |acc, b| (acc << 8) | *b as usize)
+    };
+    let targets_correspond = |i: usize, j: usize| {
+        let ((pa, oa), (pb, ob)) = (ia[i], ic[j]);
+        if !(shifted_a(pa, oa) && shifted_c(pb, ob)) {
+            return true;
+        }
+        jumpdest_pairs.get(&operand_value(a, pa, oa)) == Some(&operand_value(c, pb, ob))
+    };
 
     // Rows, pairing each run of deletions and insertions into changed rows
     let mut rows: Vec<(String, DiffRow)> = Vec::new();
@@ -665,9 +686,14 @@ pub fn function_diffs(
     while k < steps.len() {
         if let Step::Equal(i, j) = steps[k] {
             label = mapper.label(ia[i].0);
+            let kind = if targets_correspond(i, j) {
+                "equal"
+            } else {
+                "changed"
+            };
             rows.push((
                 label.clone(),
-                diff_row("equal", Some((a, ia[i].0)), Some((c, ic[j].0))),
+                diff_row(kind, Some((a, ia[i].0)), Some((c, ic[j].0))),
             ));
             k += 1;
             continue;
@@ -1073,19 +1099,48 @@ pub fn match_code_with(artifact: &Artifact, onchain: &[u8], with_diff: bool) -> 
                 changed[i] = (*pc..end).any(|j| a[j] != c[j] && !meta_mask[j]);
             }
         } else {
-            table_method = "sizes differ: instructions aligned by common prefix and suffix (PUSH2/PUSH3 operands ignored, as code offsets shift); everything between the first and last difference counts as changed, except functions whose instructions all align once code offsets (PUSH2/PUSH3 operands pointing at a JUMPDEST) are ignored, marked equal_shifted".to_string();
+            table_method = "sizes differ: instructions aligned by common prefix and suffix, where a PUSH2/PUSH3 operand may differ only by the size change when it points into the suffix (code offsets shift); everything between the first and last difference counts as changed, except functions whose instructions all align and whose jump targets correspond through the alignment, marked equal_shifted".to_string();
             let chain_ins = linear_sweep(c);
             let ta: Vec<Vec<u8>> = instructions.iter().map(|(pc, op)| token(a, *pc, *op)).collect();
             let tc: Vec<Vec<u8>> = chain_ins.iter().map(|(pc, op)| token(c, *pc, *op)).collect();
-            let prefix = ta.iter().zip(&tc).take_while(|(x, y)| x == y).count();
+            let mut prefix = ta.iter().zip(&tc).take_while(|(x, y)| x == y).count();
             let max_suffix = ta.len().min(tc.len()) - prefix;
-            let suffix = ta
+            let mut suffix = ta
                 .iter()
                 .rev()
                 .zip(tc.iter().rev())
                 .take(max_suffix)
                 .take_while(|(x, y)| x == y)
                 .count();
+            // The tokens ignore PUSH2/PUSH3 operands; keep an instruction in
+            // the prefix or suffix only if its operand is the same value or
+            // a target in the suffix moved by exactly the size difference
+            let value = |code: &[u8], pc: usize, op: u8| {
+                code[(pc + 1).min(code.len())..(pc + 1 + push_size(op)).min(code.len())]
+                    .iter()
+                    .fold(0usize, |acc, b| (acc << 8) | *b as usize)
+            };
+            loop {
+                let suffix_a = instructions
+                    .get(instructions.len() - suffix)
+                    .map_or(a.len(), |x| x.0);
+                let ok = |ka: usize, kc: usize| {
+                    let ((pa, op), (pc_c, _)) = (instructions[ka], chain_ins[kc]);
+                    if !matches!(push_size(op), 2 | 3) {
+                        return true;
+                    }
+                    let (va, vc) = (value(a, pa, op), value(c, pc_c, op));
+                    va == vc || (va >= suffix_a && vc + a.len() == va + c.len())
+                };
+                let new_prefix = (0..prefix).find(|&k| !ok(k, k)).unwrap_or(prefix);
+                let new_suffix = (1..=suffix)
+                    .find(|&n| !ok(ta.len() - n, tc.len() - n))
+                    .map_or(suffix, |n| n - 1);
+                if (new_prefix, new_suffix) == (prefix, suffix) {
+                    break;
+                }
+                (prefix, suffix) = (new_prefix, new_suffix);
+            }
             if let (Some((pa, _)), Some((pb, _))) = (instructions.get(prefix), chain_ins.get(prefix)) {
                 first = *pa;
                 onchain_first = *pb;
@@ -1521,6 +1576,42 @@ mod tests {
         // A PUSH2 constant that is no code offset still has to match
         assert_eq!(find("PUSH2 0x1234").kind, "changed");
         assert!(rows.iter().any(|r| r.kind == "inserted"));
+    }
+
+    #[test]
+    fn retargeted_jump_after_a_size_change_is_changed() {
+        // PUSH2 0x000a JUMP, STOP STOP, JUMPDEST(6) STOP STOP STOP,
+        // JUMPDEST(0x0a) STOP
+        let code = "61000a5600005b0000005b00";
+        let art = parse_artifact(
+            &forge_artifact(&with_meta(code, META), Value::Null, Value::Null),
+            None,
+        )
+        .unwrap();
+        let jump_row = |deployed_hex: &str| {
+            let deployed = hex::decode(&with_meta(deployed_hex, META)[2..]).unwrap();
+            let m = match_code_with(&art, &deployed, true)
+                .mismatch
+                .expect("mismatch");
+            let row = m
+                .functions
+                .iter()
+                .filter_map(|f| f.diff.as_ref())
+                .flatten()
+                .find(|r| r.artifact.as_deref() == Some("PUSH2 0x000a"))
+                .cloned();
+            (row, m)
+        };
+        // One STOP inserted before the first JUMPDEST: both JUMPDESTs move
+        // by one. Jumping to the moved second JUMPDEST (0x0b) is the same
+        // jump; jumping to the moved first one (0x07) is a different target
+        // (an equal row far from a change is left out of the context)
+        let (same, _) = jump_row("61000b560000005b0000005b00");
+        assert!(same.is_none_or(|r| r.kind == "equal"));
+        let (retargeted, m) = jump_row("610007560000005b0000005b00");
+        assert_eq!(retargeted.expect("jump row").kind, "changed");
+        // The table's prefix stops at the retargeted jump as well
+        assert_eq!(m.first_difference_offset, 0);
     }
 
     #[test]

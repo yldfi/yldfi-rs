@@ -299,10 +299,14 @@ pub struct Fingerprint {
     pub evm_evidence: Vec<String>,
     /// Highest EVM version the code is consistent with, when it can be told:
     /// "paris" for solc ≥ 0.8.20 code with no PUSH0 anywhere in its
-    /// executable part (that solc targets shanghai by default and then uses
-    /// PUSH0 throughout)
+    /// executable part. A consistency bound, not proof (see
+    /// `max_evm_version_confidence`)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub max_evm_version: Option<String>,
+    /// "consistent" when `max_evm_version` is set: the code fits it, but a
+    /// newer target that never needed the newer opcode would look the same
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_evm_version_confidence: Option<String>,
     /// Why each bound was set
     pub evm_version_reasons: Vec<String>,
     /// PUSH0 (0x5f) as an executed opcode, not inside PUSH data or metadata
@@ -322,8 +326,9 @@ pub struct Fingerprint {
     /// "likely < ~5000", "likely ≥ ~1000", "likely ≤ ~2000" or "unknown"
     pub optimizer_runs_hint: String,
     pub optimizer_runs_evidence: RunsEvidence,
-    /// Coarse bucket from the hint: "low (≤200)", "medium (~1000)",
-    /// "high (≥5000)", or "unknown" when the evidence is weak or mixed
+    /// Coarse, approximate bucket from the hint: "low (≤ ~200)", "medium
+    /// (~1000)", "high (≥ ~5000)", or "unknown" when the evidence is weak,
+    /// mixed or of one class only
     pub optimizer_runs_bucket: String,
     /// Counts behind the bucket
     pub optimizer_runs_bucket_evidence: Vec<String>,
@@ -442,15 +447,20 @@ fn runs_from_evidence(ev: &RunsEvidence, shifts_reached: bool) -> &'static str {
     } else {
         Some(lo as f64 / (lo + sh) as f64)
     };
+    // A bucket needs two classes of evidence to agree: the Error(string)
+    // selector and the other wide constants
     if l > 0 && l >= 3 * s {
-        if sh <= lo {
+        if lo > 0 && sh <= lo {
             "likely high (≥ ~5000)"
+        } else if lo + sh == 0 {
+            "likely ≥ ~5000 (Error(string) selector only)"
         } else {
             "unknown"
         }
     } else if s > 0 && s >= 3 * l {
         match share {
-            None | Some(0.0) => "likely low (≈200)",
+            None => "likely < ~5000",
+            Some(0.0) => "likely low (≈200)",
             Some(x) if x >= 0.1 => "likely mid (≈1000-4000)",
             Some(_) => "likely < ~5000",
         }
@@ -470,11 +480,11 @@ fn runs_from_evidence(ev: &RunsEvidence, shifts_reached: bool) -> &'static str {
 /// unknown
 pub fn runs_bucket(hint: &str, ev: &RunsEvidence) -> (String, Vec<String>) {
     let bucket = if hint.starts_with("likely high") {
-        "high (≥5000)"
+        "high (≥ ~5000)"
     } else if hint.starts_with("likely mid") {
         "medium (~1000)"
     } else if hint.starts_with("likely low") {
-        "low (≤200)"
+        "low (≤ ~200)"
     } else {
         "unknown"
     };
@@ -544,7 +554,7 @@ fn evm_bounds(
         return (None, reasons);
     }
     reasons.push(format!(
-        "max paris: solc {v} uses PUSH0 throughout when targeting shanghai or later (its default from 0.8.20), and the executable code has none, so evm_version was set to paris or earlier"
+        "consistent with paris or earlier: solc {v} normally pushes every zero with PUSH0 when targeting shanghai or later (its default from 0.8.20), and the executable code has none. Not proof: a shanghai build that never pushes a zero has none either"
     ));
     (Some("paris".to_string()), reasons)
 }
@@ -751,6 +761,7 @@ pub fn fingerprint(code: &[u8], visited: &[bool]) -> Fingerprint {
             .collect(),
         min_evm_version: min_evm,
         evm_evidence: evidence,
+        max_evm_version_confidence: max_evm_version.as_ref().map(|_| "consistent".to_string()),
         max_evm_version,
         evm_version_reasons,
         push0_executed,
@@ -782,14 +793,25 @@ mod tests {
         assert_eq!(h, "likely high (≥ ~5000)");
         assert_eq!(ev.error_selector_literal, vec![0]);
         assert_eq!(ev.other_literal, vec![34]);
-        // Low: PUSH3 0x461bcd PUSH1 0xe5 SHL, PUSH1 1 PUSH1 0xa0 SHL
-        let low = hex::decode("62461bcd60e51b50600160a01b5000").unwrap();
-        let (h, ev) = optimizer_runs_hint(&low, &all_visited(&low));
-        assert_eq!(h, "likely low (≈200)");
+        // The computed Error(string) selector alone (PUSH3 0x461bcd PUSH1
+        // 0xe5 SHL) only bounds runs from above; the address mask
+        // (PUSH1 1 PUSH1 0xa0 SHL) is kept apart, solc computes it at high
+        // runs too
+        let one = hex::decode("62461bcd60e51b50600160a01b5000").unwrap();
+        let (h, ev) = optimizer_runs_hint(&one, &all_visited(&one));
+        assert_eq!(h, "likely < ~5000");
         assert_eq!(ev.error_selector_shifted, vec![0]);
-        // The address mask is kept apart: solc computes it at high runs too
         assert!(ev.other_shifted.is_empty());
         assert_eq!(ev.address_mask_shifted, vec![8]);
+        // Low: that plus another constant computed (PUSH4 sel PUSH1 0xe0 SHL)
+        let low = hex::decode("62461bcd60e51b50600160a01b5063aabbccdd60e01b5000").unwrap();
+        let (h, ev) = optimizer_runs_hint(&low, &all_visited(&low));
+        assert_eq!(h, "likely low (≈200)");
+        assert_eq!(ev.other_shifted, vec![14]);
+        // The Error(string) selector written out alone is not a high bucket
+        let sel_only = hex::decode(format!("{sel32}5060e01c00")).unwrap();
+        let (h, ev) = optimizer_runs_hint(&sel_only, &all_visited(&sel_only));
+        assert_eq!(runs_bucket(&h, &ev).0, "unknown");
         // Mid: selector computed, masks written out
         let mid = hex::decode(format!("62461bcd60e51b50{mask20}5000")).unwrap();
         assert_eq!(
@@ -825,7 +847,8 @@ mod tests {
         assert_eq!(fp.push0_in_code, 0);
         assert_eq!(fp.max_evm_version.as_deref(), Some("paris"));
         assert!(fp.evm_version_reasons.iter().any(|r| r.contains("0.8.23")));
-        assert_eq!(fp.optimizer_runs_bucket, "high (≥5000)");
+        assert_eq!(fp.optimizer_runs_bucket, "high (≥ ~5000)");
+        assert_eq!(fp.max_evm_version_confidence.as_deref(), Some("consistent"));
         assert!(!fp.optimizer_runs_evidence.address_mask_shifted.is_empty());
         assert!(fp.optimizer_runs_evidence.other_shifted.is_empty());
     }
@@ -844,7 +867,7 @@ mod tests {
         // No PUSH0 at all with solc >= 0.8.20: paris at most
         let (max, why) = evm_bounds("constantinople or later", &[], Some("0.8.20"), 0, 0);
         assert_eq!(max.as_deref(), Some("paris"));
-        assert!(why.iter().any(|r| r.starts_with("max paris")));
+        assert!(why.iter().any(|r| r.starts_with("consistent with paris")));
         // Older solc says nothing about the upper bound
         assert_eq!(
             evm_bounds("constantinople or later", &[], Some("0.8.19"), 0, 0).0,
@@ -897,14 +920,18 @@ mod tests {
     #[test]
     fn runs_bucket_only_for_clear_hints() {
         let ev = RunsEvidence::default();
-        assert_eq!(runs_bucket("likely high (≥ ~5000)", &ev).0, "high (≥5000)");
+        assert_eq!(
+            runs_bucket("likely high (≥ ~5000)", &ev).0,
+            "high (≥ ~5000)"
+        );
         assert_eq!(
             runs_bucket("likely mid (≈1000-4000)", &ev).0,
             "medium (~1000)"
         );
-        assert_eq!(runs_bucket("likely low (≈200)", &ev).0, "low (≤200)");
+        assert_eq!(runs_bucket("likely low (≈200)", &ev).0, "low (≤ ~200)");
         for weak in [
             "likely ≥ ~1000",
+            "likely ≥ ~5000 (Error(string) selector only)",
             "likely < ~5000",
             "likely ≤ ~2000",
             "unknown",

@@ -264,7 +264,8 @@ fn not_followed_reason(
     own_functions: usize,
 ) -> Option<String> {
     let imp = implementation.to_checksum(None);
-    if kind.starts_with("implementation() getter") {
+    let source = proxy_value_source(kind);
+    if source == "getter" {
         return Some(format!(
             "answers implementation() with {imp}, but that alone does not make it a proxy"
         ));
@@ -272,29 +273,55 @@ fn not_followed_reason(
     if check.ok {
         return None;
     }
+    // A pure forwarder: no selectors of its own, every call delegated to a
+    // fixed address that is also the slot value. It runs that code for
+    // every call, like an EIP-1167 clone
+    if check.constant_target && own_functions == 0 {
+        return None;
+    }
     let own = if own_functions > 0 {
         format!("; its own code has a dispatcher with {own_functions} function(s)")
     } else {
         String::new()
     };
+    let head = format!("{kind}: {imp} (from the {source}) is not confirmed as the code that runs");
     Some(if check.constant_target {
         format!(
-            "{kind}: slot value {imp} is not confirmed as a proxy target: the code delegates unmatched calls to that address as a code constant (an immutable), not read from the slot, so it forwards to a fixed library rather than acting as a proxy{own}"
+            "{head}: the code delegates the calls its dispatcher does not match to that address as a code constant (an immutable), not through the {source}, and handles its own selectors itself{own}"
         )
     } else if !check.only_under.is_empty() {
         format!(
-            "{kind}: slot value {imp} is not confirmed as a proxy target: this address delegates to it only under selector {}, not for every call{own}",
+            "{head}: this address delegates to it only under selector {}, not for every call{own}",
             check.only_under.join(", ")
         )
     } else if check.complete {
         format!(
-            "{kind}: slot value {imp} is not confirmed as a proxy target: ethcli's call analysis (complete) finds no DELEGATECALL in this address's own code whose target comes from that slot, beacon or constant, so it does not run that code{own}"
+            "{head}: ethcli's call analysis (complete) finds no DELEGATECALL in this address's own code whose target comes from that {source}, so it does not run that code{own}"
         )
     } else {
         format!(
-            "{kind}: slot value {imp} is not confirmed as a proxy target: ethcli's call analysis could not confirm that this address delegates to it (coverage incomplete){own}"
+            "{head}: ethcli's call analysis could not confirm that this address delegates to it (coverage incomplete){own}"
         )
     })
+}
+
+/// Where a proxy kind's implementation value comes from
+fn proxy_value_source(kind: &str) -> &'static str {
+    if kind.starts_with("implementation() getter") {
+        "getter"
+    } else if kind == "Safe proxy" {
+        "safe"
+    } else if kind.contains("beacon") {
+        "beacon"
+    } else if kind.starts_with("EIP-1167")
+        || kind == "Vyper forwarder proxy"
+        || kind.contains("immutable args")
+        || kind.contains("clone")
+    {
+        "constant"
+    } else {
+        "slot"
+    }
 }
 
 fn is_constant(p: &crate::bytecode::Provenance, addr: Address) -> bool {
@@ -575,33 +602,18 @@ async fn fetch_target(chain: Chain, args: &TargetArgs, quiet: bool) -> anyhow::R
             };
             let own_functions = extract_selectors(&code).len();
             let reason = not_followed_reason(kind, &check, implementation, own_functions);
-            if let Some(reason) = &reason {
-                let followed = args.follow_proxy;
-                proxy_slot = Some(json!({
-                    "kind": kind,
-                    "value": implementation.to_checksum(None),
-                    "followed": followed,
-                    "reason": reason,
-                    "force_with": if followed { Value::Null } else { json!("--follow-proxy") },
-                }));
-                let line = if followed {
-                    format!("{reason}; following it anyway because --follow-proxy was given")
-                } else {
-                    format!("{reason}; not followed, analysing its own code (pass --follow-proxy to use that code instead)")
-                };
-                if !quiet && !kind.starts_with("implementation() getter") {
-                    eprintln!("Warning: {line}");
-                }
-                notes.push(line);
-            }
+            let mut followed = false;
+            let mut no_code = false;
             if reason.is_none() || args.follow_proxy {
                 let impl_code = get_code(implementation).await?;
                 if impl_code.is_empty() {
+                    no_code = true;
                     notes.push(format!(
                         "{kind} implementation {} has no code; using the proxy's own code",
                         implementation.to_checksum(None)
                     ));
                 } else {
+                    followed = true;
                     if !quiet {
                         eprintln!(
                             "{kind}: using implementation {}",
@@ -612,6 +624,27 @@ async fn fetch_target(chain: Chain, args: &TargetArgs, quiet: bool) -> anyhow::R
                     code_address = implementation;
                     resolved_via = Some(kind.to_string());
                 }
+            }
+            if let Some(reason) = &reason {
+                let line = if followed {
+                    format!("{reason}; followed anyway because --follow-proxy was given")
+                } else if no_code {
+                    format!("{reason}; --follow-proxy was given but that address has no code, so its own code is analysed")
+                } else {
+                    format!("{reason}; not followed, analysing its own code (pass --follow-proxy to use that code instead)")
+                };
+                proxy_slot = Some(json!({
+                    "kind": kind,
+                    "source": proxy_value_source(kind),
+                    "value": implementation.to_checksum(None),
+                    "followed": followed,
+                    "reason": reason,
+                    "force_with": if followed || no_code { Value::Null } else { json!("--follow-proxy") },
+                }));
+                if !quiet && proxy_value_source(kind) != "getter" {
+                    eprintln!("Warning: {line}");
+                }
+                notes.push(line);
             }
         }
     }
@@ -1966,7 +1999,7 @@ pub async fn fingerprint_cmd(
             .unwrap_or_default()
     );
     if let Some(max) = f["max_evm_version"].as_str() {
-        println!("EVM version at most: {max}");
+        println!("EVM version: consistent with {max} or earlier (a consistency bound, not proof)");
     }
     println!(
         "PUSH0: executed {}, in the executable code {}",
@@ -2774,10 +2807,19 @@ mod tests {
         let check = proxy_check("EIP-1967 proxy", &fixed, imp, None);
         assert!(!check.ok);
         assert!(check.constant_target);
+        // With no selectors of its own it is a pure forwarder: followed
+        assert_eq!(not_followed_reason("EIP-1967 proxy", &check, imp, 0), None);
+        // With its own dispatcher it is not
         let reason = not_followed_reason("EIP-1967 proxy", &check, imp, 40).unwrap();
         assert!(reason.contains("not confirmed"));
+        assert!(reason.contains("from the slot"));
         assert!(reason.contains("code constant"));
         assert!(reason.contains("40 function(s)"));
+        assert!(!reason.contains("library"));
+        assert_eq!(proxy_value_source("EIP-1967 beacon proxy"), "beacon");
+        assert_eq!(proxy_value_source("Safe proxy"), "safe");
+        assert_eq!(proxy_value_source("implementation() getter"), "getter");
+        assert_eq!(proxy_value_source("EIP-1167 minimal proxy"), "constant");
         // A real EIP-1967 forwarder is followed
         let real = hex::decode(format!("600060003660007f{SLOT}545af400")).unwrap();
         let check = proxy_check("EIP-1967 proxy", &real, imp, None);

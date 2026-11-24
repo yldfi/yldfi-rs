@@ -19,8 +19,10 @@ Tools: `ethcli` (or the MCP tools `contract_fingerprint`, `contract_inspect`,
    `min_evm_version` / `max_evm_version` (with `evm_version_reasons`) and the
    pipeline guess. Check the EVM version first: an executed PUSH0
    (`push0_executed`) means shanghai or later; none with solc 0.8.20 or
-   later gives `max_evm_version: paris` (that solc uses PUSH0 throughout
-   from shanghai on); MCOPY, TLOAD, TSTORE or BLOBHASH mean cancun. A wrong
+   later gives `max_evm_version: paris` with confidence `consistent`
+   (that solc pushes zeros with PUSH0 from shanghai on; a shanghai build
+   that never pushes zero would look the same, so try paris first, not
+   only); MCOPY, TLOAD, TSTORE or BLOBHASH mean cancun. A wrong
    `evm_version` changes every function, so settle it before anything else.
    Set `solc_version`, `evm_version` and the hash type (`bytecode_hash = "ipfs"`, `"bzzr1"` or
    `"none"`) in `foundry.toml` to match. Via-IR is not in the code; start
@@ -36,12 +38,13 @@ Tools: `ethcli` (or the MCP tools `contract_fingerprint`, `contract_inspect`,
    its neighbours, keep the run count whose executable size equals the
    deployed one, then refine. Optimizer-off code also writes constants out.
    If the proxy was followed, the output names the implementation: rebuild
-   that. A set EIP-1967 slot is not proof of a proxy: some contracts keep a
-   library address there and run their own dispatcher, delegating only
-   unmatched selectors from the fallback (Yearn V3 tokenized strategies do
-   this). Fingerprint, match and decompile follow the slot only when the
-   call analysis confirms a forwarding-only path; otherwise
-   `target.proxy_slot` shows the value, says why it was not followed, and
+   that. A set EIP-1967 slot is not proof of a proxy: some contracts keep an
+   address there and run their own dispatcher, delegating only the
+   selectors it does not match from the fallback (Yearn V3 tokenized
+   strategies do this). Fingerprint, match and decompile follow the value
+   only when the call analysis confirms every unmatched call runs that
+   code with no dispatcher of its own; otherwise `target.proxy_slot`
+   shows the value, its source and why it was not followed, and
    `--follow-proxy` forces it. When `dispatcher` says
    "fallback-only / packed-calldata executor", there are no ABI functions:
    rebuild a `fallback()` that decodes the packed calldata at
@@ -85,8 +88,10 @@ Tools: `ethcli` (or the MCP tools `contract_fingerprint`, `contract_inspect`,
      deleted rows, with pcs in hex as `disassemble` prints them); `changed`
      DUP/SWAP rows with the same other opcodes point to statement or
      declaration order. When the sizes differ, `equal_shifted` functions
-     only moved (their jump offsets changed): ignore them, and use
-     `--only-different` to list just the rest. Fix only the
+     have the same instructions and their jumps reach corresponding
+     JUMPDESTs through the alignment; they only moved. Fix the `different`
+     ones first (`--only-different` lists just those); an `equal_shifted`
+     function can still differ in data it reads from elsewhere. Fix only the
      function named `different`, rebuild, and match again. When the size
      differs, fix size-changing differences first (missing or extra
      statements, types, checked vs unchecked arithmetic).

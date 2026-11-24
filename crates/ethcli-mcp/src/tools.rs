@@ -3,7 +3,7 @@
 //! Each tool wraps an ethcli command and exposes it via MCP.
 //! Tools use subprocess execution for full CLI compatibility.
 //!
-//! 580+ tools covering the ethcli subcommands.
+//! 610+ tools covering the ethcli subcommands.
 
 use crate::executor::{ArgsBuilder, ExecutionError, ValidationError};
 
@@ -1180,7 +1180,7 @@ pub async fn gas_cost(input: &crate::types::GasCostInput) -> Result<String, Tool
 }
 
 // =============================================================================
-// SIG (4 subcommands) - Signature lookup
+// SIG (5 subcommands) - Signature lookup and local hashing
 // =============================================================================
 
 pub async fn sig_fn(selector: &str) -> Result<String, ToolError> {
@@ -1469,14 +1469,23 @@ pub async fn rpc_call(
 ) -> Result<String, ToolError> {
     let mut builder = ArgsBuilder::new("rpc").subcommand("call").arg(to);
     match (data, sig) {
-        (Some(data), None) => builder = builder.arg(data),
+        (Some(data), None) => {
+            if args.is_some_and(|a| !a.is_empty()) {
+                return Err(ToolError::InvalidInput(
+                    "args go with sig, not with data (hex calldata already holds the arguments)"
+                        .into(),
+                ));
+            }
+            builder = builder.arg(data);
+        }
         (None, Some(sig)) => {
             builder = builder.opt("--sig", Some(sig));
             if let Some(args) = args.filter(|a| !a.is_empty()) {
-                // One --args value each, so an argument with a space stays whole
-                for a in args {
-                    builder = builder.opt("--args", Some(a.as_str()));
-                }
+                // As a JSON array, so an argument holding a space stays whole
+                // (--args splits on spaces)
+                let json = serde_json::to_string(args)
+                    .map_err(|e| ToolError::InvalidInput(format!("args: {e}")))?;
+                builder = builder.opt("--args-json", Some(json.as_str()));
             }
         }
         _ => {

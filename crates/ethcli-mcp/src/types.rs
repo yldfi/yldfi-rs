@@ -664,7 +664,7 @@ pub struct RpcCallInput {
     pub data: Option<String>,
     /// Function signature instead of data, e.g. "balanceOf(address)"; the form "balanceOf(address)(uint256)" also decodes the result
     pub sig: Option<String>,
-    /// Arguments for sig, in order
+    /// Arguments for sig, in order; each is kept whole (spaces allowed). Not allowed with data
     pub args: Option<Vec<String>>,
     /// Chain name
     #[serde(default = "default_chain")]
