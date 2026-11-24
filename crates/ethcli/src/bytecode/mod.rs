@@ -26,6 +26,7 @@
 mod analyze;
 pub mod calls;
 mod checks;
+pub mod clones;
 mod disassemble;
 pub mod inference;
 pub mod matcher;
@@ -42,6 +43,7 @@ pub use calls::{
     Guard, OpcodeSite, Provenance,
 };
 pub use checks::{analyze_handler_checks, infer_dispatcher};
+pub use clones::{detect_immutable_args_clone, ImmutableArgsClone};
 pub use disassemble::{
     disassemble_bytecode, disassemble_raw, mnemonic, opcode_stats, opcode_stats_from_operations,
     DisassemblyError,

@@ -86,6 +86,11 @@ single facts.
   `signature_database` is a guess by 4-byte selector, and `other_candidates`
   lists alternatives. The same applies to function names from
   `interface.source: "bytecode"` in `contract inspect`.
+- **Clones with immutable args** (Sudoswap pairs, wighawag, Solady
+  LibClone): `immutable_args` (in `contract inspect`'s `proxy` and in
+  fingerprint/decompile/match `target`) is raw data. Its `words` and
+  `address_like` split is a guess; read the implementation's getters for
+  what the bytes mean.
 - **Unverified contracts:** for access control and call targets, use the
   facts from `contract calls` (and the `calls` summary in `contract
   analyze`): each call site's target, selector and value with its

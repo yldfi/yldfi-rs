@@ -50,6 +50,15 @@ pub enum ProxyType {
         /// The implementation address embedded in the bytecode
         implementation: Address,
     },
+    /// A clone that appends immutable args to its code, with the
+    /// implementation address in the code (wighawag ClonesWithImmutableArgs,
+    /// Sudoswap pairs, Solady LibClone CWIA)
+    CloneWithImmutableArgs {
+        /// The implementation address embedded in the bytecode
+        implementation: Address,
+        /// Which template matched
+        template: String,
+    },
     /// EIP-1967 transparent proxy
     Eip1967,
     /// EIP-1822 UUPS proxy
@@ -64,6 +73,7 @@ impl ProxyType {
     pub fn name(&self) -> &'static str {
         match self {
             ProxyType::Eip1167 { .. } => "EIP-1167 Minimal Proxy",
+            ProxyType::CloneWithImmutableArgs { .. } => "Clone With Immutable Args",
             ProxyType::Eip1967 => "EIP-1967 Transparent Proxy",
             ProxyType::Eip1822 => "EIP-1822 UUPS Proxy",
             ProxyType::OpenZeppelinLegacy => "OpenZeppelin Legacy Proxy",
@@ -75,6 +85,9 @@ impl ProxyType {
         match self {
             ProxyType::Eip1167 { .. } => {
                 "Minimal proxy clone with implementation address embedded in bytecode"
+            }
+            ProxyType::CloneWithImmutableArgs { .. } => {
+                "Clone with the implementation address and immutable args embedded in bytecode"
             }
             ProxyType::Eip1967 => "Transparent proxy with implementation stored at EIP-1967 slot",
             ProxyType::Eip1822 => {
@@ -149,6 +162,21 @@ fn contains_push32(bytecode: &[u8], word: &[u8; 32]) -> bool {
 /// For storage-based proxies (EIP-1967), use `detect_proxy_with_storage`.
 #[must_use]
 pub fn detect_proxy(bytecode: &[u8]) -> ProxyInfo {
+    // Clones with immutable args first: the Solady ERC-1167-with-args
+    // layout starts with the whole EIP-1167 runtime
+    if let Some(clone) = super::clones::detect_immutable_args_clone(bytecode) {
+        if let Some(implementation) = clone.implementation {
+            return ProxyInfo {
+                is_proxy: true,
+                proxy_type: Some(ProxyType::CloneWithImmutableArgs {
+                    implementation,
+                    template: clone.kind.to_string(),
+                }),
+                implementation: Some(implementation),
+            };
+        }
+    }
+
     // Check for EIP-1167 minimal proxy
     if let Some(impl_addr) = detect_eip1167(bytecode) {
         return ProxyInfo {
@@ -257,6 +285,19 @@ mod tests {
         let result = detect_proxy(&bytecode);
         assert!(result.is_proxy);
         assert!(matches!(result.proxy_type, Some(ProxyType::Eip1167 { .. })));
+    }
+
+    #[test]
+    fn erc1167_with_args_is_a_clone_with_immutable_args() {
+        let bytecode = hex::decode(
+            "363d3d373d3d3d363d73bebebebebebebebebebebebebebebebebebebebe5af43d82803e903d91602b57fd5bf3aabbccdd"
+        ).unwrap();
+        let result = detect_proxy(&bytecode);
+        assert_eq!(result.implementation, Some(Address::repeat_byte(0xbe)));
+        assert!(matches!(
+            result.proxy_type,
+            Some(ProxyType::CloneWithImmutableArgs { .. })
+        ));
     }
 
     #[test]
