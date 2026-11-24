@@ -1,12 +1,18 @@
 //! On-chain Uniswap LP position valuation
 //!
-//! - v3: `uniswap-v3-sdk` extensions (`get_position`, `get_all_positions_by_owner`,
-//!   `get_collectable_token_amounts`), cross-checked with an `eth_call` of
-//!   `NonfungiblePositionManager.collect` from the NFT owner.
-//! - v4: `uniswap-v4-sdk` extensions (`get_position`, `PoolManagerLens`) with
-//!   uncollected fees from the PoolManager's fee growth.
-//! - v2 and v2 forks: one multicall on the pair; fees are compounded into the
-//!   reserves.
+//! - v3: positions and pools read from the NonfungiblePositionManager and the
+//!   chain's factory, amounts from a `uniswap-v3-sdk` `Position`, fees from
+//!   an `eth_call` of `NonfungiblePositionManager.collect` from the NFT owner,
+//!   cross-checked against tokensOwed + pool fee growth.
+//! - v4: pool key and ticks from the PositionManager, pool, tick and position
+//!   state from the PoolManager (`extsload`), amounts from a `uniswap-v4-sdk`
+//!   `Position`, uncollected fees from the PoolManager's fee growth.
+//! - v2 and v2 forks: the pair's reserves and supply; fees are compounded
+//!   into the reserves.
+//!
+//! Reads are batched through Multicall3 in as few stages as their
+//! dependencies allow (see `uniswap_lp_reads`), with individual calls at
+//! blocks before Multicall3 existed.
 //!
 //! Every read is pinned to one block so the figures are consistent.
 
@@ -19,6 +25,8 @@ use clap::{Args, ValueEnum};
 use futures::StreamExt;
 use serde::Serialize;
 use std::collections::HashMap;
+
+use super::uniswap_lp_reads::{dedup, Call, ChainReader, Outcome, Reader};
 use uniswap_v4_sdk::prelude::sdk_core::addresses::{ChainAddresses, CHAIN_TO_ADDRESSES_MAP};
 use uniswap_v4_sdk::prelude::sdk_core::prelude::FractionBase;
 
@@ -65,6 +73,15 @@ sol! {
         function getPositionLiquidity(uint256 tokenId) external view returns (uint128 liquidity);
     }
 
+    interface IErc20MetaLite {
+        function decimals() external view returns (uint256);
+        function symbol() external view returns (string);
+    }
+
+    interface IPoolManagerExtsloadLite {
+        function extsload(bytes32[] calldata slots) external view returns (bytes32[] memory values);
+    }
+
     #[sol(rpc)]
     interface IUniswapV2PairLite {
         function balanceOf(address owner) external view returns (uint256);
@@ -85,8 +102,9 @@ const MULTICALL3: Address =
 /// DefiLlama search window for historical prices
 const HISTORICAL_SEARCH_WIDTH: &str = "4h";
 
-/// Concurrent position valuations when listing an owner's positions
-const LIST_CONCURRENCY: usize = 2;
+/// collect eth_calls in flight at once (each is sent from its owner, so they
+/// cannot be batched)
+const COLLECT_CONCURRENCY: usize = 4;
 
 /// Uniswap version of an NFT position
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, ValueEnum)]
@@ -413,22 +431,13 @@ struct Ctx {
     block: u64,
     /// The block was given with --block (so prices should be historical)
     historical: bool,
+    /// Contract reads at `block` (Multicall3 batches where it exists)
+    reader: ChainReader,
 }
 
 impl Ctx {
     fn block_id(&self) -> BlockId {
         BlockId::number(self.block)
-    }
-
-    /// Whether Multicall3 has code at this block
-    async fn has_multicall3(&self) -> anyhow::Result<bool> {
-        let code = self
-            .provider
-            .get_code_at(MULTICALL3)
-            .block_id(self.block_id())
-            .await
-            .map_err(rpc_err)?;
-        Ok(!code.is_empty())
     }
 
     async fn block_timestamp(&self) -> anyhow::Result<u64> {
@@ -467,7 +476,17 @@ async fn connect(rpc_arg: Option<&str>, chain: &str, block: Option<u64>) -> anyh
         Some(b) => b,
         None => provider.get_block_number().await.map_err(rpc_err)?,
     };
+    // Whether Multicall3 has code at this block; before its deployment every
+    // read is sent on its own
+    let block_id = BlockId::number(block);
+    let multicall = !provider
+        .get_code_at(MULTICALL3)
+        .block_id(block_id)
+        .await
+        .map_err(rpc_err)?
+        .is_empty();
     Ok(Ctx {
+        reader: ChainReader::new(provider.clone(), block_id, multicall),
         provider,
         chain,
         block,
@@ -478,40 +497,6 @@ async fn connect(rpc_arg: Option<&str>, chain: &str, block: Option<u64>) -> anyh
 /// Errors may echo the RPC URL (with a key in it); strip URLs
 fn rpc_err(e: impl std::fmt::Display) -> anyhow::Error {
     anyhow::anyhow!(crate::utils::url::redact_urls_in_text(&e.to_string()))
-}
-
-async fn raw_call(ctx: &Ctx, to: Address, selector: [u8; 4]) -> Option<alloy::primitives::Bytes> {
-    let tx = alloy::rpc::types::TransactionRequest::default()
-        .to(to)
-        .input(alloy::primitives::Bytes::copy_from_slice(&selector).into());
-    // Retry briefly: shared endpoints may rate-limit when many positions are
-    // valued at once. A revert is final.
-    for attempt in 0..3u64 {
-        match ctx.provider.call(tx.clone()).block(ctx.block_id()).await {
-            Ok(b) => return Some(b),
-            Err(e) if is_revert(&e) => return None,
-            Err(_) => {
-                tokio::time::sleep(std::time::Duration::from_millis(300 * (attempt + 1))).await
-            }
-        }
-    }
-    None
-}
-
-async fn erc20_symbol(ctx: &Ctx, token: Address) -> String {
-    match raw_call(ctx, token, [0x95, 0xd8, 0x9b, 0x41]).await {
-        Some(b) => decode_symbol(&b).unwrap_or_else(|| short_addr(token)),
-        None => short_addr(token),
-    }
-}
-
-async fn erc20_decimals(ctx: &Ctx, token: Address) -> anyhow::Result<u8> {
-    let b = raw_call(ctx, token, [0x31, 0x3c, 0xe5, 0x67])
-        .await
-        .ok_or_else(|| anyhow::anyhow!("decimals() failed for {token:#x}"))?;
-    let v = U256::try_from_be_slice(b.get(..32).unwrap_or(&b))
-        .ok_or_else(|| anyhow::anyhow!("bad decimals() for {token:#x}"))?;
-    u8::try_from(v).map_err(|_| anyhow::anyhow!("bad decimals() for {token:#x}"))
 }
 
 fn erc20_info(address: Address, symbol: String, decimals: u8) -> TokenInfo {
@@ -549,69 +534,352 @@ fn bigint_to_u256(v: impl ToString) -> anyhow::Result<U256> {
 // Valuation
 // ---------------------------------------------------------------------------
 
+/// Token metadata read in one stage: decimals and symbol of each distinct
+/// token (bytes32 symbols decoded; a failed symbol read gives the short
+/// address, a failed decimals read fails the positions that need it)
+async fn read_token_meta(
+    r: &dyn Reader,
+    tokens: &[Address],
+    extra: Vec<Call>,
+) -> (HashMap<Address, Result<(u8, String), String>>, Vec<Outcome>) {
+    let mut calls = Vec::with_capacity(tokens.len() * 2 + extra.len());
+    for t in tokens {
+        calls.push(Call::new(*t, IErc20MetaLite::decimalsCall {}));
+        calls.push(Call::new(*t, IErc20MetaLite::symbolCall {}));
+    }
+    let n_extra = extra.len();
+    calls.extend(extra);
+    let mut out = r.read(calls).await;
+    let rest = out.split_off(out.len() - n_extra);
+    let meta = tokens
+        .iter()
+        .enumerate()
+        .map(|(i, t)| {
+            let d = match &out[2 * i] {
+                Outcome::Ok(b) => decode_decimals(b, *t),
+                _ => Err(format!("decimals() failed for {t:#x}")),
+            };
+            let s = match &out[2 * i + 1] {
+                Outcome::Ok(b) => decode_symbol(b).unwrap_or_else(|| short_addr(*t)),
+                _ => short_addr(*t),
+            };
+            (*t, d.map(|d| (d, s)))
+        })
+        .collect();
+    (meta, rest)
+}
+
+/// decimals() return data as u8 (the first word)
+fn decode_decimals(b: &[u8], token: Address) -> Result<u8, String> {
+    let v = U256::try_from_be_slice(b.get(..32).unwrap_or(b))
+        .ok_or_else(|| format!("bad decimals() for {token:#x}"))?;
+    u8::try_from(v).map_err(|_| format!("bad decimals() for {token:#x}"))
+}
+
+fn token_meta(
+    meta: &HashMap<Address, Result<(u8, String), String>>,
+    t: Address,
+) -> anyhow::Result<(u8, String)> {
+    meta.get(&t)
+        .cloned()
+        .unwrap_or_else(|| Err(format!("no metadata read for {t:#x}")))
+        .map_err(|e| anyhow::anyhow!(e))
+}
+
+/// Everything read for one v3 position
+struct V3Reads {
+    token_id: U256,
+    npm: Address,
+    owner: Address,
+    raw_pos: INonfungiblePositionManagerLite::positionsReturn,
+    pool_addr: Address,
+    meta0: (u8, String),
+    meta1: (u8, String),
+    slot0: IUniswapV3PoolLite::slot0Return,
+    pool_liq: u128,
+    growth_global: (U256, U256),
+    lower: IUniswapV3PoolLite::ticksReturn,
+    upper: IUniswapV3PoolLite::ticksReturn,
+    collect: Result<(U256, U256), String>,
+}
+
+/// Value v3 positions with batched reads at one block:
+///
+/// 1. `factory()`, and `ownerOf` + `positions` of every token id
+/// 2. `getPool` of each distinct (token0, token1, fee), with `decimals` and
+///    `symbol` of each distinct token
+/// 3. `slot0`, `liquidity`, `feeGrowthGlobal0/1X128` of each distinct pool
+///    and `ticks` of each distinct (pool, tick)
+/// 4. `collect` from each owner, one eth_call per position
+///
+/// Results are in the order of `ids`; a position whose reads failed is an
+/// `Err` with the reason, without affecting the others.
+async fn value_v3_many(ctx: &Ctx, r: &dyn Reader, ids: &[U256]) -> Vec<anyhow::Result<LpPosition>> {
+    use INonfungiblePositionManagerLite as Npm;
+    if ids.is_empty() {
+        return Vec::new();
+    }
+    let fail_all = |e: &anyhow::Error| ids.iter().map(|_| Err(anyhow::anyhow!("{e}"))).collect();
+    let npm = match ctx.addresses() {
+        Ok(a) => a.nonfungible_position_manager,
+        Err(e) => return fail_all(&e),
+    };
+
+    // Stage 1
+    let mut calls = vec![Call::new(npm, Npm::factoryCall {})];
+    for id in ids {
+        calls.push(Call::new(npm, Npm::ownerOfCall { tokenId: *id }));
+        calls.push(Call::new(npm, Npm::positionsCall { tokenId: *id }));
+    }
+    let out = r.read(calls).await;
+    let factory = out[0].decode::<Npm::factoryCall>("factory()");
+    let mut out = out.into_iter().skip(1);
+    let mut stage1: Vec<anyhow::Result<(Address, Npm::positionsReturn, Address)>> = Vec::new();
+    for id in ids {
+        let (o, p) = (out.next().expect("ownerOf"), out.next().expect("positions"));
+        stage1.push((|| {
+            if o.is_revert() {
+                return Err(not_found(*id));
+            }
+            let owner = o.decode::<Npm::ownerOfCall>("ownerOf()").map_err(rpc_err)?;
+            let pos = p
+                .decode::<Npm::positionsCall>("positions()")
+                .map_err(rpc_err)?;
+            let f = factory.clone().map_err(rpc_err)?;
+            Ok((owner, pos, f))
+        })());
+    }
+
+    // Stage 2
+    let ok1: Vec<&(Address, Npm::positionsReturn, Address)> =
+        stage1.iter().filter_map(|s| s.as_ref().ok()).collect();
+    let (pool_keys, _) = dedup(
+        &ok1.iter()
+            .map(|(_, p, f)| (*f, p.token0, p.token1, p.fee))
+            .collect::<Vec<_>>(),
+    );
+    let (tokens, _) = dedup(
+        &ok1.iter()
+            .flat_map(|(_, p, _)| [p.token0, p.token1])
+            .collect::<Vec<_>>(),
+    );
+    let get_pools = pool_keys
+        .iter()
+        .map(|(f, a, b, fee)| {
+            Call::new(
+                *f,
+                IUniswapV3FactoryLite::getPoolCall {
+                    tokenA: *a,
+                    tokenB: *b,
+                    fee: *fee,
+                },
+            )
+        })
+        .collect();
+    let (meta, pool_out) = if ok1.is_empty() {
+        (HashMap::new(), Vec::new())
+    } else {
+        read_token_meta(r, &tokens, get_pools).await
+    };
+    let pools: HashMap<_, Result<Address, String>> = pool_keys
+        .iter()
+        .zip(&pool_out)
+        .map(|(k, o)| {
+            (
+                *k,
+                o.decode::<IUniswapV3FactoryLite::getPoolCall>("getPool()"),
+            )
+        })
+        .collect();
+
+    // Stage 3
+    let pool_of = |p: &Npm::positionsReturn, f: Address| -> Option<Address> {
+        pools
+            .get(&(f, p.token0, p.token1, p.fee))
+            .and_then(|r| r.as_ref().ok())
+            .copied()
+            .filter(|a| *a != Address::ZERO)
+    };
+    let (pool_addrs, _) = dedup(
+        &ok1.iter()
+            .filter_map(|(_, p, f)| pool_of(p, *f))
+            .collect::<Vec<_>>(),
+    );
+    let (pool_ticks, _) = dedup(
+        &ok1.iter()
+            .filter_map(|(_, p, f)| pool_of(p, *f).map(|a| (a, p.tickLower, p.tickUpper)))
+            .flat_map(|(a, l, u)| [(a, l), (a, u)])
+            .collect::<Vec<_>>(),
+    );
+    let mut calls = Vec::with_capacity(pool_addrs.len() * 4 + pool_ticks.len());
+    for a in &pool_addrs {
+        calls.push(Call::new(*a, IUniswapV3PoolLite::slot0Call {}));
+        calls.push(Call::new(*a, IUniswapV3PoolLite::liquidityCall {}));
+        calls.push(Call::new(
+            *a,
+            IUniswapV3PoolLite::feeGrowthGlobal0X128Call {},
+        ));
+        calls.push(Call::new(
+            *a,
+            IUniswapV3PoolLite::feeGrowthGlobal1X128Call {},
+        ));
+    }
+    for (a, t) in &pool_ticks {
+        calls.push(Call::new(*a, IUniswapV3PoolLite::ticksCall { tick: *t }));
+    }
+    let out = if calls.is_empty() {
+        Vec::new()
+    } else {
+        r.read(calls).await
+    };
+    type PoolState = (IUniswapV3PoolLite::slot0Return, u128, (U256, U256));
+    let pool_state: HashMap<Address, Result<PoolState, String>> = pool_addrs
+        .iter()
+        .enumerate()
+        .map(|(i, a)| {
+            let o = &out[4 * i..4 * i + 4];
+            let s = (|| {
+                Ok((
+                    o[0].decode::<IUniswapV3PoolLite::slot0Call>("slot0()")?,
+                    o[1].decode::<IUniswapV3PoolLite::liquidityCall>("liquidity()")?,
+                    (
+                        o[2].decode::<IUniswapV3PoolLite::feeGrowthGlobal0X128Call>(
+                            "feeGrowthGlobal0X128()",
+                        )?,
+                        o[3].decode::<IUniswapV3PoolLite::feeGrowthGlobal1X128Call>(
+                            "feeGrowthGlobal1X128()",
+                        )?,
+                    ),
+                ))
+            })();
+            (*a, s)
+        })
+        .collect();
+    let base = 4 * pool_addrs.len();
+    let tick_state: HashMap<_, Result<IUniswapV3PoolLite::ticksReturn, String>> = pool_ticks
+        .iter()
+        .enumerate()
+        .map(|(i, k)| {
+            (
+                *k,
+                out[base + i].decode::<IUniswapV3PoolLite::ticksCall>("ticks()"),
+            )
+        })
+        .collect();
+
+    // Stage 4: collect from each owner (must be sent from the owner, so not
+    // batched)
+    let collects: Vec<Option<Result<(U256, U256), String>>> =
+        futures::stream::iter(ids.iter().zip(&stage1))
+            .map(|(id, s)| async move {
+                let (owner, _, _) = s.as_ref().ok()?;
+                let call = Call::new(
+                    npm,
+                    Npm::collectCall {
+                        params: Npm::CollectParams {
+                            tokenId: *id,
+                            recipient: *owner,
+                            amount0Max: u128::MAX,
+                            amount1Max: u128::MAX,
+                        },
+                    },
+                );
+                Some(
+                    r.call_from(*owner, call)
+                        .await
+                        .decode::<Npm::collectCall>("collect()")
+                        .map(|c| (c.amount0, c.amount1)),
+                )
+            })
+            .buffered(COLLECT_CONCURRENCY)
+            .collect()
+            .await;
+
+    ids.iter()
+        .zip(stage1)
+        .zip(collects)
+        .map(|((id, s1), collect)| {
+            let (owner, raw_pos, factory) = s1?;
+            let key = (factory, raw_pos.token0, raw_pos.token1, raw_pos.fee);
+            let pool_addr = pools
+                .get(&key)
+                .cloned()
+                .unwrap_or_else(|| Err("getPool() not read".into()))
+                .map_err(rpc_err)?;
+            if pool_addr == Address::ZERO {
+                anyhow::bail!("v3 position {id}: factory has no pool for its tokens and fee");
+            }
+            let (slot0, pool_liq, growth_global) = pool_state
+                .get(&pool_addr)
+                .cloned()
+                .unwrap_or_else(|| Err("pool state not read".into()))
+                .map_err(rpc_err)?;
+            let tick = |t| {
+                tick_state
+                    .get(&(pool_addr, t))
+                    .cloned()
+                    .unwrap_or_else(|| Err("ticks() not read".into()))
+                    .map_err(rpc_err)
+            };
+            let (lower, upper) = (tick(raw_pos.tickLower)?, tick(raw_pos.tickUpper)?);
+            let meta0 = token_meta(&meta, raw_pos.token0)?;
+            let meta1 = token_meta(&meta, raw_pos.token1)?;
+            assemble_v3(
+                ctx,
+                V3Reads {
+                    token_id: *id,
+                    npm,
+                    owner,
+                    raw_pos,
+                    pool_addr,
+                    meta0,
+                    meta1,
+                    slot0,
+                    pool_liq,
+                    growth_global,
+                    lower,
+                    upper,
+                    collect: collect.unwrap_or_else(|| Err("collect() not sent".into())),
+                },
+            )
+        })
+        .collect()
+}
+
 async fn value_v3(ctx: &Ctx, token_id: U256) -> anyhow::Result<LpPosition> {
+    value_v3_many(ctx, &ctx.reader, &[token_id])
+        .await
+        .pop()
+        .expect("one result per id")
+}
+
+fn assemble_v3(ctx: &Ctx, rd: V3Reads) -> anyhow::Result<LpPosition> {
     use uniswap_v3_sdk::prelude::{get_tokens_owed, FeeAmount, Pool, Position};
     use uniswap_v4_sdk::prelude::sdk_core::prelude::Token;
 
-    let addrs = ctx.addresses()?;
-    let npm = addrs.nonfungible_position_manager;
+    let V3Reads {
+        token_id,
+        npm,
+        owner,
+        raw_pos,
+        pool_addr,
+        meta0: (d0, s0),
+        meta1: (d1, s1),
+        slot0,
+        pool_liq,
+        growth_global: (g0, g1),
+        lower,
+        upper,
+        collect,
+    } = rd;
     let chain_id = ctx.chain.chain_id();
-
-    let npm_c = INonfungiblePositionManagerLite::new(npm, ctx.provider.clone());
-    let owner = match npm_c.ownerOf(token_id).block(ctx.block_id()).call().await {
-        Ok(o) => o,
-        Err(e) if is_revert(&e) => return Err(not_found(token_id)),
-        Err(e) => return Err(rpc_err(e)),
-    };
-    let raw_pos = npm_c
-        .positions(token_id)
-        .block(ctx.block_id())
-        .call()
-        .await
-        .map_err(rpc_err)?;
     let owed_raw = (
         U256::from(raw_pos.tokensOwed0),
         U256::from(raw_pos.tokensOwed1),
     );
-
     let (t0, t1) = (raw_pos.token0, raw_pos.token1);
     let fee: u32 = raw_pos.fee.to::<u32>();
     let (tl, tu) = (raw_pos.tickLower.as_i32(), raw_pos.tickUpper.as_i32());
-
-    // The pool, from the chain's real factory (the NPM's factory())
-    let factory = npm_c
-        .factory()
-        .block(ctx.block_id())
-        .call()
-        .await
-        .map_err(rpc_err)?;
-    let pool_addr = IUniswapV3FactoryLite::new(factory, ctx.provider.clone())
-        .getPool(t0, t1, raw_pos.fee)
-        .block(ctx.block_id())
-        .call()
-        .await
-        .map_err(rpc_err)?;
-    if pool_addr == Address::ZERO {
-        anyhow::bail!("v3 position {token_id}: factory has no pool for its tokens and fee");
-    }
-    let pool_c = IUniswapV3PoolLite::new(pool_addr, ctx.provider.clone());
-    let b = ctx.block_id();
-    let (slot0, pool_liq, g0, g1, lower, upper, d0, d1, s0, s1) = tokio::join!(
-        async { pool_c.slot0().block(b).call().await },
-        async { pool_c.liquidity().block(b).call().await },
-        async { pool_c.feeGrowthGlobal0X128().block(b).call().await },
-        async { pool_c.feeGrowthGlobal1X128().block(b).call().await },
-        async { pool_c.ticks(raw_pos.tickLower).block(b).call().await },
-        async { pool_c.ticks(raw_pos.tickUpper).block(b).call().await },
-        erc20_decimals(ctx, t0),
-        erc20_decimals(ctx, t1),
-        erc20_symbol(ctx, t0),
-        erc20_symbol(ctx, t1),
-    );
-    let slot0 = slot0.map_err(rpc_err)?;
-    let (lower, upper) = (lower.map_err(rpc_err)?, upper.map_err(rpc_err)?);
-    let (g0, g1) = (g0.map_err(rpc_err)?, g1.map_err(rpc_err)?);
-    let (d0, d1) = (d0?, d1?);
     let tokens = vec![erc20_info(t0, s0, d0), erc20_info(t1, s1, d1)];
 
     // Amounts: uniswap-v3-sdk Position on a Pool built from these reads
@@ -620,7 +888,7 @@ async fn value_v3(ctx: &Ctx, token_id: U256) -> anyhow::Result<LpPosition> {
         Token::new(chain_id, t1, d1, None, None, 0, 0),
         FeeAmount::from(fee),
         slot0.sqrtPriceX96,
-        pool_liq.map_err(rpc_err)?,
+        pool_liq,
     )
     .map_err(|e| anyhow::anyhow!("v3 position {token_id}: {e}"))?;
     let pos = Position::new(pool, raw_pos.liquidity, tl, tu);
@@ -646,19 +914,6 @@ async fn value_v3(ctx: &Ctx, token_id: U256) -> anyhow::Result<LpPosition> {
         in1,
     );
     let growth = (owed_raw.0 + n0, owed_raw.1 + n1);
-    let collect = npm_c
-        .collect(INonfungiblePositionManagerLite::CollectParams {
-            tokenId: token_id,
-            recipient: owner,
-            amount0Max: u128::MAX,
-            amount1Max: u128::MAX,
-        })
-        .from(owner)
-        .block(ctx.block_id())
-        .call()
-        .await
-        .map(|r| (r.amount0, r.amount1))
-        .map_err(|e| crate::utils::url::redact_urls_in_text(&e.to_string()));
     let (collectable, cross) = v3_reconcile_fees(growth, collect, &tokens);
     let (fees_raw, owed) = split_collectable(collectable, owed_raw);
 
@@ -765,10 +1020,6 @@ pub fn not_found(token_id: U256) -> anyhow::Error {
     anyhow::anyhow!("not_found: position {token_id} does not exist (burned or never minted)")
 }
 
-fn is_revert(e: &impl std::fmt::Display) -> bool {
-    e.to_string().to_lowercase().contains("revert")
-}
-
 /// Pick the authoritative v3 fee figure: the collect eth_call when it worked,
 /// otherwise the fee-growth computation.
 pub fn v3_reconcile_fees(
@@ -802,10 +1053,101 @@ pub fn v3_reconcile_fees(
     }
 }
 
+/// v4 pool id: keccak256(abi.encode(poolKey))
+pub fn v4_pool_id(key: &IV4PositionManagerLite::PoolKey) -> B256 {
+    use alloy::sol_types::SolValue;
+    alloy::primitives::keccak256(key.abi_encode())
+}
+
+/// PoolManager storage slots read for one v4 position, in this order:
+/// slot0, liquidity, feeGrowthGlobal0/1, lower tick feeGrowthOutside0/1,
+/// upper tick feeGrowthOutside0/1, position liquidity and
+/// feeGrowthInside0/1LastX128 (the layout PoolManagerLens and StateView use)
+pub fn v4_state_slots(
+    pool_id: B256,
+    tick_lower: I24,
+    tick_upper: I24,
+    position_key: B256,
+) -> Vec<B256> {
+    use alloy::sol_types::SolValue;
+    let k = |v: Vec<u8>| U256::from_be_bytes(alloy::primitives::keccak256(v).0);
+    let state = k((pool_id, U256::from(6u8)).abi_encode());
+    let tick = |t: I24| k((t, state + U256::from(4u8)).abi_encode());
+    let (lo, up) = (tick(tick_lower), tick(tick_upper));
+    let pos = k((position_key, state + U256::from(6u8)).abi_encode());
+    let one = U256::from(1u8);
+    let two = U256::from(2u8);
+    [
+        state,
+        state + U256::from(3u8),
+        state + one,
+        state + two,
+        lo + one,
+        lo + two,
+        up + one,
+        up + two,
+        pos,
+        pos + one,
+        pos + two,
+    ]
+    .into_iter()
+    .map(B256::from)
+    .collect()
+}
+
+/// The values behind [`v4_state_slots`]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct V4State {
+    pub sqrt_price_x96: alloy::primitives::U160,
+    pub tick: i32,
+    pub lp_fee: u32,
+    pub liquidity: u128,
+    pub growth_global: (U256, U256),
+    pub lower_outside: (U256, U256),
+    pub upper_outside: (U256, U256),
+    pub position_liquidity: u128,
+    pub position_last: (U256, U256),
+}
+
+/// Decode the words read at [`v4_state_slots`]
+pub fn decode_v4_state(w: &[B256]) -> Option<V4State> {
+    if w.len() != 11 {
+        return None;
+    }
+    let u = |i: usize| U256::from_be_bytes(w[i].0);
+    let low128 = |i: usize| u128::from_be_bytes(w[i].0[16..32].try_into().expect("16 bytes"));
+    let int24 = |b: &[u8]| -> i32 {
+        ((i32::from(b[0]) << 24) | (i32::from(b[1]) << 16) | (i32::from(b[2]) << 8)) >> 8
+    };
+    let uint24 =
+        |b: &[u8]| -> u32 { (u32::from(b[0]) << 16) | (u32::from(b[1]) << 8) | u32::from(b[2]) };
+    let s0 = &w[0].0;
+    Some(V4State {
+        sqrt_price_x96: alloy::primitives::U160::from_be_slice(&s0[12..32]),
+        tick: int24(&s0[9..12]),
+        lp_fee: uint24(&s0[3..6]),
+        liquidity: low128(1),
+        growth_global: (u(2), u(3)),
+        lower_outside: (u(4), u(5)),
+        upper_outside: (u(6), u(7)),
+        position_liquidity: low128(8),
+        position_last: (u(9), u(10)),
+    })
+}
+
 async fn value_v4(ctx: &Ctx, token_id: U256) -> anyhow::Result<LpPosition> {
-    use uniswap_v4_sdk::extensions::PoolManagerLens;
+    value_v4_with(ctx, &ctx.reader, token_id).await
+}
+
+/// Value a v4 position in two batched stages at one block:
+///
+/// 1. PositionManager `ownerOf`, `getPoolAndPositionInfo`, `getPositionLiquidity`
+/// 2. `decimals` and `symbol` of each ERC-20 currency, and one PoolManager
+///    `extsload(bytes32[])` of the pool, tick and position slots
+async fn value_v4_with(ctx: &Ctx, r: &dyn Reader, token_id: U256) -> anyhow::Result<LpPosition> {
     use uniswap_v4_sdk::prelude::sdk_core::prelude::{Currency, Ether, Token};
     use uniswap_v4_sdk::prelude::{calculate_position_key, Pool, Position};
+    use IV4PositionManagerLite as Pm;
 
     let addrs = ctx.addresses()?;
     let (pm, manager) = match (addrs.v4_position_manager, addrs.v4_pool_manager) {
@@ -813,23 +1155,59 @@ async fn value_v4(ctx: &Ctx, token_id: U256) -> anyhow::Result<LpPosition> {
         _ => anyhow::bail!("No Uniswap v4 deployment known for {}", ctx.chain.name()),
     };
     let chain_id = ctx.chain.chain_id();
-    let bid = Some(ctx.block_id());
 
-    let pm_c = IV4PositionManagerLite::new(pm, ctx.provider.clone());
-    let owner = match pm_c.ownerOf(token_id).block(ctx.block_id()).call().await {
-        Ok(o) => o,
-        Err(e) if is_revert(&e) => return Err(not_found(token_id)),
-        Err(e) => return Err(rpc_err(e)),
-    };
-    let b = ctx.block_id();
-    let (info, pos_liq) = tokio::join!(
-        async { pm_c.getPoolAndPositionInfo(token_id).block(b).call().await },
-        async { pm_c.getPositionLiquidity(token_id).block(b).call().await },
-    );
-    let info = info.map_err(rpc_err)?;
-    let pos_liq = pos_liq.map_err(rpc_err)?;
+    // Stage 1
+    let out = r
+        .read(vec![
+            Call::new(pm, Pm::ownerOfCall { tokenId: token_id }),
+            Call::new(pm, Pm::getPoolAndPositionInfoCall { tokenId: token_id }),
+            Call::new(pm, Pm::getPositionLiquidityCall { tokenId: token_id }),
+        ])
+        .await;
+    if out[0].is_revert() {
+        return Err(not_found(token_id));
+    }
+    let owner = out[0]
+        .decode::<Pm::ownerOfCall>("ownerOf()")
+        .map_err(rpc_err)?;
+    let info = out[1]
+        .decode::<Pm::getPoolAndPositionInfoCall>("getPoolAndPositionInfo()")
+        .map_err(rpc_err)?;
+    let pos_liq = out[2]
+        .decode::<Pm::getPositionLiquidityCall>("getPositionLiquidity()")
+        .map_err(rpc_err)?;
     let key = info.poolKey;
     let (tl, tu) = decode_v4_position_info(info.info);
+
+    // Stage 2: currency metadata and the PoolManager state together
+    let pool_id = v4_pool_id(&key);
+    let (tl24, tu24) = (
+        I24::try_from(tl).map_err(|e| anyhow::anyhow!("tick {tl}: {e}"))?,
+        I24::try_from(tu).map_err(|e| anyhow::anyhow!("tick {tu}: {e}"))?,
+    );
+    // PoolManager position: owner = PositionManager, salt = tokenId
+    let pkey = calculate_position_key(pm, tl24, tu24, B256::from(token_id));
+    let erc20s: Vec<Address> = [key.currency0, key.currency1]
+        .into_iter()
+        .filter(|a| *a != Address::ZERO)
+        .collect();
+    let (erc20s, _) = dedup(&erc20s);
+    let (meta, rest) = read_token_meta(
+        r,
+        &erc20s,
+        vec![Call::new(
+            manager,
+            IPoolManagerExtsloadLite::extsloadCall {
+                slots: v4_state_slots(pool_id, tl24, tu24, pkey),
+            },
+        )],
+    )
+    .await;
+    let words = rest[0]
+        .decode::<IPoolManagerExtsloadLite::extsloadCall>("extsload()")
+        .map_err(rpc_err)?;
+    let st = decode_v4_state(&words)
+        .ok_or_else(|| anyhow::anyhow!("extsload() returned {} words", words.len()))?;
 
     // Currencies (decimals and symbols read here; the SDK's own token
     // metadata read cannot decode bytes32 symbols)
@@ -840,15 +1218,14 @@ async fn value_v4(ctx: &Ctx, token_id: U256) -> anyhow::Result<LpPosition> {
             tokens.push(native_info(ctx.chain));
             currencies.push(Currency::NativeCurrency(Ether::on_chain(chain_id)));
         } else {
-            let d = erc20_decimals(ctx, a).await?;
-            tokens.push(erc20_info(a, erc20_symbol(ctx, a).await, d));
+            let (d, s) = token_meta(&meta, a)?;
+            tokens.push(erc20_info(a, s, d));
             currencies.push(Currency::Token(Token::new(
                 chain_id, a, d, None, None, 0, 0,
             )));
         }
     }
-    let lens = PoolManagerLens::new(manager, ctx.provider.clone());
-    let pool_id = Pool::get_pool_id(
+    let sdk_pool_id = Pool::get_pool_id(
         &currencies[0],
         &currencies[1],
         key.fee,
@@ -856,11 +1233,11 @@ async fn value_v4(ctx: &Ctx, token_id: U256) -> anyhow::Result<LpPosition> {
         key.hooks,
     )
     .map_err(|e| anyhow::anyhow!("v4 position {token_id}: {e}"))?;
-    let (slot0, pool_liq) = tokio::join!(
-        lens.get_slot0(pool_id, bid),
-        lens.get_liquidity(pool_id, bid)
-    );
-    let (sqrt_price, tick_now, _, lp_fee) = slot0.map_err(rpc_err)?;
+    if sdk_pool_id != pool_id {
+        anyhow::bail!(
+            "v4 position {token_id}: pool id {pool_id:#x} differs from the SDK's {sdk_pool_id:#x}"
+        );
+    }
     let mut c = currencies.into_iter();
     let pool = Pool::new(
         c.next().expect("two currencies"),
@@ -868,8 +1245,8 @@ async fn value_v4(ctx: &Ctx, token_id: U256) -> anyhow::Result<LpPosition> {
         key.fee,
         key.tickSpacing.as_i32(),
         key.hooks,
-        sqrt_price,
-        pool_liq.map_err(rpc_err)?,
+        st.sqrt_price_x96,
+        st.liquidity,
     )
     .map_err(|e| anyhow::anyhow!("v4 position {token_id}: {e}"))?;
     let pos = Position::new(pool, pos_liq, tl, tu);
@@ -877,24 +1254,21 @@ async fn value_v4(ctx: &Ctx, token_id: U256) -> anyhow::Result<LpPosition> {
     let a0 = bigint_to_u256(pos.amount0().map_err(rpc_err)?.quotient())?;
     let a1 = bigint_to_u256(pos.amount1().map_err(rpc_err)?.quotient())?;
 
-    // Uncollected fees from the PoolManager position (owner = PositionManager,
-    // salt = tokenId)
-    let lens = PoolManagerLens::new(manager, ctx.provider.clone());
-    let pkey = calculate_position_key(
-        pm,
-        I24::try_from(tl).map_err(|e| anyhow::anyhow!("tick {tl}: {e}"))?,
-        I24::try_from(tu).map_err(|e| anyhow::anyhow!("tick {tu}: {e}"))?,
-        B256::from(token_id),
+    // Uncollected fees: PoolManager fee growth inside the range minus the
+    // position's last value, times its liquidity
+    let (in0, in1) = fee_growth_inside(
+        st.tick,
+        tl,
+        tu,
+        st.growth_global,
+        st.lower_outside,
+        st.upper_outside,
     );
-    let (liq, last0, last1) = lens
-        .get_position_info(pool_id, pkey, bid)
-        .await
-        .map_err(rpc_err)?;
-    let (in0, in1) = lens
-        .get_fee_growth_inside(pool_id, tl, tu, bid)
-        .await
-        .map_err(rpc_err)?;
+    let liq = st.position_liquidity;
+    let (last0, last1) = st.position_last;
     let (f0, f1) = uniswap_v3_sdk::prelude::get_tokens_owed(last0, last1, liq, in0, in1);
+    let lp_fee = st.lp_fee;
+    let tick_now = st.tick;
 
     let mut notes = Vec::new();
     if liq != pos.liquidity {
@@ -907,18 +1281,18 @@ async fn value_v4(ctx: &Ctx, token_id: U256) -> anyhow::Result<LpPosition> {
     let declared_fee = key.fee.to::<u32>();
     let fee = if declared_fee == DYNAMIC_FEE_FLAG {
         notes.push("dynamic-fee pool: fee_tier is the current LP fee from slot0".into());
-        lp_fee.to::<u32>()
+        lp_fee
     } else {
         declared_fee
     };
 
     let hooks = key.hooks;
-    let mut method = "amounts: uniswap-v4-sdk Position on the pool read from the PositionManager and PoolManager (liquidity at the current sqrt price); fees: PoolManager fee growth inside the range minus the position's feeGrowthInsideLast (PoolManagerLens get_fee_growth_inside / get_position_info), times liquidity".to_string();
+    let mut method = "amounts: uniswap-v4-sdk Position on the pool read from the PositionManager and PoolManager (liquidity at the current sqrt price); fees: PoolManager fee growth inside the range minus the position's feeGrowthInsideLast (pool, tick and position slots read with PoolManager.extsload, as PoolManagerLens does), times liquidity".to_string();
     if hooks != Address::ZERO {
         method.push_str("; hooked pool: hooks can take or add value outside the PoolManager fee growth, which this does not include");
     }
 
-    let tick = tick_now.as_i32();
+    let tick = tick_now;
     Ok(LpPosition {
         protocol: "uniswap-v4".into(),
         chain: ctx.chain.name().to_string(),
@@ -954,56 +1328,56 @@ async fn value_v4(ctx: &Ctx, token_id: U256) -> anyhow::Result<LpPosition> {
 }
 
 async fn value_v2(ctx: &Ctx, pair: Address, owner: Address) -> anyhow::Result<LpPosition> {
-    let p = IUniswapV2PairLite::new(pair, ctx.provider.clone());
     let not_pair = |e: String| {
         rpc_err(format!(
             "{pair:#x} does not answer as a Uniswap v2-style pair: {e}"
         ))
     };
-    let via_multicall = ctx.has_multicall3().await?;
-    let (balance, total_supply, reserves, t0, t1) = if via_multicall {
-        ctx.provider
-            .multicall()
-            .add(p.balanceOf(owner))
-            .add(p.totalSupply())
-            .add(p.getReserves())
-            .add(p.token0())
-            .add(p.token1())
-            .block(ctx.block_id())
-            .aggregate()
-            .await
-            .map_err(|e| not_pair(e.to_string()))?
-    } else {
-        // Before Multicall3 existed: the same five reads, one by one
-        let b = ctx.block_id();
-        let (bal, ts, r, a, c) = tokio::join!(
-            async { p.balanceOf(owner).block(b).call().await },
-            async { p.totalSupply().block(b).call().await },
-            async { p.getReserves().block(b).call().await },
-            async { p.token0().block(b).call().await },
-            async { p.token1().block(b).call().await },
-        );
-        let f = |e: alloy::contract::Error| not_pair(e.to_string());
-        (
-            bal.map_err(f)?,
-            ts.map_err(f)?,
-            r.map_err(f)?,
-            a.map_err(f)?,
-            c.map_err(f)?,
-        )
-    };
+    use IUniswapV2PairLite as P;
+    let r = &ctx.reader;
+    let via_multicall = r.via_multicall();
+    let out = r
+        .read(vec![
+            Call::new(pair, P::balanceOfCall { owner }),
+            Call::new(pair, P::totalSupplyCall {}),
+            Call::new(pair, P::getReservesCall {}),
+            Call::new(pair, P::token0Call {}),
+            Call::new(pair, P::token1Call {}),
+        ])
+        .await;
+    let balance = out[0]
+        .decode::<P::balanceOfCall>("balanceOf()")
+        .map_err(not_pair)?;
+    let total_supply = out[1]
+        .decode::<P::totalSupplyCall>("totalSupply()")
+        .map_err(not_pair)?;
+    let reserves = out[2]
+        .decode::<P::getReservesCall>("getReserves()")
+        .map_err(not_pair)?;
+    let t0 = out[3]
+        .decode::<P::token0Call>("token0()")
+        .map_err(not_pair)?;
+    let t1 = out[4]
+        .decode::<P::token1Call>("token1()")
+        .map_err(not_pair)?;
     let r0 = U256::from(reserves.reserve0);
     let r1 = U256::from(reserves.reserve1);
     let (a0, a1) = v2_share(balance, total_supply, r0, r1)?;
 
-    let (s0, s1, d0, d1, pair_symbol) = tokio::join!(
-        erc20_symbol(ctx, t0),
-        erc20_symbol(ctx, t1),
-        erc20_decimals(ctx, t0),
-        erc20_decimals(ctx, t1),
-        erc20_symbol(ctx, pair),
-    );
-    let tokens = vec![erc20_info(t0, s0, d0?), erc20_info(t1, s1, d1?)];
+    let (uniq, _) = dedup(&[t0, t1]);
+    let (meta, rest) = read_token_meta(
+        r,
+        &uniq,
+        vec![Call::new(pair, IErc20MetaLite::symbolCall {})],
+    )
+    .await;
+    let pair_symbol = match &rest[0] {
+        Outcome::Ok(b) => decode_symbol(b).unwrap_or_else(|| short_addr(pair)),
+        _ => short_addr(pair),
+    };
+    let (d0, s0) = token_meta(&meta, t0)?;
+    let (d1, s1) = token_meta(&meta, t1)?;
+    let tokens = vec![erc20_info(t0, s0, d0), erc20_info(t1, s1, d1)];
     let share_pct = to_human(balance, 18) / to_human(total_supply, 18) * 100.0;
 
     Ok(LpPosition {
@@ -1035,7 +1409,7 @@ async fn value_v2(ctx: &Ctx, pair: Address, owner: Address) -> anyhow::Result<Lp
         method: format!(
             "v2-style pair ({pair_symbol}): {} of balanceOf(owner), totalSupply(), getReserves(), token0(), token1(); amounts = reserves x balance / totalSupply. Swap fees are compounded into the reserves, so there are no separate uncollected fees",
             if via_multicall {
-                "one multicall"
+                "one multicall (token metadata in a second)"
             } else {
                 "individual calls (Multicall3 did not exist at this block)"
             }
@@ -1477,14 +1851,7 @@ pub async fn handle_lp_positions(
         );
     }
 
-    let results: Vec<anyhow::Result<LpPosition>> = futures::stream::iter(ids.iter().copied())
-        .map(|id| {
-            let ctx = &ctx;
-            async move { value_v3(ctx, id).await }
-        })
-        .buffered(LIST_CONCURRENCY)
-        .collect()
-        .await;
+    let results = value_v3_many(&ctx, &ctx.reader, &ids).await;
     let mut positions = Vec::with_capacity(results.len());
     let mut failed = Vec::new();
     for (id, r) in ids.iter().zip(results) {
@@ -1811,5 +2178,312 @@ mod tests {
                     .unwrap()
             )
         );
+    }
+
+    // --- batched reads -----------------------------------------------------
+
+    use super::super::uniswap_lp_reads::mock::MockReader;
+    use alloy::primitives::{address, aliases::U24, U160};
+    use alloy::sol_types::SolCall;
+
+    const NPM: Address = address!("0xc36442b4a4522e871399cd717abdd847ab11fe88");
+    const FACTORY: Address = address!("0x1f98431c8ad98523631ae4a59f267346ea31f984");
+    const A: Address = address!("0x00000000000000000000000000000000000000aa");
+    const B: Address = address!("0x00000000000000000000000000000000000000bb");
+    const C: Address = address!("0x00000000000000000000000000000000000000cc");
+    const POOL_AB: Address = address!("0x000000000000000000000000000000000000a0b0");
+    const POOL_AC: Address = address!("0x000000000000000000000000000000000000a0c0");
+    const OWNER: Address = address!("0x0000000000000000000000000000000000000001");
+
+    fn test_ctx() -> Ctx {
+        let provider = ProviderBuilder::new()
+            .connect_http("http://127.0.0.1:9".parse().unwrap())
+            .erased();
+        Ctx {
+            reader: ChainReader::new(provider.clone(), BlockId::number(1), true),
+            provider,
+            chain: crate::config::Chain::Ethereum,
+            block: 1,
+            historical: true,
+        }
+    }
+
+    fn ok<C: SolCall>(ret: &C::Return) -> Outcome {
+        Outcome::Ok(C::abi_encode_returns(ret).into())
+    }
+
+    fn word(v: U256) -> Outcome {
+        Outcome::Ok(v.to_be_bytes_vec().into())
+    }
+
+    fn str_ret(s: &str) -> Outcome {
+        use alloy::sol_types::SolValue;
+        Outcome::Ok(s.to_string().abi_encode().into())
+    }
+
+    fn i24(v: i32) -> I24 {
+        I24::try_from(v).unwrap()
+    }
+
+    fn set_position(m: &mut MockReader, id: u64, t0: Address, t1: Address, owed: u128) {
+        use INonfungiblePositionManagerLite as Npm;
+        let id = U256::from(id);
+        m.set(
+            NPM,
+            Npm::ownerOfCall { tokenId: id },
+            ok::<Npm::ownerOfCall>(&OWNER),
+        );
+        let pos = Npm::positionsReturn {
+            nonce: Default::default(),
+            operator: Address::ZERO,
+            token0: t0,
+            token1: t1,
+            fee: U24::from(3000u32),
+            tickLower: i24(-60),
+            tickUpper: i24(60),
+            liquidity: 1_000_000_000_000_000_000,
+            feeGrowthInside0LastX128: U256::ZERO,
+            feeGrowthInside1LastX128: U256::ZERO,
+            tokensOwed0: owed,
+            tokensOwed1: 0,
+        };
+        m.set(
+            NPM,
+            Npm::positionsCall { tokenId: id },
+            ok::<Npm::positionsCall>(&pos),
+        );
+        let collect = Npm::collectCall {
+            params: Npm::CollectParams {
+                tokenId: id,
+                recipient: OWNER,
+                amount0Max: u128::MAX,
+                amount1Max: u128::MAX,
+            },
+        };
+        let ret = Npm::collectReturn {
+            amount0: U256::from(owed),
+            amount1: U256::ZERO,
+        };
+        m.set_from(OWNER, NPM, collect, ok::<Npm::collectCall>(&ret));
+    }
+
+    fn set_pool(m: &mut MockReader, pool: Address, t0: Address, t1: Address) {
+        use IUniswapV3PoolLite as P;
+        m.set(
+            FACTORY,
+            IUniswapV3FactoryLite::getPoolCall {
+                tokenA: t0,
+                tokenB: t1,
+                fee: U24::from(3000u32),
+            },
+            ok::<IUniswapV3FactoryLite::getPoolCall>(&pool),
+        );
+        let slot0 = P::slot0Return {
+            sqrtPriceX96: U160::from(1u8) << 96,
+            tick: i24(0),
+            observationIndex: 0,
+            observationCardinality: 1,
+            observationCardinalityNext: 1,
+            feeProtocol: 0,
+            unlocked: true,
+        };
+        m.set(pool, P::slot0Call {}, ok::<P::slot0Call>(&slot0));
+        m.set(pool, P::liquidityCall {}, word(U256::from(10u128.pow(18))));
+        m.set(pool, P::feeGrowthGlobal0X128Call {}, word(U256::ZERO));
+        m.set(pool, P::feeGrowthGlobal1X128Call {}, word(U256::ZERO));
+        let tick = P::ticksReturn {
+            liquidityGross: 0,
+            liquidityNet: 0,
+            feeGrowthOutside0X128: U256::ZERO,
+            feeGrowthOutside1X128: U256::ZERO,
+            tickCumulativeOutside: Default::default(),
+            secondsPerLiquidityOutsideX128: Default::default(),
+            secondsOutside: 0,
+            initialized: true,
+        };
+        for t in [-60, 60] {
+            m.set(
+                pool,
+                P::ticksCall { tick: i24(t) },
+                ok::<P::ticksCall>(&tick),
+            );
+        }
+    }
+
+    fn set_token(m: &mut MockReader, t: Address, sym: &str) {
+        m.set(t, IErc20MetaLite::decimalsCall {}, word(U256::from(18u8)));
+        m.set(t, IErc20MetaLite::symbolCall {}, str_ret(sym));
+    }
+
+    fn base_mock() -> MockReader {
+        let mut m = MockReader::default();
+        m.set(
+            NPM,
+            INonfungiblePositionManagerLite::factoryCall {},
+            ok::<INonfungiblePositionManagerLite::factoryCall>(&FACTORY),
+        );
+        set_token(&mut m, A, "AAA");
+        set_token(&mut m, B, "BBB");
+        set_token(&mut m, C, "CCC");
+        set_pool(&mut m, POOL_AB, A, B);
+        set_pool(&mut m, POOL_AC, A, C);
+        m
+    }
+
+    #[tokio::test]
+    async fn v3_batches_in_three_stages_and_dedups() {
+        let mut m = base_mock();
+        // Positions 1 and 2 share pool A/B; 3 is in A/C; 4 is burned
+        set_position(&mut m, 1, A, B, 5);
+        set_position(&mut m, 2, A, B, 0);
+        set_position(&mut m, 3, A, C, 7);
+        let ids: Vec<U256> = [1u64, 2, 3, 4].into_iter().map(U256::from).collect();
+        let res = value_v3_many(&test_ctx(), &m, &ids).await;
+
+        // 1: factory + (ownerOf, positions) x 4
+        // 2: decimals + symbol of A, B, C, and getPool of A/B and A/C
+        // 3: 4 reads per pool (2 pools) + ticks -60/60 per pool
+        assert_eq!(m.batch_sizes(), vec![9, 3 * 2 + 2, 2 * 4 + 2 * 2]);
+        // collect from the owner, once per existing position
+        assert_eq!(*m.single_calls.lock().unwrap(), 3);
+
+        assert_eq!(res.len(), 4);
+        let p1 = res[0].as_ref().unwrap();
+        assert_eq!(p1.pool, format!("{POOL_AB:#x}"));
+        assert_eq!(p1.tokens[0].symbol, "AAA");
+        assert_eq!(p1.tokens_owed.as_ref().unwrap()[0].raw, "5");
+        assert_eq!(p1.fee_cross_check.as_ref().unwrap().agree, Some(true));
+        assert_eq!(
+            p1.amounts[0].raw, p1.amounts[1].raw,
+            "price 1, symmetric range"
+        );
+        assert_eq!(res[2].as_ref().unwrap().pool, format!("{POOL_AC:#x}"));
+        assert_eq!(res[2].as_ref().unwrap().tokens[1].symbol, "CCC");
+        let e = res[3].as_ref().unwrap_err().to_string();
+        assert!(e.starts_with("not_found:"), "{e}");
+    }
+
+    #[tokio::test]
+    async fn v3_failed_read_fails_only_that_position() {
+        let mut m = base_mock();
+        set_position(&mut m, 1, A, B, 0);
+        set_position(&mut m, 3, A, C, 0);
+        m.set(
+            POOL_AC,
+            IUniswapV3PoolLite::slot0Call {},
+            Outcome::Failed("boom".into()),
+        );
+        let ids = [U256::from(1u8), U256::from(3u8)];
+        let res = value_v3_many(&test_ctx(), &m, &ids).await;
+        assert!(res[0].is_ok());
+        let e = res[1].as_ref().unwrap_err().to_string();
+        assert!(e.contains("slot0() failed: boom"), "{e}");
+    }
+
+    #[tokio::test]
+    async fn v3_collect_failure_falls_back_to_fee_growth() {
+        let mut m = base_mock();
+        set_position(&mut m, 1, A, B, 9);
+        m.from_answers.clear();
+        let res = value_v3_many(&test_ctx(), &m, &[U256::from(1u8)]).await;
+        let p = res[0].as_ref().unwrap();
+        let cc = p.fee_cross_check.as_ref().unwrap();
+        assert_eq!(cc.authoritative, "fee_growth");
+        assert_eq!(cc.agree, None);
+        assert_eq!(p.tokens_owed.as_ref().unwrap()[0].raw, "9");
+    }
+
+    #[tokio::test]
+    async fn v3_bytes32_symbol_and_missing_symbol() {
+        let mut m = base_mock();
+        let mut mkr = [0u8; 32];
+        mkr[..3].copy_from_slice(b"MKR");
+        m.set(
+            A,
+            IErc20MetaLite::symbolCall {},
+            Outcome::Ok(mkr.to_vec().into()),
+        );
+        m.set(
+            B,
+            IErc20MetaLite::symbolCall {},
+            Outcome::Reverted(String::new()),
+        );
+        set_position(&mut m, 1, A, B, 0);
+        let res = value_v3_many(&test_ctx(), &m, &[U256::from(1u8)]).await;
+        let p = res[0].as_ref().unwrap();
+        assert_eq!(p.tokens[0].symbol, "MKR");
+        assert_eq!(p.tokens[1].symbol, short_addr(B));
+    }
+
+    #[tokio::test]
+    async fn v3_no_ids_sends_nothing() {
+        let m = base_mock();
+        assert!(value_v3_many(&test_ctx(), &m, &[]).await.is_empty());
+        assert!(m.batch_sizes().is_empty());
+    }
+
+    #[test]
+    fn v4_pool_id_matches_sdk() {
+        use uniswap_v4_sdk::prelude::sdk_core::prelude::{Currency, Ether, Token};
+        use uniswap_v4_sdk::prelude::Pool;
+        let usdc = address!("0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48");
+        let key = IV4PositionManagerLite::PoolKey {
+            currency0: Address::ZERO,
+            currency1: usdc,
+            fee: U24::from(500u32),
+            tickSpacing: i24(10),
+            hooks: Address::ZERO,
+        };
+        let sdk = Pool::get_pool_id(
+            &Currency::NativeCurrency(Ether::on_chain(1)),
+            &Currency::Token(Token::new(1, usdc, 6, None, None, 0, 0)),
+            key.fee,
+            10,
+            Address::ZERO,
+        )
+        .unwrap();
+        assert_eq!(v4_pool_id(&key), sdk);
+    }
+
+    #[test]
+    fn v4_state_decodes_packed_words() {
+        let mut s0 = [0u8; 32];
+        s0[3..6].copy_from_slice(&[0x00, 0x0b, 0xb8]); // lp fee 3000
+        s0[9..12].copy_from_slice(&[0xff, 0xff, 0xc4]); // tick -60
+        s0[31] = 7; // sqrt price
+        let mut liq = [0u8; 32];
+        liq[0] = 0xff; // upper half is not liquidity
+        liq[31] = 42;
+        let mut words = vec![B256::from(s0), B256::from(liq)];
+        words.extend((2u8..8).map(|i| B256::from(U256::from(i))));
+        words.push(B256::from(liq));
+        words.extend((9u8..11).map(|i| B256::from(U256::from(i))));
+        let st = decode_v4_state(&words).unwrap();
+        assert_eq!(st.lp_fee, 3000);
+        assert_eq!(st.tick, -60);
+        assert_eq!(st.sqrt_price_x96, U160::from(7u8));
+        assert_eq!(st.liquidity, 42);
+        assert_eq!(st.growth_global, (U256::from(2u8), U256::from(3u8)));
+        assert_eq!(st.lower_outside, (U256::from(4u8), U256::from(5u8)));
+        assert_eq!(st.upper_outside, (U256::from(6u8), U256::from(7u8)));
+        assert_eq!(st.position_liquidity, 42);
+        assert_eq!(st.position_last, (U256::from(9u8), U256::from(10u8)));
+        assert!(decode_v4_state(&words[..10]).is_none());
+    }
+
+    #[test]
+    fn v4_slots_follow_pool_layout() {
+        let id = B256::repeat_byte(1);
+        let s = v4_state_slots(id, i24(-60), i24(60), B256::repeat_byte(2));
+        assert_eq!(s.len(), 11);
+        let state = U256::from_be_bytes(s[0].0);
+        assert_eq!(U256::from_be_bytes(s[1].0), state + U256::from(3u8));
+        assert_eq!(U256::from_be_bytes(s[2].0), state + U256::from(1u8));
+        assert_eq!(U256::from_be_bytes(s[3].0), state + U256::from(2u8));
+        assert_eq!(
+            U256::from_be_bytes(s[5].0),
+            U256::from_be_bytes(s[4].0) + U256::from(1u8)
+        );
+        assert_ne!(s[4], s[6], "lower and upper tick slots differ");
     }
 }
