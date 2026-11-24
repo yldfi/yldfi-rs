@@ -1327,12 +1327,13 @@ ethcli uniswap lp-positions --owner <address> --version v4 --from-block 22000000
 
 `lp-positions` lists v3 ids from the NonfungiblePositionManager. The v4
 PositionManager cannot be enumerated, so v4 ids are found from its ERC-721
-`Transfer` logs to the owner, from its deployment block (known for Ethereum,
-Optimism, BNB Chain, Polygon, Base, Arbitrum and Avalanche; other chains need
-`--from-block`) up to the valuation block, then confirmed with `ownerOf` at that
-block (ids transferred away or burned are dropped). The scan adapts its block
-range to the endpoint's limits and stops after `--max-log-requests` (default
-2000). `--v4-source explorer` takes candidates from the block explorer's ERC-721
+`Transfer` logs to the owner, from its deployment block (built in for Ethereum,
+Optimism, BNB Chain, Polygon, Base, Arbitrum and Avalanche; found with a binary
+search on the contract's code elsewhere) up to the valuation block, then
+confirmed with `ownerOf` at that block (ids transferred away or burned are
+dropped). The scan adapts its block range to the endpoint's limits and stops
+after `--max-log-requests` (default 2000) or `--max-scan-seconds` (default
+240). `--v4-source explorer` takes candidates from the block explorer's ERC-721
 transfer list instead (needs an Etherscan key). The output's `v4_discovery`
 says how the ids were found (source, block range, requests, candidates, still
 owned); if v4 could not be listed in full, `complete` is false, `incomplete`

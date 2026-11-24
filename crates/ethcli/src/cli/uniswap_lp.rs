@@ -202,10 +202,16 @@ pub struct LpPositionsArgs {
     #[arg(long, value_enum, default_value = "logs")]
     pub v4_source: V4Source,
 
-    /// Cap on eth_getLogs requests for the v4 scan (explorer pages: at most
-    /// 100); when reached, v4 is reported as incomplete
+    /// Cap on eth_getLogs requests for the v4 scan, shared by its parallel
+    /// segments (explorer pages: at most 100); when reached, v4 is reported
+    /// as incomplete
     #[arg(long, default_value_t = super::uniswap_lp_v4_scan::DEFAULT_MAX_REQUESTS)]
     pub max_log_requests: u64,
+
+    /// Time limit of the v4 discovery scan; when reached, v4 is reported as
+    /// incomplete and v3 is still listed
+    #[arg(long, default_value_t = 240)]
+    pub max_scan_seconds: u64,
 
     /// Block number to value at (default: latest)
     #[arg(long)]
@@ -475,13 +481,26 @@ struct Ctx {
     block: u64,
     /// The block was given with --block (so prices should be historical)
     historical: bool,
-    /// Contract reads at `block` (Multicall3 batches where it exists)
+    /// The block reads are pinned to: by number, or by hash once known
+    block_id: BlockId,
+    /// Contract reads at `block_id` (Multicall3 batches where it exists)
     reader: ChainReader,
 }
 
 impl Ctx {
     fn block_id(&self) -> BlockId {
-        BlockId::number(self.block)
+        self.block_id
+    }
+
+    /// Move every later read to `block`, by its hash when given
+    fn repin(&mut self, block: u64, hash: Option<B256>) {
+        self.block = block;
+        self.block_id = hash.map_or(BlockId::number(block), BlockId::hash);
+        self.reader = ChainReader::new(
+            self.provider.clone(),
+            self.block_id,
+            self.reader.via_multicall(),
+        );
     }
 
     async fn block_timestamp(&self) -> anyhow::Result<u64> {
@@ -531,6 +550,7 @@ async fn connect(rpc_arg: Option<&str>, chain: &str, block: Option<u64>) -> anyh
         .is_empty();
     Ok(Ctx {
         reader: ChainReader::new(provider.clone(), block_id, multicall),
+        block_id,
         provider,
         chain,
         block,
@@ -2014,8 +2034,9 @@ pub async fn handle_position(args: &PositionArgs, chain: &str, quiet: bool) -> a
 }
 
 /// Candidate v4 ids from the explorer's ERC-721 transfer list of the
-/// PositionManager for `owner` (transfers to the owner), with the number of
-/// pages read and why the walk stopped early, if it did
+/// PositionManager for `owner` (transfers to the owner): the ids, the pages
+/// read, the last block of any listed transfer, and why the walk stopped
+/// early, if it did
 async fn explorer_v4_candidates(
     ctx: &Ctx,
     pm: Address,
@@ -2023,13 +2044,19 @@ async fn explorer_v4_candidates(
     from: u64,
     max_pages: u64,
     etherscan_key: Option<String>,
-) -> anyhow::Result<(Vec<U256>, u64, Option<String>)> {
+) -> anyhow::Result<(Vec<U256>, u64, Option<u64>, Option<String>)> {
     use foundry_block_explorers::account::{Sort, TokenQueryOption, TxListParams};
     let key = etherscan_key
         .ok_or_else(|| anyhow::anyhow!("--v4-source explorer needs an Etherscan API key"))?;
     let client = crate::etherscan::Client::new(ctx.chain, Some(key))?;
     client.ensure_api_supported()?;
     let client = &client;
+    let block_of = |t: &foundry_block_explorers::account::ERC721TokenTransferEvent| {
+        t.block_number
+            .as_number()
+            .map(|n| n.to::<u64>())
+            .unwrap_or(0)
+    };
     let fetched = super::account::fetch_all_pages(
         from,
         ctx.block,
@@ -2050,12 +2077,7 @@ async fn explorer_v4_candidates(
                 )
                 .await?)
         },
-        |t| {
-            t.block_number
-                .as_number()
-                .map(|n| n.to::<u64>())
-                .unwrap_or(0)
-        },
+        block_of,
     )
     .await?;
     let mut ids = std::collections::BTreeSet::new();
@@ -2064,80 +2086,235 @@ async fn explorer_v4_candidates(
             ids.insert(parse_token_id(&t.token_id)?);
         }
     }
-    let stopped = if fetched.complete {
-        None
-    } else {
-        Some(
-            fetched
-                .stopped
-                .clone()
-                .unwrap_or_else(|| "explorer walk stopped early".into()),
+    let last = fetched.rows.iter().map(block_of).max();
+    let stopped = (!fetched.complete).then(|| {
+        format!(
+            "the explorer listing stopped after {} pages before the end of the owner's transfers",
+            fetched.requests
         )
-    };
-    Ok((ids.into_iter().collect(), fetched.requests, stopped))
+    });
+    Ok((ids.into_iter().collect(), fetched.requests, last, stopped))
 }
 
-/// Find the v4 ids `owner` holds at the valuation block: candidates from
-/// Transfer logs (or the explorer), confirmed with `ownerOf`. Returns the
-/// discovery report, the owned ids and the candidates whose owner could not
-/// be read.
+/// What v4 discovery found
+struct V4Found {
+    discovery: V4Discovery,
+    owned: Vec<U256>,
+    /// Candidates whose owner could not be read
+    unknown: Vec<FailedPosition>,
+    /// Why the v4 list may be incomplete
+    incomplete: Vec<String>,
+    notes: Vec<String>,
+}
+
+/// Find the v4 ids `owner` holds, and pin `ctx` to the block they were
+/// found at:
+///
+/// 1. the start block: `--from-block`, the built-in deployment block, or
+///    one found by binary search on eth_getCode;
+/// 2. candidates from Transfer logs (or the explorer, plus a log scan of
+///    the blocks after its last listed transfer);
+/// 3. without `--block`, the blocks mined during the scan are scanned too
+///    and the valuation block moves to the new head, so a long scan does
+///    not leave the reads on a block a non-archive endpoint has pruned;
+/// 4. `ctx` is pinned to that block's hash (a reorg then fails the reads
+///    instead of mixing chains), and `ownerOf` of every candidate is read
+///    there.
 async fn discover_v4(
-    ctx: &Ctx,
+    ctx: &mut Ctx,
     owner: Address,
     args: &LpPositionsArgs,
     pm: Address,
     etherscan_key: Option<String>,
-) -> anyhow::Result<(V4Discovery, Vec<U256>, Vec<FailedPosition>)> {
+) -> anyhow::Result<V4Found> {
     use super::uniswap_lp_v4_scan::{
-        classify_owner, deployment_block, scan_transfers, Ownership, ProviderLogs, ScanOpts,
+        classify_owner, deployment_block, find_deployment_block, plan_start, scan_transfers,
+        CodeSource, Ownership, ProviderCode, ProviderLogs, ScanOpts, StartPlan,
     };
+    let deadline =
+        tokio::time::Instant::now() + std::time::Duration::from_secs(args.max_scan_seconds);
     let chain_id = ctx.chain.chain_id();
-    let (from, from_source) = match (args.from_block, deployment_block(chain_id, pm)) {
-        (Some(b), _) => (b, "--from-block"),
-        (None, Some(b)) => (b, "deployment"),
-        (None, None) => anyhow::bail!(
-            "no verified deployment block for the v4 PositionManager on {}; pass --from-block (the block it was deployed in, or any earlier block)",
-            ctx.chain.name()
-        ),
+    let code = ProviderCode {
+        provider: ctx.provider.clone(),
+        address: pm,
     };
-    if from > ctx.block {
-        anyhow::bail!(
-            "--from-block {from} is after the valuation block {}",
-            ctx.block
-        );
+    let mut notes = Vec::new();
+    let mut incomplete = Vec::new();
+
+    // 1. Where to start
+    let mut deployment = deployment_block(chain_id, pm).map(|b| (b, "deployment"));
+    if deployment.is_none() {
+        match code.has_code(ctx.block).await {
+            Ok(false) => {
+                notes.push(format!(
+                    "the v4 PositionManager has no code at block {}: no v4 positions",
+                    ctx.block
+                ));
+                deployment = Some((ctx.block + 1, "code_search"));
+            }
+            Ok(true) => match find_deployment_block(&code, ctx.block).await {
+                Ok((b, reads)) => {
+                    notes.push(format!(
+                        "v4 PositionManager deployment block {b} found with {reads} eth_getCode reads"
+                    ));
+                    deployment = Some((b, "code_search"));
+                }
+                Err(e) => notes.push(format!(
+                    "could not find the v4 PositionManager's deployment block: {e}"
+                )),
+            },
+            Err(e) => notes.push(format!(
+                "could not find the v4 PositionManager's deployment block: {e}"
+            )),
+        }
+    }
+    let code_before_from = match (args.from_block, deployment) {
+        (Some(f), None) if f > 0 => code.has_code(f - 1).await.ok(),
+        _ => None,
+    };
+    let explorer = args.v4_source == V4Source::Explorer;
+    let plan = plan_start(
+        args.from_block,
+        deployment,
+        ctx.block,
+        code_before_from,
+        explorer,
+    )
+    .map_err(|e| anyhow::anyhow!(e))?;
+    let empty = |from, source: &str, deployed| V4Discovery {
+        source: if explorer { "explorer" } else { "logs" }.into(),
+        position_manager: format!("{pm:#x}"),
+        from_block: from,
+        from_block_source: source.into(),
+        deployment_block: deployed,
+        to_block: 0,
+        explorer_last_block: None,
+        logs_from: None,
+        scanned_to: None,
+        complete: true,
+        requests: 0,
+        candidates: 0,
+        still_owned: 0,
+        transferred_out: 0,
+        burned: 0,
+        owner_unknown: 0,
+        error: None,
+    };
+    let (from, from_source) = match plan {
+        StartPlan::NotDeployed { deployed } => {
+            if !notes.iter().any(|n| n.contains("no code at block")) {
+                notes.push(format!(
+                    "the v4 PositionManager was deployed at block {deployed}, after the valuation block {}: no v4 positions",
+                    ctx.block
+                ));
+            }
+            let mut d = empty(deployed, deployment.map_or("deployment", |x| x.1), None);
+            d.to_block = ctx.block;
+            return Ok(V4Found {
+                discovery: d,
+                owned: Vec::new(),
+                unknown: Vec::new(),
+                incomplete,
+                notes,
+            });
+        }
+        StartPlan::Scan { from, source, gap } => {
+            incomplete.extend(gap);
+            (from, source)
+        }
+    };
+
+    // 2. Candidates
+    let logs = ProviderLogs {
+        provider: ctx.provider.clone(),
+        pm,
+        owner,
+    };
+    let opts = ScanOpts {
+        max_requests: args.max_log_requests,
+        retry_delay: std::time::Duration::from_millis(500),
+        segments: LOG_SCAN_SEGMENTS,
+        deadline: Some(deadline),
+    };
+    let mut ids = std::collections::BTreeSet::new();
+    let mut requests = 0;
+    let mut errors = Vec::new();
+    let mut explorer_last = None;
+    let logs_from;
+    if explorer {
+        let (found, pages, last, stopped) = explorer_v4_candidates(
+            ctx,
+            pm,
+            owner,
+            from,
+            args.max_log_requests.min(100),
+            etherscan_key,
+        )
+        .await?;
+        ids.extend(found);
+        requests += pages;
+        errors.extend(stopped);
+        explorer_last = last;
+        // The explorer may lag the chain: scan what it may not have
+        // indexed yet (from its last listed transfer, or the start)
+        logs_from = last.unwrap_or(from).max(from);
+    } else {
+        logs_from = from;
+    }
+    let mut scanned_to = None;
+    if logs_from <= ctx.block {
+        let o = scan_transfers(&logs, pm, owner, logs_from, ctx.block, &opts).await;
+        ids.extend(o.ids);
+        requests += o.requests;
+        scanned_to = o.scanned_to;
+        errors.extend(o.error);
     }
 
-    let (source, ids, requests, scanned_to, error) = match args.v4_source {
-        V4Source::Logs => {
-            let src = ProviderLogs {
-                provider: ctx.provider.clone(),
-                pm,
-                owner,
-            };
-            let opts = ScanOpts {
-                max_requests: args.max_log_requests,
-                retry_delay: std::time::Duration::from_millis(500),
-                segments: LOG_SCAN_SEGMENTS,
-            };
-            let o = scan_transfers(&src, pm, owner, from, ctx.block, &opts).await;
-            ("logs", o.ids, o.requests, o.scanned_to, o.error)
+    // 3. Move to the head reached during the scan
+    let mut to = ctx.block;
+    if !ctx.historical && errors.is_empty() {
+        match ctx.provider.get_block_number().await {
+            Ok(head) if head > to => {
+                let o = scan_transfers(&logs, pm, owner, to + 1, head, &opts).await;
+                ids.extend(o.ids);
+                requests += o.requests;
+                match o.error {
+                    None => {
+                        to = head;
+                        scanned_to = Some(head);
+                    }
+                    Some(e) => notes.push(format!(
+                        "kept valuation block {to}: scanning the blocks mined since failed: {e}"
+                    )),
+                }
+            }
+            Ok(_) => {}
+            Err(e) => notes.push(format!(
+                "kept valuation block {to}: could not read the head: {}",
+                rpc_err(e)
+            )),
         }
-        V4Source::Explorer => {
-            let (ids, requests, stopped) = explorer_v4_candidates(
-                ctx,
-                pm,
-                owner,
-                from,
-                args.max_log_requests.min(100),
-                etherscan_key,
-            )
-            .await?;
-            let to = stopped.is_none().then_some(ctx.block);
-            ("explorer", ids, requests, to, stopped)
-        }
-    };
+    }
 
-    // Confirm ownership at the valuation block
+    // 4. Pin every read to that block's hash
+    match ctx.provider.get_block_by_number(to.into()).await {
+        Ok(Some(b)) => ctx.repin(to, Some(b.header.hash)),
+        Ok(None) => {
+            ctx.repin(to, None);
+            incomplete.push(format!(
+                "the endpoint does not have block {to} (it lags the scan's end), so recent v4 transfers may be missing"
+            ));
+        }
+        Err(e) => {
+            ctx.repin(to, None);
+            incomplete.push(format!(
+                "could not confirm block {to} on the endpoint: {}",
+                rpc_err(e)
+            ));
+        }
+    }
+    let ids: Vec<U256> = ids.into_iter().collect();
+
     use IV4PositionManagerLite as Pm;
     let out = ctx
         .reader
@@ -2160,23 +2337,39 @@ async fn discover_v4(
             }),
         }
     }
-    let d = V4Discovery {
-        source: source.into(),
-        position_manager: format!("{pm:#x}"),
-        from_block: from,
-        from_block_source: from_source.into(),
-        to_block: ctx.block,
-        scanned_to,
-        complete: error.is_none(),
-        requests,
-        candidates: ids.len(),
-        still_owned: owned.len(),
-        transferred_out: moved,
-        burned,
-        owner_unknown: unknown.len(),
-        error,
-    };
-    Ok((d, owned, unknown))
+    if !unknown.is_empty() {
+        incomplete.push(format!(
+            "ownership of {} v4 candidate(s) could not be read (listed in failed)",
+            unknown.len()
+        ));
+    }
+    let error = (!errors.is_empty()).then(|| errors.join("; "));
+    if let Some(e) = &error {
+        incomplete.push(format!(
+            "v4 discovery covered blocks {logs_from}-{} of {logs_from}-{to}: {e}",
+            scanned_to.map_or("none".to_string(), |b| b.to_string()),
+        ));
+    }
+    let mut d = empty(from, from_source, deployment.map(|x| x.0));
+    d.to_block = to;
+    d.explorer_last_block = explorer_last;
+    d.logs_from = explorer.then_some(logs_from);
+    d.scanned_to = scanned_to;
+    d.complete = incomplete.is_empty();
+    d.requests = requests;
+    d.candidates = ids.len();
+    d.still_owned = owned.len();
+    d.transferred_out = moved;
+    d.burned = burned;
+    d.owner_unknown = unknown.len();
+    d.error = error;
+    Ok(V4Found {
+        discovery: d,
+        owned,
+        unknown,
+        incomplete,
+        notes,
+    })
 }
 
 /// `uniswap lp-positions`
@@ -2188,7 +2381,7 @@ pub async fn handle_lp_positions(
 ) -> anyhow::Result<()> {
     use uniswap_v3_sdk::extensions::get_all_positions_by_owner;
 
-    let ctx = connect(args.rpc_url.as_deref(), chain, args.block).await?;
+    let mut ctx = connect(args.rpc_url.as_deref(), chain, args.block).await?;
     let owner = parse_addr(&args.owner, "owner")?;
     let addrs = ctx.addresses()?;
     let mut info = ListInfo::default();
@@ -2214,6 +2407,55 @@ pub async fn handle_lp_positions(
                     token_id: id.to_string(),
                     error: e.to_string(),
                 });
+            }
+        }
+    }
+
+    // v4 first: its discovery fixes the block every read is pinned to
+    let mut v4_ids = Vec::new();
+    if args.version != ListVersion::V3 {
+        match addrs.v4_position_manager {
+            None if args.version == ListVersion::All => info.notes.push(format!(
+                "no Uniswap v4 PositionManager on {}",
+                ctx.chain.name()
+            )),
+            None => anyhow::bail!("No Uniswap v4 deployment known for {}", ctx.chain.name()),
+            Some(pm) => {
+                if !quiet {
+                    eprintln!(
+                        "Finding v4 positions of {owner:#x} from PositionManager Transfer {} (up to {} s)...",
+                        match args.v4_source {
+                            V4Source::Logs => "logs",
+                            V4Source::Explorer => "events on the explorer",
+                        },
+                        args.max_scan_seconds
+                    );
+                }
+                match discover_v4(&mut ctx, owner, args, pm, etherscan_key).await {
+                    Ok(f) => {
+                        let d = &f.discovery;
+                        if !quiet {
+                            eprintln!(
+                                "v4: {} candidate(s) from {} request(s), {} still owned at block {}",
+                                d.candidates, d.requests, d.still_owned, d.to_block
+                            );
+                        }
+                        for r in &f.incomplete {
+                            eprintln!("Warning: {r}");
+                        }
+                        info.incomplete.extend(f.incomplete);
+                        info.notes.extend(f.notes);
+                        failed.extend(f.unknown);
+                        v4_ids = f.owned;
+                        info.v4_discovery = Some(f.discovery);
+                    }
+                    Err(e) => {
+                        let e = crate::utils::url::redact_urls_in_text(&e.to_string());
+                        eprintln!("Warning: v4 positions not listed: {e}");
+                        info.incomplete
+                            .push(format!("v4 positions not listed: {e}"));
+                    }
+                }
             }
         }
     }
@@ -2263,57 +2505,13 @@ pub async fn handle_lp_positions(
         }
     }
 
-    // v4: the PositionManager is not enumerable; find ids from Transfer logs
-    if args.version != ListVersion::V3 {
-        match addrs.v4_position_manager {
-            None if args.version == ListVersion::All => info.notes.push(format!(
-                "no Uniswap v4 PositionManager on {}",
-                ctx.chain.name()
-            )),
-            None => anyhow::bail!("No Uniswap v4 deployment known for {}", ctx.chain.name()),
-            Some(pm) => {
-                if !quiet {
-                    eprintln!(
-                        "Finding v4 positions of {owner:#x} from PositionManager Transfer {}...",
-                        match args.v4_source {
-                            V4Source::Logs => "logs",
-                            V4Source::Explorer => "events on the explorer",
-                        }
-                    );
-                }
-                match discover_v4(&ctx, owner, args, pm, etherscan_key).await {
-                    Ok((d, ids, unknown)) => {
-                        if !quiet {
-                            eprintln!(
-                                "v4: {} candidate(s) from {} request(s), {} still owned; valuing{closed_hint}",
-                                d.candidates, d.requests, d.still_owned
-                            );
-                        }
-                        if let Some(e) = &d.error {
-                            eprintln!("Warning: v4 discovery incomplete: {e}");
-                            info.incomplete.push(format!(
-                                "v4 discovery covered blocks {}-{} of {}-{}: {e}",
-                                d.from_block,
-                                d.scanned_to.map_or("none".to_string(), |b| b.to_string()),
-                                d.from_block,
-                                d.to_block
-                            ));
-                        }
-                        failed.extend(unknown);
-                        let results = value_v4_many(&ctx, &ctx.reader, &ids, args.all).await;
-                        for (id, r) in ids.iter().zip(results) {
-                            record(&mut positions, &mut failed, id, r);
-                        }
-                        info.v4_discovery = Some(d);
-                    }
-                    Err(e) => {
-                        let e = crate::utils::url::redact_urls_in_text(&e.to_string());
-                        eprintln!("Warning: v4 positions not listed: {e}");
-                        info.incomplete
-                            .push(format!("v4 positions not listed: {e}"));
-                    }
-                }
-            }
+    if !v4_ids.is_empty() {
+        if !quiet {
+            eprintln!("Valuing {} v4 position NFT(s){closed_hint}", v4_ids.len());
+        }
+        let results = value_v4_many(&ctx, &ctx.reader, &v4_ids, args.all).await;
+        for (id, r) in v4_ids.iter().zip(results) {
+            record(&mut positions, &mut failed, id, r);
         }
     }
 
@@ -2654,6 +2852,7 @@ mod tests {
             .erased();
         Ctx {
             reader: ChainReader::new(provider.clone(), BlockId::number(1), true),
+            block_id: BlockId::number(1),
             provider,
             chain: crate::config::Chain::Ethereum,
             block: 1,

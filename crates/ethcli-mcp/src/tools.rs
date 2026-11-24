@@ -7706,6 +7706,8 @@ pub async fn uniswap_lp_positions(
     let block = input.block.map(|b| b.to_string());
     let from_block = input.from_block.map(|b| b.to_string());
     let max_requests = input.max_log_requests.map(|n| n.to_string());
+    // Keep the scan well inside this tool's subprocess timeout
+    let max_seconds = input.max_scan_seconds.map(|n| n.min(480).to_string());
     ArgsBuilder::new("uniswap")
         .subcommand("lp-positions")
         .opt("--owner", Some(input.owner.as_str()))
@@ -7716,6 +7718,7 @@ pub async fn uniswap_lp_positions(
         .opt("--from-block", from_block.as_deref())
         .opt("--v4-source", input.v4_source.as_deref())
         .opt("--max-log-requests", max_requests.as_deref())
+        .opt("--max-scan-seconds", max_seconds.as_deref())
         .chain(Some(input.chain.as_str()))
         .format_json()
         .execute()

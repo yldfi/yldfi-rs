@@ -1501,7 +1501,7 @@ impl EthcliMcpServer {
     }
 
     #[tool(
-        description = "List and value the open Uniswap v3 and v4 LP positions an address owns, on-chain (no subgraph). v3 ids are enumerated from the NonfungiblePositionManager; v4 ids are found from the v4 PositionManager's Transfer logs to the owner (from its deployment block, or from_block) and confirmed with ownerOf at the valuation block. The result's v4_discovery gives the source, block range, candidates and still-owned count; complete is false and total_value_usd null when any part could not be listed (reasons in incomplete)",
+        description = "List and value the open Uniswap v3 and v4 LP positions an address owns, on-chain (no subgraph). v3 ids are enumerated from the NonfungiblePositionManager; v4 ids are found from the v4 PositionManager's Transfer logs to the owner (from its deployment block, or from_block) and confirmed with ownerOf at the valuation block. The result's v4_discovery gives the source, block range, candidates and still-owned count; complete is false and total_value_usd null when any part could not be listed (reasons in incomplete). The v4 scan stops after max_scan_seconds (default 240)",
         annotations(read_only_hint = true, open_world_hint = true)
     )]
     async fn uniswap_lp_positions(

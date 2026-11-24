@@ -8,11 +8,13 @@
 //! transferred away or burned since are dropped, and ids whose owner could not
 //! be read are reported, never silently dropped.
 
+use alloy::eips::BlockId;
 use alloy::primitives::{address, b256, Address, B256, U256};
 use alloy::providers::{DynProvider, Provider};
 use alloy::rpc::types::{Filter, Log};
 use futures::future::BoxFuture;
 use serde::Serialize;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 use super::uniswap_lp_reads::Outcome;
 use crate::error::RpcError;
@@ -27,6 +29,9 @@ pub const INITIAL_CHUNK: u64 = 1_000_000;
 
 /// Largest range asked for in one request
 pub const MAX_CHUNK: u64 = 5_000_000;
+
+/// Time limit of one eth_getLogs or eth_getCode request
+pub const REQUEST_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(60);
 
 /// Default cap on `eth_getLogs` requests for one scan
 pub const DEFAULT_MAX_REQUESTS: u64 = 2_000;
@@ -94,14 +99,26 @@ pub struct V4Discovery {
     pub source: String,
     pub position_manager: String,
     pub from_block: u64,
-    /// "deployment" (the PositionManager's deployment block) or "--from-block"
+    /// "deployment" (built-in deployment block), "code_search" (deployment
+    /// block found by binary search on eth_getCode), "--from-block", or
+    /// "genesis" (explorer source when the deployment block is unknown)
     pub from_block_source: String,
+    /// The PositionManager's deployment block, when known
+    pub deployment_block: Option<u64>,
+    /// Valuation block: the scan's end, and the block every read is pinned to
     pub to_block: u64,
+    /// Explorer source: the last block of a transfer the explorer listed
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub explorer_last_block: Option<u64>,
+    /// First block scanned with eth_getLogs (explorer source: the gap after
+    /// the explorer's last listed transfer, so indexer lag cannot drop ids)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub logs_from: Option<u64>,
     /// Last block covered without a gap (null when nothing was covered)
     pub scanned_to: Option<u64>,
     /// Whether the whole range was covered
     pub complete: bool,
-    /// eth_getLogs requests (logs) or explorer pages (explorer)
+    /// eth_getLogs requests plus explorer pages
     pub requests: u64,
     /// Distinct token ids ever transferred to the owner in the range
     pub candidates: usize,
@@ -113,6 +130,79 @@ pub struct V4Discovery {
     pub owner_unknown: usize,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<String>,
+}
+
+/// Where the v4 scan starts
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum StartPlan {
+    /// The PositionManager did not exist yet at the valuation block: there
+    /// are no v4 positions, and that is complete
+    NotDeployed { deployed: u64 },
+    /// Scan from `from`; `gap` says why ids received earlier are not covered
+    Scan {
+        from: u64,
+        source: &'static str,
+        gap: Option<String>,
+    },
+}
+
+/// Decide where the scan starts.
+///
+/// - `deployment`: the deployment block and how it was found, when known
+/// - `code_before_from`: whether the PositionManager had code at
+///   `from_block - 1` (asked only when `from_block` is given and the
+///   deployment block is unknown; `None` when that read failed)
+/// - `explorer`: without a start block the explorer source starts at 0
+pub fn plan_start(
+    from_block: Option<u64>,
+    deployment: Option<(u64, &'static str)>,
+    valuation: u64,
+    code_before_from: Option<bool>,
+    explorer: bool,
+) -> Result<StartPlan, String> {
+    if let Some((d, _)) = deployment {
+        if valuation < d {
+            return Ok(StartPlan::NotDeployed { deployed: d });
+        }
+    }
+    match (from_block, deployment) {
+        (Some(f), _) if f > valuation => Err(format!(
+            "--from-block {f} is after the valuation block {valuation}"
+        )),
+        (Some(f), Some((d, _))) => Ok(StartPlan::Scan {
+            from: f,
+            source: "--from-block",
+            gap: (f > d).then(|| {
+                format!("v4 ids received before block {f} are not covered (the PositionManager was deployed at block {d})")
+            }),
+        }),
+        (Some(f), None) => Ok(StartPlan::Scan {
+            from: f,
+            source: "--from-block",
+            gap: match (f, code_before_from) {
+                (0, _) | (_, Some(false)) => None,
+                (_, Some(true)) => Some(format!(
+                    "v4 ids received before block {f} are not covered (the PositionManager already had code at block {})",
+                    f - 1
+                )),
+                (_, None) => Some(format!(
+                    "v4 ids received before block {f} may not be covered (could not read the PositionManager's code at block {})",
+                    f - 1
+                )),
+            },
+        }),
+        (None, Some((d, source))) => Ok(StartPlan::Scan {
+            from: d,
+            source,
+            gap: None,
+        }),
+        (None, None) if explorer => Ok(StartPlan::Scan {
+            from: 0,
+            source: "genesis",
+            gap: None,
+        }),
+        (None, None) => Err("the PositionManager's deployment block is unknown and could not be found; pass --from-block".into()),
+    }
 }
 
 /// Result of a Transfer log scan
@@ -148,10 +238,15 @@ impl LogSource for ProviderLogs {
                 .topic2(self.owner.into_word())
                 .from_block(from)
                 .to_block(to);
-            self.provider
-                .get_logs(&filter)
-                .await
-                .map_err(|e| one_line(&crate::utils::url::redact_urls_in_text(&e.to_string())))
+            match tokio::time::timeout(REQUEST_TIMEOUT, self.provider.get_logs(&filter)).await {
+                Ok(r) => {
+                    r.map_err(|e| one_line(&crate::utils::url::redact_urls_in_text(&e.to_string())))
+                }
+                Err(_) => Err(format!(
+                    "eth_getLogs timed out after {} s",
+                    REQUEST_TIMEOUT.as_secs()
+                )),
+            }
         })
     }
 }
@@ -191,6 +286,18 @@ pub fn decode_transfer_to(log: &Log, pm: Address, owner: Address) -> Option<U256
     Some(U256::from_be_bytes(t[3].0))
 }
 
+/// Options of [`scan_transfers`] and [`scan_segment`]
+#[derive(Debug, Clone)]
+pub struct ScanOpts {
+    /// Cap on requests across all segments
+    pub max_requests: u64,
+    pub retry_delay: std::time::Duration,
+    /// Consecutive block ranges scanned concurrently
+    pub segments: u64,
+    /// No request is started after this time
+    pub deadline: Option<tokio::time::Instant>,
+}
+
 /// Scan `[from, to]` for Transfer logs to `owner` with one request at a
 /// time, adapting the range to the endpoint:
 ///
@@ -205,16 +312,17 @@ pub fn decode_transfer_to(log: &Log, pm: Address, owner: Address) -> Option<U256
 ///   limits end the scan;
 /// - each success doubles the range (up to [`MAX_CHUNK`] or the known limit).
 ///
+/// `used` counts requests across every segment sharing `opts.max_requests`.
 /// Stops with an error, keeping what it found, when a one-block range is too
-/// large, failures repeat, or `max_requests` is reached.
+/// large, failures repeat, the request cap is reached or the deadline passes.
 pub async fn scan_segment(
     src: &dyn LogSource,
     pm: Address,
     owner: Address,
     from: u64,
     to: u64,
-    max_requests: u64,
-    retry_delay: std::time::Duration,
+    opts: &ScanOpts,
+    used: &AtomicU64,
 ) -> ScanOutcome {
     let mut ids = std::collections::BTreeSet::new();
     let mut out = ScanOutcome {
@@ -228,9 +336,17 @@ pub async fn scan_segment(
     let mut failures = 0u32;
     let mut cur = from;
     while cur <= to {
-        if out.requests >= max_requests {
+        if opts
+            .deadline
+            .is_some_and(|d| tokio::time::Instant::now() >= d)
+        {
+            out.error = Some(format!("scan time limit reached at block {cur} of {to}"));
+            break;
+        }
+        if used.fetch_add(1, Ordering::SeqCst) >= opts.max_requests {
             out.error = Some(format!(
-                "stopped after {max_requests} eth_getLogs requests at block {cur} of {to}; raise --max-log-requests or narrow with --from-block"
+                "request cap of {} eth_getLogs requests reached at block {cur} of {to}",
+                opts.max_requests
             ));
             break;
         }
@@ -281,7 +397,7 @@ pub async fn scan_segment(
                         if failures >= 2 && span > 1 {
                             chunk = (span / 2).max(1);
                         }
-                        tokio::time::sleep(retry_delay * failures).await;
+                        tokio::time::sleep(opts.retry_delay * failures).await;
                     }
                 }
             },
@@ -291,20 +407,11 @@ pub async fn scan_segment(
     out
 }
 
-/// Options of [`scan_transfers`]
-#[derive(Debug, Clone)]
-pub struct ScanOpts {
-    /// Cap on requests across all segments
-    pub max_requests: u64,
-    pub retry_delay: std::time::Duration,
-    /// Consecutive block ranges scanned concurrently
-    pub segments: u64,
-}
-
-/// Scan `[from, to]` as `opts.segments` consecutive ranges at once (each with
-/// [`scan_segment`] and an equal share of the request cap). The ids found
-/// anywhere are kept; `scanned_to` is the end of the gap-free coverage from
-/// `from`, and `error` the first segment's error in block order.
+/// Scan `[from, to]` as up to `opts.segments` consecutive ranges at once,
+/// sharing one request cap (never more segments than the cap allows). The
+/// ids found anywhere are kept; `scanned_to` is the end of the gap-free
+/// coverage from `from`, and `error` the first segment's error in block
+/// order.
 pub async fn scan_transfers(
     src: &dyn LogSource,
     pm: Address,
@@ -314,9 +421,12 @@ pub async fn scan_transfers(
     opts: &ScanOpts,
 ) -> ScanOutcome {
     let span = to.saturating_sub(from).saturating_add(1);
-    let n = opts.segments.clamp(1, span.max(1));
+    let n = opts
+        .segments
+        .min(opts.max_requests.max(1))
+        .clamp(1, span.max(1));
     let size = span.div_ceil(n);
-    let budget = (opts.max_requests / n).max(1);
+    let used = AtomicU64::new(0);
     let ranges: Vec<(u64, u64)> = (0..n)
         .map(|i| from + i * size)
         .take_while(|s| *s <= to)
@@ -325,7 +435,7 @@ pub async fn scan_transfers(
     let outs = futures::future::join_all(
         ranges
             .iter()
-            .map(|(f, t)| scan_segment(src, pm, owner, *f, *t, budget, opts.retry_delay)),
+            .map(|(f, t)| scan_segment(src, pm, owner, *f, *t, opts, &used)),
     )
     .await;
     let mut ids = std::collections::BTreeSet::new();
@@ -355,24 +465,88 @@ pub async fn scan_transfers(
     total
 }
 
+/// Whether an address has code at a block (one `eth_getCode`)
+pub trait CodeSource: Sync {
+    fn has_code<'a>(&'a self, block: u64) -> BoxFuture<'a, Result<bool, String>>;
+}
+
+/// [`CodeSource`] over an RPC provider
+pub struct ProviderCode {
+    pub provider: DynProvider,
+    pub address: Address,
+}
+
+impl CodeSource for ProviderCode {
+    fn has_code<'a>(&'a self, block: u64) -> BoxFuture<'a, Result<bool, String>> {
+        Box::pin(async move {
+            let fut = self
+                .provider
+                .get_code_at(self.address)
+                .block_id(BlockId::number(block));
+            match tokio::time::timeout(REQUEST_TIMEOUT, fut).await {
+                Ok(Ok(code)) => Ok(!code.is_empty()),
+                Ok(Err(e)) => Err(one_line(&crate::utils::url::redact_urls_in_text(
+                    &e.to_string(),
+                ))),
+                Err(_) => Err("eth_getCode timed out".into()),
+            }
+        })
+    }
+}
+
+/// The first block at or before `head` where the contract has code, by
+/// binary search (as `rpc find-change --code` does; about log2(head) reads,
+/// which need historical state). Assumes the code, once deployed, stays.
+/// Returns the block and the number of reads.
+pub async fn find_deployment_block(src: &dyn CodeSource, head: u64) -> Result<(u64, u64), String> {
+    let mut reads = 1u64;
+    if !src.has_code(head).await? {
+        return Err(format!("no code at block {head}"));
+    }
+    // Invariant: no code at lo (or lo is before genesis), code at hi
+    let (mut lo, mut hi) = (None::<u64>, head);
+    loop {
+        let start = lo.map_or(0, |l| l + 1);
+        if start >= hi {
+            return Ok((hi, reads));
+        }
+        let mid = start + (hi - start) / 2;
+        reads += 1;
+        if src.has_code(mid).await? {
+            hi = mid;
+        } else {
+            lo = Some(mid);
+        }
+    }
+}
+
 /// What `ownerOf(tokenId)` at the valuation block says about a candidate
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Ownership {
     Owned,
     /// Owned by someone else now
     TransferredOut,
-    /// `ownerOf` reverted: the token was burned
+    /// `ownerOf` reverted with `NOT_MINTED`: the token was burned
     Burned,
-    /// The read failed; ownership is not known
+    /// The read failed or reverted for another reason; ownership is not known
     Unknown(String),
 }
+
+/// The revert reason the PositionManager's ERC-721 (solmate) gives for a
+/// token that does not exist
+pub const NOT_MINTED: &str = "NOT_MINTED";
 
 pub fn classify_owner(out: &Outcome, owner: Address) -> Ownership {
     alloy::sol! {
         function ownerOf(uint256 tokenId) external view returns (address);
     }
     match out {
-        Outcome::Reverted(_) => Ownership::Burned,
+        Outcome::Reverted(r) if r.contains(NOT_MINTED) => Ownership::Burned,
+        Outcome::Reverted(r) => Ownership::Unknown(if r.is_empty() {
+            "ownerOf() reverted without a reason".into()
+        } else {
+            format!("ownerOf() reverted: {r}")
+        }),
         Outcome::Failed(e) => Ownership::Unknown(e.clone()),
         Outcome::Ok(_) => match out.decode::<ownerOfCall>("ownerOf()") {
             Ok(a) if a == owner => Ownership::Owned,
@@ -449,9 +623,16 @@ mod tests {
             Ownership::TransferredOut
         );
         assert_eq!(
-            classify_owner(&Outcome::Reverted(String::new()), OWNER),
+            classify_owner(&Outcome::Reverted("revert: NOT_MINTED".into()), OWNER),
             Ownership::Burned
         );
+        // Any other revert (empty data, out of gas, another reason) is unknown
+        for r in ["", "out of gas", "revert: PAUSED"] {
+            assert!(matches!(
+                classify_owner(&Outcome::Reverted(r.into()), OWNER),
+                Ownership::Unknown(_)
+            ));
+        }
         assert!(matches!(
             classify_owner(&Outcome::Failed("timeout".into()), OWNER),
             Ownership::Unknown(_)
@@ -513,6 +694,22 @@ mod tests {
 
     const NO_WAIT: std::time::Duration = std::time::Duration::ZERO;
 
+    async fn seg(
+        src: &dyn LogSource,
+        from: u64,
+        to: u64,
+        max_requests: u64,
+        retry_delay: std::time::Duration,
+    ) -> ScanOutcome {
+        let opts = ScanOpts {
+            max_requests,
+            retry_delay,
+            segments: 1,
+            deadline: None,
+        };
+        scan_segment(src, PM, OWNER, from, to, &opts, &AtomicU64::new(0)).await
+    }
+
     #[tokio::test]
     async fn stated_limit_is_used_and_not_exceeded() {
         let mut src = FakeLogs::new(10_000, true);
@@ -522,7 +719,7 @@ mod tests {
             (25_001, transfer(OWNER, OTHER, 2)),
             (39_999, transfer(OTHER, OWNER, 1)),
         ];
-        let out = scan_segment(&src, PM, OWNER, 0, 39_999, 100, NO_WAIT).await;
+        let out = seg(&src, 0, 39_999, 100, NO_WAIT).await;
         assert_eq!(out.error, None);
         assert_eq!(out.ids, vec![U256::from(1u8), U256::from(2u8)]);
         assert_eq!(out.scanned_to, Some(39_999));
@@ -536,7 +733,7 @@ mod tests {
     #[tokio::test]
     async fn unstated_limit_halves_until_it_fits() {
         let src = FakeLogs::new(100_000, false);
-        let out = scan_segment(&src, PM, OWNER, 0, 999_999, 100, NO_WAIT).await;
+        let out = seg(&src, 0, 999_999, 100, NO_WAIT).await;
         assert_eq!(out.error, None);
         assert_eq!(out.scanned_to, Some(999_999));
         let calls = src.calls.lock().unwrap().clone();
@@ -564,16 +761,7 @@ mod tests {
             }
         }
         let src = Slow(Mutex::new(Vec::new()));
-        let out = scan_segment(
-            &src,
-            PM,
-            OWNER,
-            0,
-            999_999,
-            100,
-            std::time::Duration::from_secs(60),
-        )
-        .await;
+        let out = seg(&src, 0, 999_999, 100, std::time::Duration::from_secs(60)).await;
         assert_eq!(out.error, None);
         assert_eq!(out.scanned_to, Some(999_999));
         // 1M and 500k time out; 250k ranges from then on, never grown back
@@ -587,7 +775,7 @@ mod tests {
     async fn transient_errors_are_retried() {
         let src = FakeLogs::new(u64::MAX, true);
         *src.transient.lock().unwrap() = 2;
-        let out = scan_segment(&src, PM, OWNER, 0, 10, 100, NO_WAIT).await;
+        let out = seg(&src, 0, 10, 100, NO_WAIT).await;
         assert_eq!(out.error, None);
         // two failures (the second halves the range), then two successes
         assert_eq!(out.requests, 4);
@@ -598,10 +786,10 @@ mod tests {
     async fn repeated_failures_stop_with_partial_result() {
         let mut src = FakeLogs::new(u64::MAX, true);
         src.logs = vec![(3, transfer(Address::ZERO, OWNER, 9))];
-        let out = scan_segment(&src, PM, OWNER, 0, 10, 100, NO_WAIT).await;
+        let out = seg(&src, 0, 10, 100, NO_WAIT).await;
         assert_eq!(out.ids, vec![U256::from(9u8)]);
         *src.transient.lock().unwrap() = 100;
-        let out = scan_segment(&src, PM, OWNER, 0, 10, 100, NO_WAIT).await;
+        let out = seg(&src, 0, 10, 100, NO_WAIT).await;
         assert!(out.error.unwrap().contains("connection reset"));
         assert_eq!(out.scanned_to, None);
         assert!(out.ids.is_empty());
@@ -610,10 +798,10 @@ mod tests {
     #[tokio::test]
     async fn request_budget_is_reported() {
         let src = FakeLogs::new(10, true);
-        let out = scan_segment(&src, PM, OWNER, 0, 1_000, 5, NO_WAIT).await;
+        let out = seg(&src, 0, 1_000, 5, NO_WAIT).await;
         assert_eq!(out.requests, 5);
         let e = out.error.unwrap();
-        assert!(e.contains("stopped after 5"), "{e}");
+        assert!(e.contains("request cap of 5 eth_getLogs requests"), "{e}");
         // first request failed (range), the next four covered 40 blocks
         assert_eq!(out.scanned_to, Some(39));
     }
@@ -630,6 +818,7 @@ mod tests {
             max_requests: 100,
             retry_delay: NO_WAIT,
             segments: 4,
+            deadline: None,
         };
         let out = scan_transfers(&src, PM, OWNER, 0, 99, &opts).await;
         assert_eq!(out.error, None);
@@ -654,10 +843,147 @@ mod tests {
             max_requests: 100,
             retry_delay: NO_WAIT,
             segments: 2,
+            deadline: None,
         };
         let out = scan_transfers(&src, PM, OWNER, 0, 99, &opts).await;
         assert_eq!(out.scanned_to, None);
         assert!(out.error.is_some());
+    }
+
+    #[tokio::test]
+    async fn request_cap_is_shared_across_segments() {
+        // Every request fails on range: segments would each spend their own
+        // cap if it were not shared
+        let src = FakeLogs::new(1, true);
+        let opts = ScanOpts {
+            max_requests: 10,
+            retry_delay: NO_WAIT,
+            segments: 4,
+            deadline: None,
+        };
+        let out = scan_transfers(&src, PM, OWNER, 0, 999, &opts).await;
+        assert_eq!(out.requests, 10);
+        assert_eq!(src.calls.lock().unwrap().len(), 10);
+        assert!(out.error.unwrap().contains("request cap of 10 "));
+
+        // A cap below the segment count uses fewer segments
+        let src = FakeLogs::new(u64::MAX, true);
+        let opts = ScanOpts {
+            max_requests: 2,
+            retry_delay: NO_WAIT,
+            segments: 4,
+            deadline: None,
+        };
+        let out = scan_transfers(&src, PM, OWNER, 0, 999, &opts).await;
+        assert_eq!(out.error, None);
+        assert_eq!(out.requests, 2);
+        assert_eq!(out.scanned_to, Some(999));
+    }
+
+    #[tokio::test]
+    async fn deadline_ends_the_scan() {
+        let src = FakeLogs::new(u64::MAX, true);
+        let opts = ScanOpts {
+            max_requests: 100,
+            retry_delay: NO_WAIT,
+            segments: 1,
+            deadline: Some(tokio::time::Instant::now()),
+        };
+        let out = scan_transfers(&src, PM, OWNER, 0, 999, &opts).await;
+        assert_eq!(out.requests, 0);
+        assert_eq!(out.scanned_to, None);
+        assert!(out.error.unwrap().contains("time limit"));
+    }
+
+    struct FakeCode {
+        deployed: u64,
+        reads: Mutex<u64>,
+    }
+
+    impl CodeSource for FakeCode {
+        fn has_code<'a>(&'a self, block: u64) -> BoxFuture<'a, Result<bool, String>> {
+            *self.reads.lock().unwrap() += 1;
+            let r = Ok(block >= self.deployed);
+            Box::pin(async move { r })
+        }
+    }
+
+    #[tokio::test]
+    async fn code_search_finds_first_block_with_code() {
+        for (deployed, head) in [(21_689_089u64, 26_486_919u64), (0, 10), (10, 10), (1, 2)] {
+            let src = FakeCode {
+                deployed,
+                reads: Mutex::new(0),
+            };
+            let (b, reads) = find_deployment_block(&src, head).await.unwrap();
+            assert_eq!(b, deployed, "head {head}");
+            assert_eq!(reads, *src.reads.lock().unwrap());
+            assert!(reads <= 2 + 64 - head.leading_zeros() as u64);
+        }
+        // Not deployed yet at the head
+        let src = FakeCode {
+            deployed: 100,
+            reads: Mutex::new(0),
+        };
+        assert!(find_deployment_block(&src, 50).await.is_err());
+    }
+
+    #[test]
+    fn plan_start_cases() {
+        let dep = Some((100u64, "deployment"));
+        // Valuation block before the deployment: no v4 positions, complete
+        assert_eq!(
+            plan_start(None, dep, 99, None, false),
+            Ok(StartPlan::NotDeployed { deployed: 100 })
+        );
+        assert_eq!(
+            plan_start(Some(50), dep, 99, None, false),
+            Ok(StartPlan::NotDeployed { deployed: 100 })
+        );
+        // Default: from the deployment block
+        assert_eq!(
+            plan_start(None, dep, 500, None, false),
+            Ok(StartPlan::Scan {
+                from: 100,
+                source: "deployment",
+                gap: None
+            })
+        );
+        // --from-block at or before the deployment covers everything
+        assert_eq!(
+            plan_start(Some(90), dep, 500, None, false),
+            Ok(StartPlan::Scan {
+                from: 90,
+                source: "--from-block",
+                gap: None
+            })
+        );
+        // --from-block after it leaves a gap
+        let StartPlan::Scan { gap: Some(g), .. } =
+            plan_start(Some(200), dep, 500, None, false).unwrap()
+        else {
+            panic!("expected a gap");
+        };
+        assert!(g.contains("before block 200 are not covered"), "{g}");
+        assert!(plan_start(Some(600), dep, 500, None, false).is_err());
+        // Unknown deployment: code before --from-block decides
+        let gap = |c| match plan_start(Some(200), None, 500, c, false).unwrap() {
+            StartPlan::Scan { gap, .. } => gap,
+            _ => panic!(),
+        };
+        assert_eq!(gap(Some(false)), None);
+        assert!(gap(Some(true)).unwrap().contains("not covered"));
+        assert!(gap(None).unwrap().contains("may not be covered"));
+        // No start at all: an error for logs, genesis for the explorer
+        assert!(plan_start(None, None, 500, None, false).is_err());
+        assert_eq!(
+            plan_start(None, None, 500, None, true),
+            Ok(StartPlan::Scan {
+                from: 0,
+                source: "genesis",
+                gap: None
+            })
+        );
     }
 
     #[test]
