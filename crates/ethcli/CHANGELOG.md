@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.30.13](https://github.com/yldfi/yldfi-rs/compare/ethcli-v0.30.12...ethcli-v0.30.13) (2026-11-24)
+
+
+### Features
+
+* **ethcli:** match --diff, optimizer runs hint, fallback-only executors ([#320](https://github.com/yldfi/yldfi-rs/issues/320)) ([e7487ca](https://github.com/yldfi/yldfi-rs/commit/e7487ca50652476eeebcfe11d6a3b810f5a9312b))
+
 ## [0.30.12](https://github.com/yldfi/yldfi-rs/compare/ethcli-v0.30.11...ethcli-v0.30.12) (2026-11-23)
 
 

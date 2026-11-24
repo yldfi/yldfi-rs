@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.12](https://github.com/yldfi/yldfi-rs/compare/ethcli-mcp-v0.6.11...ethcli-mcp-v0.6.12) (2026-11-24)
+
+
+### Features
+
+* **ethcli:** match --diff, optimizer runs hint, fallback-only executors ([#320](https://github.com/yldfi/yldfi-rs/issues/320)) ([e7487ca](https://github.com/yldfi/yldfi-rs/commit/e7487ca50652476eeebcfe11d6a3b810f5a9312b))
+
 ## [0.6.11](https://github.com/yldfi/yldfi-rs/compare/ethcli-mcp-v0.6.10...ethcli-mcp-v0.6.11) (2026-11-23)
 
 
