@@ -537,6 +537,7 @@ impl EthcliMcpServer {
             Some(&input.chain),
             input.block.as_deref(),
             input.no_follow_proxy,
+            input.follow_proxy,
             input.timeout,
             input.backend.as_deref(),
         )
@@ -545,7 +546,7 @@ impl EthcliMcpServer {
     }
 
     #[tool(
-        description = "Compiler fingerprint of deployed code: compiler and version and metadata hash type from the CBOR metadata, embedded metadata of created contracts, minimum EVM version from opcodes (PUSH0, MCOPY, TLOAD), a legacy vs via-IR guess, an optimizer runs hint (optimizer_runs_hint from how constants are written, with evidence pcs; check it before sweeping runs), dispatcher (no selector dispatcher: fallback-only / packed-calldata executor) when there are no selectors but calldata is read, and an upper bound on address-shaped immutables. Proxies are followed to the implementation (target.resolved_via); for a clone with immutable args (wighawag, Sudoswap pairs, Solady LibClone) target.immutable_args holds the appended data (raw; the word/address split is a guess). First step before rebuilding source for an unverified contract",
+        description = "Compiler fingerprint of deployed code: compiler and version and metadata hash type from the CBOR metadata, embedded metadata of created contracts, minimum EVM version from executed opcodes (PUSH0, MCOPY, TLOAD) and max_evm_version (paris when solc >= 0.8.20 code has no PUSH0; push0_executed / push0_in_code, evm_version_reasons), a legacy vs via-IR guess, an optimizer runs hint (optimizer_runs_hint from how constants are written, with evidence pcs, and optimizer_runs_bucket low/medium/high or unknown when the evidence is weak; check it before sweeping runs), dispatcher (no selector dispatcher: fallback-only / packed-calldata executor) when there are no selectors but calldata is read, and an upper bound on address-shaped immutables. Proxies are followed to the implementation (target.resolved_via) only when the call analysis confirms the code delegates every unmatched call through the slot; a slot value that is set but not confirmed (for example a contract with its own dispatcher that keeps a library in the EIP-1967 slot) is reported in target.proxy_slot and not followed unless follow_proxy=true; for a clone with immutable args (wighawag, Sudoswap pairs, Solady LibClone) target.immutable_args holds the appended data (raw; the word/address split is a guess). First step before rebuilding source for an unverified contract",
         annotations(read_only_hint = true, open_world_hint = true)
     )]
     async fn contract_fingerprint(
@@ -557,13 +558,14 @@ impl EthcliMcpServer {
             Some(&input.chain),
             input.block.as_deref(),
             input.no_follow_proxy,
+            input.follow_proxy,
         )
         .await
         .to_response()
     }
 
     #[tool(
-        description = "Compare a local compiled artifact (forge out/<File>.sol/<Name>.json, ideally built with --ast, or solc standard-JSON output) with deployed code. Masks immutables and library addresses (reports their values), compares metadata separately. Verdict exact, partial (equal ignoring metadata: NOT verified, never report it as verified), partial_unverified_metadata (as partial, but the deployed metadata bytes could hide reachable code: never report it as a clean partial) or mismatch with the first differing offset, the function it falls in and a per-function equal/different table; diff=true adds aligned artifact vs deployed opcodes (equal/changed/inserted/deleted) for each different function. Optional creation_tx compares creation code and returns constructor arguments",
+        description = "Compare a local compiled artifact (forge out/<File>.sol/<Name>.json, ideally built with --ast, or solc standard-JSON output) with deployed code. Masks immutables and library addresses (reports their values), compares metadata separately. Verdict exact, partial (equal ignoring metadata: NOT verified, never report it as verified), partial_unverified_metadata (as partial, but the deployed metadata bytes could hide reachable code: never report it as a clean partial) or mismatch with the first differing offset, the function it falls in and a per-function different/equal_shifted/equal table (equal_shifted: sizes differ but the function's instructions match once jump offsets are ignored; only_different=true keeps only different rows); diff=true adds aligned artifact vs deployed opcodes (equal/changed/inserted/deleted) for each different function. Optional creation_tx compares creation code and returns constructor arguments",
         annotations(read_only_hint = true, open_world_hint = true)
     )]
     async fn contract_match(
@@ -579,7 +581,9 @@ impl EthcliMcpServer {
             Some(&input.chain),
             input.block.as_deref(),
             input.no_follow_proxy,
+            input.follow_proxy,
             input.diff,
+            input.only_different,
         )
         .await
         .to_response()
@@ -792,6 +796,14 @@ impl EthcliMcpServer {
     }
 
     #[tool(
+        description = "Hash a function, event or error signature locally (no network) to its canonical form, 4-byte selector and 32-byte topic. Accepts parameter names and the \"name(args)(returns)\" form (the return part is not hashed)",
+        annotations(read_only_hint = true, open_world_hint = false)
+    )]
+    async fn sig_hash(&self, Parameters(input): Parameters<SigHashInput>) -> CallToolResult {
+        tools::sig_hash(&input.signature).await.to_response()
+    }
+
+    #[tool(
         description = "Lookup a signature from a 4-byte function selector or a 32-byte event topic; the kind is picked from the length",
         annotations(read_only_hint = true, open_world_hint = true)
     )]
@@ -971,13 +983,15 @@ impl EthcliMcpServer {
     // =========================================================================
 
     #[tool(
-        description = "Make an eth_call to a contract (read-only)",
+        description = "Make an eth_call to a contract (read-only). Give hex calldata (data), or a signature (sig) with args; sig in the form \"name(types)(return types)\" also decodes the result",
         annotations(read_only_hint = true, open_world_hint = true)
     )]
     async fn rpc_call(&self, Parameters(input): Parameters<RpcCallInput>) -> CallToolResult {
         tools::rpc_call(
             &input.to,
-            &input.data,
+            input.data.as_deref(),
+            input.sig.as_deref(),
+            input.args.as_deref(),
             Some(&input.chain),
             input.block.as_deref(),
         )

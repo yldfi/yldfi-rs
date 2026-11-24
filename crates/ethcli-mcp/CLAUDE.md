@@ -180,6 +180,7 @@ cargo test -p ethcli-mcp --test integration -- --include-ignored
 | `rpc_block_at` | The block for a date, Unix timestamp (`@1706700000`) or age (`7d`) |
 | `rpc_find_change` | The block where a call result, balance, storage slot, code or nonce changed (binary search) |
 | `sig_lookup` | A signature from a 4-byte selector or 32-byte topic |
+| `sig_hash` | Selector, topic and canonical form of a signature, computed locally (no network) |
 | `sig_error` | Decoded revert data: `Error(string)`, `Panic(uint256)` or a custom error |
 | `safe_info` | Safe owners, threshold, nonce, version, modules, guard and fallback handler, read on chain |
 | `safe_queue` | Pending Safe transactions with who has and has not signed |

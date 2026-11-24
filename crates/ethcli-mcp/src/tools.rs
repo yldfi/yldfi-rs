@@ -3,7 +3,7 @@
 //! Each tool wraps an ethcli command and exposes it via MCP.
 //! Tools use subprocess execution for full CLI compatibility.
 //!
-//! 580+ tools covering the ethcli subcommands.
+//! 610+ tools covering the ethcli subcommands.
 
 use crate::executor::{ArgsBuilder, ExecutionError, ValidationError};
 
@@ -692,6 +692,7 @@ pub async fn contract_decompile(
     chain: Option<&str>,
     block: Option<&str>,
     no_follow_proxy: bool,
+    follow_proxy: bool,
     timeout: Option<u32>,
     backend: Option<&str>,
 ) -> Result<String, ToolError> {
@@ -709,6 +710,7 @@ pub async fn contract_decompile(
         .chain(chain)
         .opt("--block", block)
         .opt_flag("--no-follow-proxy", no_follow_proxy)
+        .opt_flag("--follow-proxy", follow_proxy)
         .opt("--timeout", timeout.as_deref())
         .opt("--backend", backend)
         .format_json()
@@ -722,6 +724,7 @@ pub async fn contract_fingerprint(
     chain: Option<&str>,
     block: Option<&str>,
     no_follow_proxy: bool,
+    follow_proxy: bool,
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("contract")
         .subcommand("fingerprint")
@@ -729,6 +732,7 @@ pub async fn contract_fingerprint(
         .chain(chain)
         .opt("--block", block)
         .opt_flag("--no-follow-proxy", no_follow_proxy)
+        .opt_flag("--follow-proxy", follow_proxy)
         .format_json()
         .execute()
         .await
@@ -823,7 +827,9 @@ pub async fn contract_match(
     chain: Option<&str>,
     block: Option<&str>,
     no_follow_proxy: bool,
+    follow_proxy: bool,
     diff: bool,
+    only_different: bool,
 ) -> Result<String, ToolError> {
     let root = artifact_root()?;
     let artifact = validate_artifact_path(artifact, &root)?;
@@ -851,7 +857,9 @@ pub async fn contract_match(
         .chain(chain)
         .opt("--block", block)
         .opt_flag("--no-follow-proxy", no_follow_proxy)
+        .opt_flag("--follow-proxy", follow_proxy)
         .opt_flag("--diff", diff)
+        .opt_flag("--only-different", only_different)
         .format_json()
         .execute()
         .await
@@ -1172,13 +1180,23 @@ pub async fn gas_cost(input: &crate::types::GasCostInput) -> Result<String, Tool
 }
 
 // =============================================================================
-// SIG (4 subcommands) - Signature lookup
+// SIG (5 subcommands) - Signature lookup and local hashing
 // =============================================================================
 
 pub async fn sig_fn(selector: &str) -> Result<String, ToolError> {
     ArgsBuilder::new("sig")
         .subcommand("fn")
         .arg(selector)
+        .execute()
+        .await
+        .map_err(ToolError::from)
+}
+
+pub async fn sig_hash(signature: &str) -> Result<String, ToolError> {
+    ArgsBuilder::new("sig")
+        .subcommand("hash")
+        .arg(signature)
+        .format_json()
         .execute()
         .await
         .map_err(ToolError::from)
@@ -1443,14 +1461,40 @@ pub async fn cast_abi_decode(sig: &str, data: &str) -> Result<String, ToolError>
 
 pub async fn rpc_call(
     to: &str,
-    data: &str,
+    data: Option<&str>,
+    sig: Option<&str>,
+    args: Option<&[String]>,
     chain: Option<&str>,
     block: Option<&str>,
 ) -> Result<String, ToolError> {
-    ArgsBuilder::new("rpc")
-        .subcommand("call")
-        .arg(to)
-        .arg(data)
+    let mut builder = ArgsBuilder::new("rpc").subcommand("call").arg(to);
+    match (data, sig) {
+        (Some(data), None) => {
+            if args.is_some_and(|a| !a.is_empty()) {
+                return Err(ToolError::InvalidInput(
+                    "args go with sig, not with data (hex calldata already holds the arguments)"
+                        .into(),
+                ));
+            }
+            builder = builder.arg(data);
+        }
+        (None, Some(sig)) => {
+            builder = builder.opt("--sig", Some(sig));
+            if let Some(args) = args.filter(|a| !a.is_empty()) {
+                // As a JSON array, so an argument holding a space stays whole
+                // (--args splits on spaces)
+                let json = serde_json::to_string(args)
+                    .map_err(|e| ToolError::InvalidInput(format!("args: {e}")))?;
+                builder = builder.opt("--args-json", Some(json.as_str()));
+            }
+        }
+        _ => {
+            return Err(ToolError::InvalidInput(
+                "give exactly one of data (hex calldata) or sig".into(),
+            ))
+        }
+    }
+    builder
         .chain(chain)
         .opt("--block", block)
         .execute()

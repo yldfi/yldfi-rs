@@ -16,8 +16,15 @@ Tools: `ethcli` (or the MCP tools `contract_fingerprint`, `contract_inspect`,
 
 1. **Fingerprint.** `ethcli contract fingerprint <addr> --json`.
    Note the compiler and version (`metadata.version`), the metadata hash type,
-   `min_evm_version` and the pipeline guess. Set `solc_version`,
-   `evm_version` and the hash type (`bytecode_hash = "ipfs"`, `"bzzr1"` or
+   `min_evm_version` / `max_evm_version` (with `evm_version_reasons`) and the
+   pipeline guess. Check the EVM version first: an executed PUSH0
+   (`push0_executed`) means shanghai or later; none with solc 0.8.20 or
+   later gives `max_evm_version: paris` with confidence `consistent`
+   (that solc pushes zeros with PUSH0 from shanghai on; a shanghai build
+   that never pushes zero would look the same, so try paris first, not
+   only); MCOPY, TLOAD, TSTORE or BLOBHASH mean cancun. A wrong
+   `evm_version` changes every function, so settle it before anything else.
+   Set `solc_version`, `evm_version` and the hash type (`bytecode_hash = "ipfs"`, `"bzzr1"` or
    `"none"`) in `foundry.toml` to match. Via-IR is not in the code; start
    with the legacy pipeline. Runs: read `optimizer_runs_hint` before
    sweeping. Solc writes wide constants out when runs are high and computes
@@ -25,9 +32,20 @@ Tools: `ethcli` (or the MCP tools `contract_fingerprint`, `contract_inspect`,
    selector) means about 5000 runs or more, `PUSH3 0x461bcd PUSH1 0xe5 SHL`
    means fewer, and other selectors or masks written out (`PUSH32
    0x70a08231..`, `PUSH20 0xff..ff`) next to the shifted selector mean about
-   1000-4000. Start at the hinted value (200 when `unknown`); optimizer-off
-   code also writes constants out. If the proxy was followed, the output
-   names the implementation: rebuild that. When `dispatcher` says
+   1000-4000; `optimizer_runs_bucket` sums this up as low, medium or high,
+   or `unknown` when the evidence is weak. Sweep coarse values, keyed on
+   the executable size: try the bucket's value (200, 1000 or 10000) and
+   its neighbours, keep the run count whose executable size equals the
+   deployed one, then refine. Optimizer-off code also writes constants out.
+   If the proxy was followed, the output names the implementation: rebuild
+   that. A set EIP-1967 slot is not proof of a proxy: some contracts keep an
+   address there and run their own dispatcher, delegating only the
+   selectors it does not match from the fallback (Yearn V3 tokenized
+   strategies do this). Fingerprint, match and decompile follow the value
+   only when the call analysis confirms every unmatched call runs that
+   code with no dispatcher of its own; otherwise `target.proxy_slot`
+   shows the value, its source and why it was not followed, and
+   `--follow-proxy` forces it. When `dispatcher` says
    "fallback-only / packed-calldata executor", there are no ABI functions:
    rebuild a `fallback()` that decodes the packed calldata at
    `calldata_reads`.
@@ -67,8 +85,13 @@ Tools: `ethcli` (or the MCP tools `contract_fingerprint`, `contract_inspect`,
      `first_difference_offset` and the per-function table. Add `--diff` to
      see the artifact and deployed opcodes side by side for each function
      marked different (`functions[].diff`: equal, changed, inserted,
-     deleted rows); `changed` DUP/SWAP rows with the same other opcodes
-     point to statement or declaration order. Fix only the
+     deleted rows, with pcs in hex as `disassemble` prints them); `changed`
+     DUP/SWAP rows with the same other opcodes point to statement or
+     declaration order. When the sizes differ, `equal_shifted` functions
+     have the same instructions and their jumps reach corresponding
+     JUMPDESTs through the alignment; they only moved. Fix the `different`
+     ones first (`--only-different` lists just those); an `equal_shifted`
+     function can still differ in data it reads from elsewhere. Fix only the
      function named `different`, rebuild, and match again. When the size
      differs, fix size-changing differences first (missing or extra
      statements, types, checked vs unchecked arithmetic).
@@ -78,6 +101,10 @@ Tools: `ethcli` (or the MCP tools `contract_fingerprint`, `contract_inspect`,
    - Check `selectors.in_artifact_not_deployed` and
      `deployed_not_in_artifact` before anything else.
 7. **Repeat** steps 4 to 6.
+
+Library sources: when local checkouts of dependencies are used, pin them
+to the version the target imported. In a blind trial never use a checkout
+of the target project itself; it gives the answer away.
 
 ## Stop rules
 

@@ -31,7 +31,7 @@ cap a result window even when requests stay below their rate limit. If that
 happens, split the history into smaller block ranges and paginate each range.
 This tool does not automatically split ranges or bypass provider limits.
 
-- **580+ MCP tools** - Broad ethcli functionality exposed as typed tools, with mutating tools gated by policy
+- **610+ MCP tools** - Broad ethcli functionality exposed as typed tools, with mutating tools gated by policy
 - **JSON Schema validation** - All tool inputs have schemas for LLM structured output
 - **Multi-chain support** - Ethereum, Polygon, Arbitrum, Optimism, Base, and more
 - **DEX aggregators** - 1inch, CowSwap, LI.FI, KyberSwap, OpenOcean, 0x, Velora, Enso
@@ -185,6 +185,7 @@ echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":
 | `rpc_block_at` | The block for a date, Unix timestamp (`@1706700000`) or age (`7d`) |
 | `rpc_find_change` | The block where a call result, balance, storage slot, code or nonce changed (binary search) |
 | `sig_lookup` | A signature from a 4-byte selector or 32-byte topic |
+| `sig_hash` | Selector, topic and canonical form of a signature, computed locally (no network) |
 | `sig_error` | Decoded revert data: `Error(string)`, `Panic(uint256)` or a custom error |
 | `safe_info` | Safe owners, threshold, nonce, version, modules, guard and fallback handler, read on chain |
 | `safe_queue` | Pending Safe transactions with who has and has not signed |

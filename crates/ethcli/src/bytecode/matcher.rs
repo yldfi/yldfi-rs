@@ -523,6 +523,8 @@ pub struct MaskedValue {
 pub struct FunctionDiff {
     pub function: String,
     pub instructions: usize,
+    /// different, equal_shifted (sizes differ but every instruction aligns
+    /// once code offsets are ignored) or equal
     pub status: &'static str,
     /// Aligned artifact/deployed instructions (`--diff`, functions marked
     /// different only): the changes with a few equal rows around them
@@ -541,10 +543,16 @@ pub struct DiffRow {
     pub kind: &'static str,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub artifact_pc: Option<usize>,
+    /// `artifact_pc` in hex, as `contract disassemble` prints offsets
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub artifact_pc_hex: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub artifact: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub onchain_pc: Option<usize>,
+    /// `onchain_pc` in hex
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub onchain_pc_hex: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub onchain: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -572,8 +580,10 @@ fn diff_row(kind: &'static str, a: Option<(&[u8], usize)>, c: Option<(&[u8], usi
     DiffRow {
         kind,
         artifact_pc: a.map(|(_, pc)| pc),
+        artifact_pc_hex: a.map(|(_, pc)| format!("{pc:#06x}")),
         artifact: a.map(|(code, pc)| instruction_text(code, pc)),
         onchain_pc: c.map(|(_, pc)| pc),
+        onchain_pc_hex: c.map(|(_, pc)| format!("{pc:#06x}")),
         onchain: c.map(|(code, pc)| instruction_text(code, pc)),
         skipped: None,
     }
@@ -600,13 +610,28 @@ pub fn function_diffs(
         (pc + 1).min(code.len())..(pc + 1 + push_size(op)).min(code.len())
     };
     let is_masked = |k: usize| mask.get(k).copied().unwrap_or(false);
-    let ignore_operand = |op: u8| sizes_differ && matches!(push_size(op), 2 | 3);
+    // When the sizes differ, a PUSH2/PUSH3 operand that points at a JUMPDEST
+    // of its own code is a code offset, which shifts; any other operand
+    // (a constant) still has to be equal
+    let (dests_a, dests_c) = (super::calls::jumpdests(a), super::calls::jumpdests(c));
+    let points_at_jumpdest = |code: &[u8], dests: &[bool], pc: usize, op: u8| {
+        if !sizes_differ || !matches!(push_size(op), 2 | 3) {
+            return false;
+        }
+        let r = operand(code, pc, op);
+        let v = code[r]
+            .iter()
+            .fold(0usize, |acc, b| (acc << 8) | *b as usize);
+        dests.get(v).copied().unwrap_or(false)
+    };
+    let shifted_a = |pc: usize, op: u8| points_at_jumpdest(a, &dests_a, pc, op);
+    let shifted_c = |pc: usize, op: u8| points_at_jumpdest(c, &dests_c, pc, op);
     let eq = |i: usize, j: usize| {
         let ((pa, oa), (pb, ob)) = (ia[i], ic[j]);
         if oa != ob {
             return false;
         }
-        if ignore_operand(oa) {
+        if shifted_a(pa, oa) && shifted_c(pb, ob) {
             return true;
         }
         let (ra, rb) = (operand(a, pa, oa), operand(c, pb, ob));
@@ -618,7 +643,7 @@ pub fn function_diffs(
             return None;
         }
         let mut k = vec![op];
-        if !ignore_operand(op) {
+        if !shifted_a(pc, op) {
             k.extend_from_slice(&a[operand(a, pc, op)]);
         }
         Some(k)
@@ -626,12 +651,33 @@ pub fn function_diffs(
     let key_r = |j: usize| {
         let (pc, op) = ic[j];
         let mut k = vec![op];
-        if !ignore_operand(op) {
+        if !shifted_c(pc, op) {
             k.extend_from_slice(&c[operand(c, pc, op)]);
         }
         Some(k)
     };
     let (steps, approximate) = align(ia.len(), ic.len(), &eq, &key_l, &key_r);
+    // JUMPDESTs the alignment pairs: a jump operand that was ignored above
+    // counts as equal only when its two targets are such a pair
+    let jumpdest_pairs: std::collections::HashMap<usize, usize> = steps
+        .iter()
+        .filter_map(|s| match *s {
+            Step::Equal(i, j) if ia[i].1 == 0x5b => Some((ia[i].0, ic[j].0)),
+            _ => None,
+        })
+        .collect();
+    let operand_value = |code: &[u8], pc: usize, op: u8| {
+        code[operand(code, pc, op)]
+            .iter()
+            .fold(0usize, |acc, b| (acc << 8) | *b as usize)
+    };
+    let targets_correspond = |i: usize, j: usize| {
+        let ((pa, oa), (pb, ob)) = (ia[i], ic[j]);
+        if !(shifted_a(pa, oa) && shifted_c(pb, ob)) {
+            return true;
+        }
+        jumpdest_pairs.get(&operand_value(a, pa, oa)) == Some(&operand_value(c, pb, ob))
+    };
 
     // Rows, pairing each run of deletions and insertions into changed rows
     let mut rows: Vec<(String, DiffRow)> = Vec::new();
@@ -640,9 +686,14 @@ pub fn function_diffs(
     while k < steps.len() {
         if let Step::Equal(i, j) = steps[k] {
             label = mapper.label(ia[i].0);
+            let kind = if targets_correspond(i, j) {
+                "equal"
+            } else {
+                "changed"
+            };
             rows.push((
                 label.clone(),
-                diff_row("equal", Some((a, ia[i].0)), Some((c, ic[j].0))),
+                diff_row(kind, Some((a, ia[i].0)), Some((c, ic[j].0))),
             ));
             k += 1;
             continue;
@@ -703,8 +754,10 @@ pub fn function_diffs(
                 kept.push(DiffRow {
                     kind: "skip",
                     artifact_pc: None,
+                    artifact_pc_hex: None,
                     artifact: None,
                     onchain_pc: None,
+                    onchain_pc_hex: None,
                     onchain: None,
                     skipped: Some(skipped),
                 });
@@ -1046,19 +1099,48 @@ pub fn match_code_with(artifact: &Artifact, onchain: &[u8], with_diff: bool) -> 
                 changed[i] = (*pc..end).any(|j| a[j] != c[j] && !meta_mask[j]);
             }
         } else {
-            table_method = "sizes differ: instructions aligned by common prefix and suffix (PUSH2/PUSH3 operands ignored, as code offsets shift); everything between the first and last difference counts as changed".to_string();
+            table_method = "sizes differ: instructions aligned by common prefix and suffix, where a PUSH2/PUSH3 operand may differ only by the size change when it points into the suffix (code offsets shift); everything between the first and last difference counts as changed, except functions whose instructions all align and whose jump targets correspond through the alignment, marked equal_shifted".to_string();
             let chain_ins = linear_sweep(c);
             let ta: Vec<Vec<u8>> = instructions.iter().map(|(pc, op)| token(a, *pc, *op)).collect();
             let tc: Vec<Vec<u8>> = chain_ins.iter().map(|(pc, op)| token(c, *pc, *op)).collect();
-            let prefix = ta.iter().zip(&tc).take_while(|(x, y)| x == y).count();
+            let mut prefix = ta.iter().zip(&tc).take_while(|(x, y)| x == y).count();
             let max_suffix = ta.len().min(tc.len()) - prefix;
-            let suffix = ta
+            let mut suffix = ta
                 .iter()
                 .rev()
                 .zip(tc.iter().rev())
                 .take(max_suffix)
                 .take_while(|(x, y)| x == y)
                 .count();
+            // The tokens ignore PUSH2/PUSH3 operands; keep an instruction in
+            // the prefix or suffix only if its operand is the same value or
+            // a target in the suffix moved by exactly the size difference
+            let value = |code: &[u8], pc: usize, op: u8| {
+                code[(pc + 1).min(code.len())..(pc + 1 + push_size(op)).min(code.len())]
+                    .iter()
+                    .fold(0usize, |acc, b| (acc << 8) | *b as usize)
+            };
+            loop {
+                let suffix_a = instructions
+                    .get(instructions.len() - suffix)
+                    .map_or(a.len(), |x| x.0);
+                let ok = |ka: usize, kc: usize| {
+                    let ((pa, op), (pc_c, _)) = (instructions[ka], chain_ins[kc]);
+                    if !matches!(push_size(op), 2 | 3) {
+                        return true;
+                    }
+                    let (va, vc) = (value(a, pa, op), value(c, pc_c, op));
+                    va == vc || (va >= suffix_a && vc + a.len() == va + c.len())
+                };
+                let new_prefix = (0..prefix).find(|&k| !ok(k, k)).unwrap_or(prefix);
+                let new_suffix = (1..=suffix)
+                    .find(|&n| !ok(ta.len() - n, tc.len() - n))
+                    .map_or(suffix, |n| n - 1);
+                if (new_prefix, new_suffix) == (prefix, suffix) {
+                    break;
+                }
+                (prefix, suffix) = (new_prefix, new_suffix);
+            }
             if let (Some((pa, _)), Some((pb, _))) = (instructions.get(prefix), chain_ins.get(prefix)) {
                 first = *pa;
                 onchain_first = *pb;
@@ -1091,8 +1173,24 @@ pub fn match_code_with(artifact: &Artifact, onchain: &[u8], with_diff: bool) -> 
             })
             .collect();
         let mut diff_note = None;
-        if with_diff {
-            let (mut per_fn, approximate) = function_diffs(a, c, &meta_mask, &mapper);
+        // When the sizes differ the table above marks everything between the
+        // first and last difference; the alignment tells which of those
+        // functions only moved (their instructions match once code offsets
+        // are ignored)
+        let per_fn = (with_diff || a.len() != c.len()).then(|| function_diffs(a, c, &meta_mask, &mapper));
+        if a.len() != c.len() {
+            if let Some((per_fn, _)) = &per_fn {
+                for f in functions.iter_mut().filter(|f| f.status == "different") {
+                    if per_fn
+                        .get(&f.function)
+                        .is_some_and(|(rows, truncated)| !truncated && rows.iter().all(|r| matches!(r.kind, "equal" | "skip")))
+                    {
+                        f.status = "equal_shifted";
+                    }
+                }
+            }
+        }
+        if let (true, Some((mut per_fn, approximate))) = (with_diff, per_fn) {
             for f in functions.iter_mut().filter(|f| f.status == "different") {
                 let (rows, truncated) = per_fn.remove(&f.function).unwrap_or_default();
                 f.diff = Some(rows);
@@ -1101,7 +1199,7 @@ pub fn match_code_with(artifact: &Artifact, onchain: &[u8], with_diff: bool) -> 
             diff_note = Some(format!(
                 "instructions aligned by LCS over the executable code{}{}; masked bytes (immutables, libraries, embedded metadata) match any deployed value; {} equal rows of context, at most {} rows per function",
                 if a.len() != c.len() {
-                    ", PUSH2/PUSH3 operands ignored (code offsets shift)"
+                    ", PUSH2/PUSH3 operands that point at a JUMPDEST ignored (code offsets shift)"
                 } else {
                     ""
                 },
@@ -1114,7 +1212,12 @@ pub fn match_code_with(artifact: &Artifact, onchain: &[u8], with_diff: bool) -> 
                 DIFF_MAX_ROWS
             ));
         }
-        functions.sort_by_key(|f| (f.status == "equal", f.function.clone()));
+        let rank = |s: &str| match s {
+            "different" => 0,
+            "equal_shifted" => 1,
+            _ => 2,
+        };
+        functions.sort_by_key(|f| (rank(f.status), f.function.clone()));
         let window = |code: &[u8], at: usize| {
             let start = at.saturating_sub(16).min(code.len());
             hex::encode(&code[start..(at + 16).min(code.len())])
@@ -1437,6 +1540,78 @@ mod tests {
             .expect("an inserted row");
         assert_eq!(inserted.onchain.as_deref(), Some("PUSH1 0x0a"));
         assert!(!kinds.contains(&"deleted"), "{kinds:?}");
+    }
+
+    #[test]
+    fn size_change_ignores_only_jump_offsets() {
+        // PUSH2 <jumpdest> JUMP, PUSH2 0x1234 POP, STOP x4, JUMPDEST STOP
+        let code = "61000c5661123450000000005b00";
+        let art = parse_artifact(
+            &forge_artifact(&with_meta(code, META), Value::Null, Value::Null),
+            None,
+        )
+        .unwrap();
+        // Deployed: one more STOP before the JUMPDEST (so the jump target
+        // moves to 0x0d) and the constant 0x1234 became 0x1235
+        let deployed_hex = "61000d566112355000000000005b00";
+        let deployed = hex::decode(&with_meta(deployed_hex, META)[2..]).unwrap();
+        let report = match_code_with(&art, &deployed, true);
+        let m = report.mismatch.expect("mismatch");
+        let rows: Vec<&DiffRow> = m
+            .functions
+            .iter()
+            .filter_map(|f| f.diff.as_ref())
+            .flatten()
+            .collect();
+        let find = |text: &str| {
+            rows.iter()
+                .find(|r| r.artifact.as_deref() == Some(text))
+                .unwrap_or_else(|| panic!("row {text} in {rows:?}"))
+        };
+        // The jump offset shifted with the code: equal
+        let jump = find("PUSH2 0x000c");
+        assert_eq!(jump.kind, "equal");
+        assert_eq!(jump.onchain.as_deref(), Some("PUSH2 0x000d"));
+        assert_eq!(jump.artifact_pc_hex.as_deref(), Some("0x0000"));
+        // A PUSH2 constant that is no code offset still has to match
+        assert_eq!(find("PUSH2 0x1234").kind, "changed");
+        assert!(rows.iter().any(|r| r.kind == "inserted"));
+    }
+
+    #[test]
+    fn retargeted_jump_after_a_size_change_is_changed() {
+        // PUSH2 0x000a JUMP, STOP STOP, JUMPDEST(6) STOP STOP STOP,
+        // JUMPDEST(0x0a) STOP
+        let code = "61000a5600005b0000005b00";
+        let art = parse_artifact(
+            &forge_artifact(&with_meta(code, META), Value::Null, Value::Null),
+            None,
+        )
+        .unwrap();
+        let jump_row = |deployed_hex: &str| {
+            let deployed = hex::decode(&with_meta(deployed_hex, META)[2..]).unwrap();
+            let m = match_code_with(&art, &deployed, true)
+                .mismatch
+                .expect("mismatch");
+            let row = m
+                .functions
+                .iter()
+                .filter_map(|f| f.diff.as_ref())
+                .flatten()
+                .find(|r| r.artifact.as_deref() == Some("PUSH2 0x000a"))
+                .cloned();
+            (row, m)
+        };
+        // One STOP inserted before the first JUMPDEST: both JUMPDESTs move
+        // by one. Jumping to the moved second JUMPDEST (0x0b) is the same
+        // jump; jumping to the moved first one (0x07) is a different target
+        // (an equal row far from a change is left out of the context)
+        let (same, _) = jump_row("61000b560000005b0000005b00");
+        assert!(same.is_none_or(|r| r.kind == "equal"));
+        let (retargeted, m) = jump_row("610007560000005b0000005b00");
+        assert_eq!(retargeted.expect("jump row").kind, "changed");
+        // The table's prefix stops at the retargeted jump as well
+        assert_eq!(m.first_difference_offset, 0);
     }
 
     #[test]

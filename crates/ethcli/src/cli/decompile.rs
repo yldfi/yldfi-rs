@@ -49,6 +49,13 @@ pub struct TargetArgs {
     #[arg(long)]
     pub no_follow_proxy: bool,
 
+    /// Follow a proxy slot (EIP-1967, beacon, legacy) or implementation()
+    /// getter even when ethcli's call analysis does not confirm that the
+    /// code delegates every unmatched call to it. By default such a value is
+    /// reported in `target.proxy_slot` and the address's own code is used
+    #[arg(long, conflicts_with = "no_follow_proxy")]
+    pub follow_proxy: bool,
+
     /// Custom RPC URL (overrides config)
     #[arg(long, value_name = "URL")]
     pub rpc_url: Option<String>,
@@ -122,6 +129,11 @@ pub struct MatchArgs {
     /// side for each function marked different (JSON: `functions[].diff`)
     #[arg(long)]
     pub diff: bool,
+
+    /// List only the functions marked different (leave out equal and
+    /// equal_shifted rows; `functions_hidden` counts them)
+    #[arg(long)]
+    pub only_different: bool,
 }
 
 /// Code fetched for one address
@@ -138,6 +150,9 @@ struct Target {
     /// immutable args (whether or not it was followed)
     immutable_args: Option<crate::bytecode::ImmutableArgsClone>,
     notes: Vec<String>,
+    /// A proxy slot or getter that was found but not confirmed by the call
+    /// analysis: kind, value, whether it was followed, why not, how to force
+    proxy_slot: Option<Value>,
     endpoint: Endpoint,
 }
 
@@ -183,6 +198,11 @@ struct ProxyCheck {
     /// Selectors under which the code delegates as `kind` says, when it
     /// does so only inside specific functions
     only_under: Vec<String>,
+    /// A DELEGATECALL on the dispatcher path targets a code constant (an
+    /// immutable) equal to the slot value: the code forwards unmatched calls
+    /// to a fixed address that it also keeps in the slot. That is not the
+    /// proxy shape (the slot can be changed, the constant cannot)
+    constant_target: bool,
 }
 
 /// A slot alone proves nothing (any contract can write to it), and so does
@@ -229,6 +249,79 @@ fn proxy_check(
     }
     let report = analyze_calls(code, CallsBudget::default());
     proxy_check_report(kind, &report, implementation, beacon)
+}
+
+/// Why a proxy slot or getter value is not followed, or `None` when the call
+/// analysis confirms the code delegates every unmatched call to it. A slot
+/// value alone is not proof: a contract can keep an address there and still
+/// run its own dispatcher (Yearn V3 tokenized strategies keep their
+/// TokenizedStrategy library in the EIP-1967 slot and delegate to it only
+/// from the fallback, through an immutable)
+fn not_followed_reason(
+    kind: &str,
+    check: &ProxyCheck,
+    implementation: Address,
+    own_functions: usize,
+) -> Option<String> {
+    let imp = implementation.to_checksum(None);
+    let source = proxy_value_source(kind);
+    if source == "getter" {
+        return Some(format!(
+            "answers implementation() with {imp}, but that alone does not make it a proxy"
+        ));
+    }
+    if check.ok {
+        return None;
+    }
+    // A pure forwarder: no selectors of its own, every call delegated to a
+    // fixed address that is also the slot value. It runs that code for
+    // every call, like an EIP-1167 clone
+    if check.constant_target && own_functions == 0 {
+        return None;
+    }
+    let own = if own_functions > 0 {
+        format!("; its own code has a dispatcher with {own_functions} function(s)")
+    } else {
+        String::new()
+    };
+    let head = format!("{kind}: {imp} (from the {source}) is not confirmed as the code that runs");
+    Some(if check.constant_target {
+        format!(
+            "{head}: the code delegates the calls its dispatcher does not match to that address as a code constant (an immutable), not through the {source}, and handles its own selectors itself{own}"
+        )
+    } else if !check.only_under.is_empty() {
+        format!(
+            "{head}: this address delegates to it only under selector {}, not for every call{own}",
+            check.only_under.join(", ")
+        )
+    } else if check.complete {
+        format!(
+            "{head}: ethcli's call analysis (complete) finds no DELEGATECALL in this address's own code whose target comes from that {source}, so it does not run that code{own}"
+        )
+    } else {
+        format!(
+            "{head}: ethcli's call analysis could not confirm that this address delegates to it (coverage incomplete){own}"
+        )
+    })
+}
+
+/// Where a proxy kind's implementation value comes from
+fn proxy_value_source(kind: &str) -> &'static str {
+    if kind.starts_with("implementation() getter") {
+        "getter"
+    } else if kind == "Safe proxy" {
+        "safe"
+    } else if kind.contains("beacon") {
+        "beacon"
+    } else if kind.starts_with("EIP-1167")
+        || kind == "Vyper forwarder proxy"
+        || kind.contains("immutable args")
+        || kind.contains("clone")
+    {
+        "constant"
+    } else {
+        "slot"
+    }
 }
 
 fn is_constant(p: &crate::bytecode::Provenance, addr: Address) -> bool {
@@ -315,6 +408,13 @@ fn proxy_check_report(
             _ => false,
         });
         if !matches {
+            let slot_kind = matches!(kind, "EIP-1967 proxy" | "OpenZeppelin legacy proxy");
+            if slot_kind
+                && site.functions.iter().any(|f| f == "dispatcher")
+                && site.target.iter().any(|t| is_constant(t, implementation))
+            {
+                check.constant_target = true;
+            }
             continue;
         }
         if site.functions.iter().any(|f| f == "dispatcher") {
@@ -448,6 +548,7 @@ async fn fetch_target(chain: Chain, args: &TargetArgs, quiet: bool) -> anyhow::R
     let mut resolved_via = None;
     let mut own_code = None;
     let mut notes = Vec::new();
+    let mut proxy_slot = None;
 
     if code.len() == 23 && code[..3] == [0xef, 0x01, 0x00] {
         let delegate = Address::from_slice(&code[3..]);
@@ -499,41 +600,20 @@ async fn fetch_target(chain: Chain, args: &TargetArgs, quiet: bool) -> anyhow::R
             } else {
                 proxy_check(kind, &code, implementation, beacon)
             };
-            if kind.starts_with("implementation() getter") {
-                notes.push(format!(
-                    "answers implementation() with {}, but that alone does not make it a proxy; using its own code",
-                    implementation.to_checksum(None)
-                ));
-            } else if !check.ok {
-                let warning = if !check.only_under.is_empty() {
-                    format!(
-                        "{kind}: points to {}, but this address delegates to it only under selector {}, not for every call; analysing its own code",
-                        implementation.to_checksum(None),
-                        check.only_under.join(", ")
-                    )
-                } else if check.complete {
-                    format!(
-                        "{kind}: points to {}, but ethcli's call analysis (complete) finds no DELEGATECALL in this address's own code whose target comes from that slot, beacon or constant, so it does not run that code; analysing its own code",
-                        implementation.to_checksum(None)
-                    )
-                } else {
-                    format!(
-                        "{kind}: points to {}, but ethcli's call analysis could not confirm that this address delegates to it (coverage incomplete); analysing its own code",
-                        implementation.to_checksum(None)
-                    )
-                };
-                if !quiet {
-                    eprintln!("Warning: {warning}");
-                }
-                notes.push(warning);
-            } else {
+            let own_functions = extract_selectors(&code).len();
+            let reason = not_followed_reason(kind, &check, implementation, own_functions);
+            let mut followed = false;
+            let mut no_code = false;
+            if reason.is_none() || args.follow_proxy {
                 let impl_code = get_code(implementation).await?;
                 if impl_code.is_empty() {
+                    no_code = true;
                     notes.push(format!(
                         "{kind} implementation {} has no code; using the proxy's own code",
                         implementation.to_checksum(None)
                     ));
                 } else {
+                    followed = true;
                     if !quiet {
                         eprintln!(
                             "{kind}: using implementation {}",
@@ -544,6 +624,27 @@ async fn fetch_target(chain: Chain, args: &TargetArgs, quiet: bool) -> anyhow::R
                     code_address = implementation;
                     resolved_via = Some(kind.to_string());
                 }
+            }
+            if let Some(reason) = &reason {
+                let line = if followed {
+                    format!("{reason}; followed anyway because --follow-proxy was given")
+                } else if no_code {
+                    format!("{reason}; --follow-proxy was given but that address has no code, so its own code is analysed")
+                } else {
+                    format!("{reason}; not followed, analysing its own code (pass --follow-proxy to use that code instead)")
+                };
+                proxy_slot = Some(json!({
+                    "kind": kind,
+                    "source": proxy_value_source(kind),
+                    "value": implementation.to_checksum(None),
+                    "followed": followed,
+                    "reason": reason,
+                    "force_with": if followed || no_code { Value::Null } else { json!("--follow-proxy") },
+                }));
+                if !quiet && proxy_value_source(kind) != "getter" {
+                    eprintln!("Warning: {line}");
+                }
+                notes.push(line);
             }
         }
     }
@@ -562,6 +663,7 @@ async fn fetch_target(chain: Chain, args: &TargetArgs, quiet: bool) -> anyhow::R
         own_code,
         immutable_args,
         notes,
+        proxy_slot,
         endpoint,
     })
 }
@@ -634,6 +736,7 @@ fn target_json(chain: Chain, t: &Target) -> Value {
         .immutable_args
         .as_ref()
         .map_or(Value::Null, |c| c.to_json());
+    v["proxy_slot"] = t.proxy_slot.clone().unwrap_or(Value::Null);
     v
 }
 
@@ -1706,6 +1809,18 @@ fn print_target_table(out: &Value) {
             t["code_address"].as_str().unwrap_or("")
         );
     }
+    if let Some(p) = t["proxy_slot"].as_object() {
+        println!(
+            "Proxy slot: {} = {}, {}",
+            p["kind"].as_str().unwrap_or(""),
+            p["value"].as_str().unwrap_or(""),
+            if p["followed"] == true {
+                "followed (--follow-proxy)"
+            } else {
+                "NOT followed (its own code is analysed; --follow-proxy forces it)"
+            }
+        );
+    }
     println!(
         "Code: {} bytes, hash {}",
         t["code_size"],
@@ -1883,6 +1998,16 @@ pub async fn fingerprint_cmd(
                 .join(", "))
             .unwrap_or_default()
     );
+    if let Some(max) = f["max_evm_version"].as_str() {
+        println!("EVM version: consistent with {max} or earlier (a consistency bound, not proof)");
+    }
+    println!(
+        "PUSH0: executed {}, in the executable code {}",
+        f["push0_executed"], f["push0_in_code"]
+    );
+    for r in f["evm_version_reasons"].as_array().into_iter().flatten() {
+        println!("  {}", r.as_str().unwrap_or(""));
+    }
     println!(
         "Pipeline (guess): {} - {}",
         f["pipeline_guess"].as_str().unwrap_or("?"),
@@ -1909,6 +2034,17 @@ pub async fn fingerprint_cmd(
         list("other_literal"),
         list("other_shifted")
     );
+    println!(
+        "Optimizer runs bucket: {}",
+        f["optimizer_runs_bucket"].as_str().unwrap_or("unknown")
+    );
+    for e in f["optimizer_runs_bucket_evidence"]
+        .as_array()
+        .into_iter()
+        .flatten()
+    {
+        println!("  {}", e.as_str().unwrap_or(""));
+    }
     match f["dispatcher"].as_str() {
         Some(d) => println!(
             "Functions: {d} (calldata read at {})",
@@ -2131,7 +2267,7 @@ pub async fn match_cmd(chain: Chain, args: &MatchArgs, quiet: bool) -> anyhow::R
         None => guidance.push("inline assembly share unknown: the artifact has no AST (build with `forge build --ast`)".into()),
     }
 
-    let out = json!({
+    let mut out = json!({
         "target": target_json(chain, &target),
         "notes": target.notes,
         "artifact": {
@@ -2150,11 +2286,29 @@ pub async fn match_cmd(chain: Chain, args: &MatchArgs, quiet: bool) -> anyhow::R
         "inline_assembly": asm,
         "guidance": guidance,
     });
+    if args.only_different {
+        only_different_functions(&mut out);
+    }
     if !args.target.format.is_table() {
         return print_json(&args.target.format, &out);
     }
     print_match_table(&out);
     Ok(())
+}
+
+/// `--only-different`: keep the function rows marked different, and say
+/// how many others were left out
+fn only_different_functions(out: &mut Value) {
+    let Some(mm) = out["match"]["mismatch"].as_object_mut() else {
+        return;
+    };
+    let Some(functions) = mm.get_mut("functions").and_then(Value::as_array_mut) else {
+        return;
+    };
+    let before = functions.len();
+    functions.retain(|f| f["status"] == "different");
+    let hidden = before - functions.len();
+    mm.insert("functions_hidden".into(), json!(hidden));
 }
 
 /// Side-by-side rows of `match --diff`, one block per function
@@ -2288,9 +2442,12 @@ fn print_match_table(out: &Value) {
             mm["table_method"].as_str().unwrap_or(""),
             m["function_mapping"].as_str().unwrap_or("")
         );
+        if let Some(n) = mm.get("functions_hidden").and_then(Value::as_u64) {
+            println!("  ({n} equal or equal_shifted function(s) left out by --only-different)");
+        }
         for f in mm["functions"].as_array().into_iter().flatten() {
             println!(
-                "  {:<10} {:>6} instr  {}",
+                "  {:<13} {:>6} instr  {}",
                 f["status"].as_str().unwrap_or(""),
                 f["instructions"],
                 f["function"].as_str().unwrap_or("")
@@ -2638,6 +2795,59 @@ mod tests {
             &hex::decode("333214600057").unwrap(),
             imp
         ));
+    }
+
+    #[test]
+    fn slot_value_reached_through_an_immutable_is_not_followed() {
+        let imp = Address::repeat_byte(0x11);
+        // retLen retOff argsLen argsOff | PUSH20 imp | GAS DELEGATECALL STOP:
+        // forwards to a fixed address, whatever the slot holds
+        let fixed =
+            hex::decode(format!("60006000366000{}{}5af400", "73", "11".repeat(20))).unwrap();
+        let check = proxy_check("EIP-1967 proxy", &fixed, imp, None);
+        assert!(!check.ok);
+        assert!(check.constant_target);
+        // With no selectors of its own it is a pure forwarder: followed
+        assert_eq!(not_followed_reason("EIP-1967 proxy", &check, imp, 0), None);
+        // With its own dispatcher it is not
+        let reason = not_followed_reason("EIP-1967 proxy", &check, imp, 40).unwrap();
+        assert!(reason.contains("not confirmed"));
+        assert!(reason.contains("from the slot"));
+        assert!(reason.contains("code constant"));
+        assert!(reason.contains("40 function(s)"));
+        assert!(!reason.contains("library"));
+        assert_eq!(proxy_value_source("EIP-1967 beacon proxy"), "beacon");
+        assert_eq!(proxy_value_source("Safe proxy"), "safe");
+        assert_eq!(proxy_value_source("implementation() getter"), "getter");
+        assert_eq!(proxy_value_source("EIP-1167 minimal proxy"), "constant");
+        // A real EIP-1967 forwarder is followed
+        let real = hex::decode(format!("600060003660007f{SLOT}545af400")).unwrap();
+        let check = proxy_check("EIP-1967 proxy", &real, imp, None);
+        assert!(check.ok && !check.constant_target);
+        assert_eq!(not_followed_reason("EIP-1967 proxy", &check, imp, 0), None);
+        // A getter alone is never followed without --follow-proxy
+        assert!(
+            not_followed_reason("implementation() getter", &ProxyCheck::default(), imp, 0)
+                .is_some()
+        );
+    }
+
+    #[test]
+    fn yearn_v3_strategy_is_not_a_proxy() {
+        // Mainnet Yearn V3 tokenized strategy: the EIP-1967 slot holds the
+        // TokenizedStrategy library, which the fallback reaches through an
+        // immutable
+        let code = hex::decode(
+            include_str!("../../tests/fixtures/match/yearn_v3_strategy_runtime.hex").trim(),
+        )
+        .unwrap();
+        let library = Address::from_str("0xD377919FA87120584B21279a491F82D5265A139c").unwrap();
+        let check = proxy_check("EIP-1967 proxy", &code, library, None);
+        assert!(!check.ok);
+        assert!(check.constant_target);
+        let own = extract_selectors(&code).len();
+        assert!(own > 10, "own dispatcher: {own}");
+        assert!(not_followed_reason("EIP-1967 proxy", &check, library, own).is_some());
     }
 
     #[test]

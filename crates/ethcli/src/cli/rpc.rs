@@ -64,13 +64,21 @@ pub enum RpcCommands {
         #[arg(value_name = "DATA")]
         data: Option<String>,
 
-        /// Function signature (e.g., "balanceOf(address)")
+        /// Function signature, e.g. "balanceOf(address)". The form with
+        /// return types, "balanceOf(address)(uint256)", also decodes the
+        /// result (as --decode would)
         #[arg(long, short, conflicts_with = "data", value_name = "SIG")]
         sig: Option<String>,
 
-        /// Function arguments (use with --sig)
+        /// Function arguments (use with --sig). Split on spaces: use
+        /// --args-json for an argument that holds a space
         #[arg(long, short = 'a', num_args = 1.., value_delimiter = ' ', value_name = "ARG")]
         args: Option<Vec<String>>,
+
+        /// Function arguments as a JSON array of strings (use with --sig), for
+        /// arguments that contain spaces: '["hello world", "1"]'
+        #[arg(long, conflicts_with = "args", requires = "sig", value_name = "JSON")]
+        args_json: Option<String>,
 
         /// Block number, "latest", or a time (2024-01-31, @1706700000, 7d)
         #[arg(long, short, default_value = "latest", value_name = "BLOCK", long_help = BLOCK_OR_TIME_HELP)]
@@ -543,6 +551,7 @@ async fn run_action(
             data,
             sig,
             args,
+            args_json,
             block,
             decode,
             format,
@@ -550,10 +559,29 @@ async fn run_action(
             let to_addr =
                 Address::from_str(to).map_err(|e| anyhow::anyhow!("Invalid address: {}", e))?;
 
-            // Build calldata from either raw data or signature + args
-            let calldata = if let Some(signature) = sig {
+            // "name(args)(returns)": encode as multicall does and decode the
+            // result with the declared return types
+            let json_args: Option<Vec<String>> = args_json
+                .as_deref()
+                .map(|j| {
+                    serde_json::from_str(j).map_err(|e| {
+                        anyhow::anyhow!("--args-json must be a JSON array of strings: {e}")
+                    })
+                })
+                .transpose()?;
+            let func_args: &[String] = json_args.as_deref().or(args.as_deref()).unwrap_or(&[]);
+            let mut returns_fn: Option<alloy::json_abi::Function> = None;
+            let calldata = if let Some(signature) =
+                sig.as_deref().filter(|s| return_types_of(s).is_some())
+            {
+                let (function, calldata) =
+                    super::contract::encode_signature_call(signature, func_args)?;
+                if decode.is_none() && !function.outputs.is_empty() {
+                    returns_fn = Some(function);
+                }
+                calldata
+            } else if let Some(signature) = sig {
                 // Encode from function signature
-                let func_args = args.as_deref().unwrap_or(&[]);
                 let encoded = super::cast::abi_encode(signature, func_args)?;
                 let hex_str = encoded.strip_prefix("0x").unwrap_or(&encoded);
                 hex::decode(hex_str).map_err(|e| anyhow::anyhow!("Encoding error: {}", e))?
@@ -595,18 +623,39 @@ async fn run_action(
                 }
             };
 
-            if !format.is_table() {
+            if let Some(function) = &returns_fn {
+                let values = decode_returns_strict(function, &result)?;
+                if format.is_table() {
+                    for v in &values {
+                        println!("{}", super::contract::format_value(v));
+                    }
+                } else {
+                    let outputs: Vec<serde_json::Value> = values
+                        .iter()
+                        .map(super::contract::dyn_value_to_json)
+                        .collect();
+                    let out = serde_json::json!({
+                        "to": to_addr.to_checksum(None),
+                        "block": block,
+                        "raw": format!("0x{}", hex::encode(&result)),
+                        "returns": return_signature(function),
+                        "decoded": if outputs.len() == 1 { outputs[0].clone() } else { serde_json::Value::Array(outputs.clone()) },
+                        "outputs": outputs,
+                    });
+                    print_json(&out, *format)?;
+                }
+            } else if !format.is_table() {
                 let mut out = serde_json::json!({
                     "to": to_addr.to_checksum(None),
                     "block": block,
                     "raw": format!("0x{}", hex::encode(&result)),
                 });
-                if let Some(type_sig) = decode {
+                if let Some(type_sig) = decode.as_deref() {
                     out["type"] = serde_json::json!(type_sig);
                     out["decoded"] = decode_output_json(&result, type_sig)?;
                 }
                 print_json(&out, *format)?;
-            } else if let Some(type_sig) = decode {
+            } else if let Some(type_sig) = decode.as_deref() {
                 let decoded = decode_output(&result, type_sig)?;
                 println!("{}", decoded);
             } else {
@@ -1060,6 +1109,83 @@ pub fn parse_block_id(block: &str) -> anyhow::Result<alloy::eips::BlockId> {
             }
         }
     }
+}
+
+/// The declared return types of a function as one list, `(t1,t2)`
+fn return_signature(function: &alloy::json_abi::Function) -> String {
+    let types: Vec<String> = function
+        .outputs
+        .iter()
+        .map(|p| p.selector_type().into_owned())
+        .collect();
+    format!("({})", types.join(","))
+}
+
+/// Decode return data with a function's declared outputs, strictly: the
+/// values must re-encode to exactly the returned bytes, so declared types
+/// that do not fit the data (a `bool` where a `uint8` came back, a tuple
+/// where a struct came back) are an error, not a silent guess
+pub(super) fn decode_returns_strict(
+    function: &alloy::json_abi::Function,
+    data: &[u8],
+) -> anyhow::Result<Vec<alloy::dyn_abi::DynSolValue>> {
+    use alloy::dyn_abi::FunctionExt;
+    let sig = return_signature(function);
+    let values = function.abi_decode_output(data).map_err(|e| {
+        anyhow::anyhow!("Return data does not decode as {sig}: {e}. Check the declared return types, or call without them for the raw data")
+    })?;
+    let again = function
+        .abi_encode_output(&values)
+        .map_err(|e| anyhow::anyhow!("Cannot re-encode the decoded values as {sig}: {e}"))?;
+    if again != data {
+        anyhow::bail!(
+            "Return data ({} bytes) is not the canonical encoding of {sig} (re-encoded: {} bytes): the declared return types are probably wrong. Call without them for the raw data",
+            data.len(),
+            again.len()
+        );
+    }
+    Ok(values)
+}
+
+/// The return types of a `"name(args)(returns)"` signature as one type
+/// string for `--decode`: the bare type for one return value, a tuple for
+/// several, empty for `()`. `None` when the signature has no return part
+pub(super) fn return_types_of(signature: &str) -> Option<String> {
+    let sig = signature.trim();
+    let open = sig.find('(')?;
+    let mut depth = 0usize;
+    let mut close = None;
+    for (i, ch) in sig[open..].char_indices() {
+        match ch {
+            '(' => depth += 1,
+            ')' => {
+                depth -= 1;
+                if depth == 0 {
+                    close = Some(open + i);
+                    break;
+                }
+            }
+            _ => {}
+        }
+    }
+    let rest = sig[close? + 1..].trim();
+    let inner = rest.strip_prefix('(')?.strip_suffix(')')?.trim();
+    // One top-level type stays bare; several make a tuple
+    let mut depth = 0i32;
+    let top_level_comma = inner.chars().any(|c| {
+        match c {
+            '(' => depth += 1,
+            ')' => depth -= 1,
+            ',' if depth == 0 => return true,
+            _ => {}
+        }
+        false
+    });
+    Some(if top_level_comma {
+        format!("({inner})")
+    } else {
+        inner.to_string()
+    })
 }
 
 /// The address an EOA delegates to under EIP-7702, read from its code
@@ -1522,6 +1648,88 @@ mod tests {
 
     use super::*;
     use alloy::eips::{BlockId, BlockNumberOrTag};
+
+    fn returns_of(sig: &str) -> alloy::json_abi::Function {
+        super::super::contract::encode_signature_call(sig, &[])
+            .unwrap()
+            .0
+    }
+
+    #[test]
+    fn return_decoding_is_strict_and_keeps_structs() {
+        use alloy::dyn_abi::DynSolValue as V;
+        use alloy::primitives::U256;
+        let u = |n: u64| V::Uint(U256::from(n), 256);
+        // One struct (string, uint256): a single dynamic tuple on the wire
+        let one_struct =
+            V::Tuple(vec![V::Tuple(vec![V::String("ab".into()), u(7)])]).abi_encode_params();
+        let v = decode_returns_strict(&returns_of("f()((string,uint256))"), &one_struct).unwrap();
+        assert_eq!(v.len(), 1);
+        assert!(matches!(&v[0], V::Tuple(t) if t.len() == 2));
+        // The same bytes are not two return values
+        assert!(decode_returns_strict(&returns_of("f()(string,uint256)"), &one_struct).is_err());
+        // Two return values (string, uint256)
+        let two = V::Tuple(vec![V::String("ab".into()), u(7)]).abi_encode_params();
+        assert_eq!(
+            decode_returns_strict(&returns_of("f()(string,uint256)"), &two)
+                .unwrap()
+                .len(),
+            2
+        );
+        assert!(decode_returns_strict(&returns_of("f()((string,uint256))"), &two).is_err());
+        // Nested arrays
+        let nested = V::Tuple(vec![V::Array(vec![
+            V::Array(vec![u(1), u(2)]),
+            V::Array(vec![]),
+        ])])
+        .abi_encode_params();
+        let v = decode_returns_strict(&returns_of("f()(uint256[][])"), &nested).unwrap();
+        assert!(matches!(&v[0], V::Array(a) if a.len() == 2));
+        // bytes and string
+        let bs = V::Tuple(vec![V::Bytes(vec![1, 2, 3]), V::String("x".into())]).abi_encode_params();
+        assert_eq!(
+            decode_returns_strict(&returns_of("f()(bytes,string)"), &bs)
+                .unwrap()
+                .len(),
+            2
+        );
+        // Wrong declared types are errors: name() returns one string
+        let name = V::Tuple(vec![V::String("USD Coin".into())]).abi_encode_params();
+        assert!(decode_returns_strict(&returns_of("name()(string,uint256)"), &name).is_err());
+        // decimals() returns 6, which is not a bool
+        let six = V::Tuple(vec![u(6)]).abi_encode_params();
+        assert!(decode_returns_strict(&returns_of("decimals()(bool)"), &six).is_err());
+        assert!(decode_returns_strict(&returns_of("decimals()(uint8)"), &six).is_ok());
+        // Extra bytes after the values are not accepted silently
+        let mut longer = six.clone();
+        longer.extend([0u8; 32]);
+        assert!(decode_returns_strict(&returns_of("decimals()(uint8)"), &longer).is_err());
+    }
+
+    #[test]
+    fn return_types_from_signature() {
+        assert_eq!(return_types_of("balanceOf(address)"), None);
+        assert_eq!(
+            return_types_of("balanceOf(address)(uint256)").as_deref(),
+            Some("uint256")
+        );
+        assert_eq!(
+            return_types_of("getReserves()(uint112,uint112,uint32)").as_deref(),
+            Some("(uint112,uint112,uint32)")
+        );
+        assert_eq!(
+            return_types_of("f((uint256,address))((uint256,address))").as_deref(),
+            Some("(uint256,address)")
+        );
+        assert_eq!(return_types_of("f()()").as_deref(), Some(""));
+        // The return form encodes the same calldata as the plain one
+        let (_, plain) = super::super::contract::encode_signature_call(
+            "balanceOf(address)(uint256)",
+            &["0x0000000000000000000000000000000000000001".to_string()],
+        )
+        .unwrap();
+        assert_eq!(hex::encode(&plain[..4]), "70a08231");
+    }
 
     #[test]
     fn decode_output_json_keeps_big_integers_as_strings() {
