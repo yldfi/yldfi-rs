@@ -223,11 +223,65 @@ pub fn write_atomic(path: &Path, data: &[u8]) -> anyhow::Result<()> {
         .ok_or_else(|| anyhow::anyhow!("no parent folder for {}", path.display()))?;
     std::fs::create_dir_all(dir)?;
     let name = path.file_name().unwrap_or_default().to_string_lossy();
-    let tmp = dir.join(format!(".{name}.tmp-{}", std::process::id()));
-    std::fs::write(&tmp, data)?;
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.subsec_nanos())
+        .unwrap_or(0);
+    let tmp = dir.join(format!(".{name}.tmp-{}-{nanos}", std::process::id()));
+    // create_new: never reuse or follow an existing entry at the temp path
+    write_new(&tmp, data)?;
     if let Err(e) = std::fs::rename(&tmp, path) {
         let _ = std::fs::remove_file(&tmp);
         return Err(e.into());
+    }
+    Ok(())
+}
+
+/// Create `path` exclusively (O_EXCL: fails if anything, including a
+/// symlink, is already there) and write `data`.
+fn write_new(path: &Path, data: &[u8]) -> std::io::Result<()> {
+    use std::io::Write;
+    let mut f = std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(path)?;
+    f.write_all(data)?;
+    f.sync_all()
+}
+
+fn is_symlink(path: &Path) -> bool {
+    std::fs::symlink_metadata(path).is_ok_and(|m| m.file_type().is_symlink())
+}
+
+/// Refuse when any component of `path` below `anchor` (the anchor itself is
+/// trusted) is a symlink, so a planted link cannot redirect a write.
+fn check_no_symlinks(anchor: &Path, path: &Path) -> anyhow::Result<()> {
+    let rel = path
+        .strip_prefix(anchor)
+        .map_err(|_| anyhow::anyhow!("{} is not under {}", path.display(), anchor.display()))?;
+    let mut cur = anchor.to_path_buf();
+    for c in rel.components() {
+        cur.push(c);
+        if is_symlink(&cur) {
+            anyhow::bail!(
+                "refusing to write through a symlink: {} (remove it or install elsewhere)",
+                cur.display()
+            );
+        }
+    }
+    Ok(())
+}
+
+/// After writing, the real path must still be under the real root.
+fn check_contained(root: &Path, path: &Path) -> anyhow::Result<()> {
+    let real_root = std::fs::canonicalize(root)?;
+    let real = std::fs::canonicalize(path)?;
+    if !real.starts_with(&real_root) {
+        anyhow::bail!(
+            "{} resolves outside {}; refusing",
+            path.display(),
+            root.display()
+        );
     }
     Ok(())
 }
@@ -283,9 +337,11 @@ pub struct InstallResult {
 }
 
 /// Install skills under `root`. Pure apart from the file system; `manifest`
-/// is updated in memory.
+/// is updated in memory. No path component below `anchor` (the project
+/// folder for a project install, else `root` itself) may be a symlink.
 pub fn install(
     root: &Path,
+    anchor: &Path,
     names: &[String],
     force: bool,
     manifest: &mut Manifest,
@@ -308,6 +364,7 @@ pub fn install(
             let body = embedded_file(skill.name, file).unwrap_or_default();
             let path = root.join(skill.name).join(file);
             let new_hash = sha256_hex(body.as_bytes());
+            check_no_symlinks(anchor, &path)?;
             let outcome = match std::fs::read(&path) {
                 Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
                     write_atomic(&path, body.as_bytes())?;
@@ -328,7 +385,10 @@ pub fn install(
                             path.file_name().unwrap_or_default().to_string_lossy(),
                             now_secs()
                         ));
-                        std::fs::write(&backup, &existing)?;
+                        check_no_symlinks(anchor, &backup)?;
+                        write_new(&backup, &existing).map_err(|e| {
+                            anyhow::anyhow!("cannot create backup {}: {e}", backup.display())
+                        })?;
                         write_atomic(&path, body.as_bytes())?;
                         InstallOutcome::Replaced { backup }
                     } else {
@@ -337,6 +397,8 @@ pub fn install(
                 }
             };
             if outcome != InstallOutcome::Refused {
+                check_no_symlinks(anchor, &path)?;
+                check_contained(root, &path)?;
                 manifest.record(ManifestEntry {
                     path: path.clone(),
                     skill: skill.name.to_string(),
@@ -369,9 +431,15 @@ pub enum EntryState {
     Missing,
     /// This binary no longer ships that skill file.
     NotShipped,
+    /// The file or its skill folder is now a symlink; never followed.
+    Symlink,
 }
 
 pub fn entry_state(entry: &ManifestEntry) -> EntryState {
+    let skill_dir = entry.path.parent();
+    if is_symlink(&entry.path) || skill_dir.is_some_and(is_symlink) {
+        return EntryState::Symlink;
+    }
     let Ok(existing) = std::fs::read(&entry.path) else {
         return EntryState::Missing;
     };
@@ -406,7 +474,14 @@ pub fn update(manifest: &mut Manifest) -> anyhow::Result<Vec<UpdateResult>> {
         let mut refreshed = false;
         if state == EntryState::Outdated {
             let body = embedded_file(&entry.skill, &entry.file).unwrap_or_default();
+            let root = entry
+                .path
+                .parent()
+                .and_then(Path::parent)
+                .ok_or_else(|| anyhow::anyhow!("bad manifest path {}", entry.path.display()))?;
+            check_no_symlinks(root, &entry.path)?;
             write_atomic(&entry.path, body.as_bytes())?;
+            check_contained(root, &entry.path)?;
             manifest.record(ManifestEntry {
                 version: SKILLS_VERSION.to_string(),
                 sha256: sha256_hex(body.as_bytes()),
@@ -437,6 +512,7 @@ fn state_word(s: EntryState) -> &'static str {
         EntryState::Modified => "modified",
         EntryState::Missing => "missing",
         EntryState::NotShipped => "not shipped",
+        EntryState::Symlink => "symlink",
     }
 }
 
@@ -483,7 +559,8 @@ pub fn handle(action: SkillsCommands) -> anyhow::Result<()> {
             let root = target_root(target, dir.as_deref(), cwd.as_deref())?;
             let manifest_path = Manifest::default_path();
             let mut manifest = Manifest::load(&manifest_path)?;
-            let results = install(&root, &names, force, &mut manifest)?;
+            let anchor = cwd.clone().unwrap_or_else(|| root.clone());
+            let results = install(&root, &anchor, &names, force, &mut manifest)?;
             manifest.save(&manifest_path)?;
             let mut refused = 0;
             for r in &results {
@@ -615,14 +692,14 @@ mod tests {
         let root = tmp.path().join("skills");
         let mut m = Manifest::default();
 
-        let r = install(&root, &names(), false, &mut m).unwrap();
+        let r = install(&root, &root, &names(), false, &mut m).unwrap();
         assert!(r.iter().all(|r| r.outcome == InstallOutcome::Written));
         let skill_md = root.join("ethcli/SKILL.md");
         assert!(skill_md.is_file());
         assert_eq!(m.entries.len(), r.len());
 
         // Re-install: unchanged
-        let r = install(&root, &names(), false, &mut m).unwrap();
+        let r = install(&root, &root, &names(), false, &mut m).unwrap();
         assert!(r.iter().all(|r| r.outcome == InstallOutcome::Unchanged));
 
         // Manifest round trip
@@ -634,7 +711,7 @@ mod tests {
         std::fs::write(&skill_md, "my own notes").unwrap();
         let e = m.get(&skill_md).unwrap().clone();
         assert_eq!(entry_state(&e), EntryState::Modified);
-        let r = install(&root, &["ethcli".into()], false, &mut m).unwrap();
+        let r = install(&root, &root, &["ethcli".into()], false, &mut m).unwrap();
         assert_eq!(r[0].outcome, InstallOutcome::Refused);
         assert_eq!(std::fs::read_to_string(&skill_md).unwrap(), "my own notes");
 
@@ -646,7 +723,7 @@ mod tests {
         assert_eq!(std::fs::read_to_string(&skill_md).unwrap(), "my own notes");
 
         // --force replaces and keeps a backup
-        let r = install(&root, &["ethcli".into()], true, &mut m).unwrap();
+        let r = install(&root, &root, &["ethcli".into()], true, &mut m).unwrap();
         let InstallOutcome::Replaced { backup } = &r[0].outcome else {
             panic!("expected Replaced, got {:?}", r[0].outcome)
         };
@@ -664,7 +741,7 @@ mod tests {
         std::fs::create_dir_all(p.parent().unwrap()).unwrap();
         std::fs::write(&p, "custom").unwrap();
         let mut m = Manifest::default();
-        let r = install(root, &["bytecode-to-source".into()], false, &mut m).unwrap();
+        let r = install(root, root, &["bytecode-to-source".into()], false, &mut m).unwrap();
         assert_eq!(r[0].outcome, InstallOutcome::Refused);
         assert!(m.entries.is_empty());
         assert_eq!(std::fs::read_to_string(&p).unwrap(), "custom");
@@ -745,10 +822,108 @@ mod tests {
         assert!(target_root(InstallTarget::Dir, None, None).is_err());
     }
 
+    #[cfg(unix)]
+    mod symlinks {
+        use super::super::*;
+        use std::os::unix::fs::symlink;
+
+        fn setup() -> (tempfile::TempDir, PathBuf, PathBuf) {
+            let tmp = tempfile::tempdir().unwrap();
+            let project = tmp.path().join("proj");
+            let outside = tmp.path().join("outside");
+            std::fs::create_dir_all(&project).unwrap();
+            std::fs::create_dir_all(&outside).unwrap();
+            (tmp, project, outside)
+        }
+
+        fn empty_dir(p: &Path) -> bool {
+            std::fs::read_dir(p).unwrap().next().is_none()
+        }
+
+        #[test]
+        fn symlinked_parent_claude_dir_is_refused() {
+            let (_t, project, outside) = setup();
+            symlink(&outside, project.join(".claude")).unwrap();
+            let root = project.join(".claude/skills");
+            let mut m = Manifest::default();
+            assert!(install(&root, &project, &[], false, &mut m).is_err());
+            assert!(empty_dir(&outside));
+            assert!(m.entries.is_empty());
+        }
+
+        #[test]
+        fn symlinked_skill_dir_is_refused() {
+            let (_t, project, outside) = setup();
+            let root = project.join(".claude/skills");
+            std::fs::create_dir_all(&root).unwrap();
+            symlink(&outside, root.join("ethcli")).unwrap();
+            let mut m = Manifest::default();
+            assert!(install(&root, &project, &["ethcli".into()], true, &mut m).is_err());
+            assert!(empty_dir(&outside));
+        }
+
+        #[test]
+        fn symlinked_skill_file_is_refused_even_with_force() {
+            let (_t, project, outside) = setup();
+            let root = project.join(".claude/skills");
+            std::fs::create_dir_all(root.join("ethcli")).unwrap();
+            let target = outside.join("victim");
+            std::fs::write(&target, "secret").unwrap();
+            symlink(&target, root.join("ethcli/SKILL.md")).unwrap();
+            let mut m = Manifest::default();
+            assert!(install(&root, &project, &["ethcli".into()], true, &mut m).is_err());
+            assert_eq!(std::fs::read_to_string(&target).unwrap(), "secret");
+            assert_eq!(std::fs::read_dir(&outside).unwrap().count(), 1);
+        }
+
+        #[test]
+        fn precreated_backup_symlink_is_not_followed() {
+            let (_t, project, outside) = setup();
+            let root = project.join(".claude/skills");
+            let skill_md = root.join("ethcli/SKILL.md");
+            std::fs::create_dir_all(skill_md.parent().unwrap()).unwrap();
+            std::fs::write(&skill_md, "custom").unwrap();
+            let target = outside.join("victim");
+            // Plant links at every backup name the next seconds could produce
+            let now = now_secs();
+            for t in now..now + 5 {
+                symlink(&target, root.join(format!("ethcli/SKILL.md.bak-{t}"))).unwrap();
+            }
+            let mut m = Manifest::default();
+            assert!(install(&root, &project, &["ethcli".into()], true, &mut m).is_err());
+            assert!(!target.exists());
+            assert_eq!(std::fs::read_to_string(&skill_md).unwrap(), "custom");
+        }
+
+        #[test]
+        fn update_skips_entry_that_became_a_symlink() {
+            let (_t, project, outside) = setup();
+            let root = project.join(".claude/skills");
+            let mut m = Manifest::default();
+            install(&root, &project, &["ethcli".into()], false, &mut m).unwrap();
+            let p = root.join("ethcli/SKILL.md");
+            m.entries[0].sha256 = sha256_hex(b"old");
+            let target = outside.join("victim");
+            std::fs::write(&target, "old").unwrap();
+            std::fs::remove_file(&p).unwrap();
+            symlink(&target, &p).unwrap();
+            let u = update(&mut m).unwrap();
+            assert_eq!(u[0].state, EntryState::Symlink);
+            assert!(!u[0].refreshed);
+            assert_eq!(std::fs::read_to_string(&target).unwrap(), "old");
+
+            std::fs::remove_file(&p).unwrap();
+            std::fs::remove_dir(root.join("ethcli")).unwrap();
+            symlink(&outside, root.join("ethcli")).unwrap();
+            let u = update(&mut m).unwrap();
+            assert_eq!(u[0].state, EntryState::Symlink);
+        }
+    }
+
     #[test]
     fn unknown_skill_name_errors() {
         let tmp = tempfile::tempdir().unwrap();
         let mut m = Manifest::default();
-        assert!(install(tmp.path(), &["nope".into()], false, &mut m).is_err());
+        assert!(install(tmp.path(), tmp.path(), &["nope".into()], false, &mut m).is_err());
     }
 }
