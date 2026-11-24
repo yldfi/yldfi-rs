@@ -712,7 +712,15 @@ ethcli contract twins <addr> --submit-similarity # WRITES to Sourcify
   time (15 s; 10 s in analyze), distinct states per (pc, function) (24
   distinct stacks, plus up to 4 memory/last-call variants per stack,
   explored after every other path so they never crowd one out; all drops
-  counted in `states_pruned`). `tests/calls_corpus.rs` (ignored) writes
+  counted in `states_pruned`). When the first pass prunes, a second
+  pass (half the first pass's steps, at least 50k; time only as a
+  backstop, so results do not depend on machine speed) makes capped values
+  `V::Fresh` (an unknown with an identity; dedup compares stacks with
+  them erased) and joins states over the caps into per-(pc, function,
+  height, JUMPDEST constants) summaries explored after every precise
+  path; its facts are only added (resolved values, within the
+  per-field cap), so it never removes a first-pass fact, and coverage
+  stays the first pass's. `tests/calls_corpus.rs` (ignored) writes
   every fact for a directory of bytecode, for A/B runs between builds.
   `coverage` gives evmole
   CFG blocks analysed / reachable, unresolved jumps and call sites, prunes,
