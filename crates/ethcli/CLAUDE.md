@@ -50,6 +50,7 @@ ethcli endpoints  # Manage RPC endpoints
 ethcli config     # Manage configuration
 ethcli update     # Check for updates
 ethcli upgrade    # Download and install the latest release (ethcli + ethcli-mcp; symlink/wrapper-safe with rollback since 0.23.5)
+ethcli skills     # Embedded agent skills: list, show, install (claude/codex/dir, --project), update, status; upgrade runs `skills update`
 ethcli doctor     # Diagnose configuration and connectivity
 ethcli chainlist  # Browse chains and discover RPC endpoints from chainlist.org
 ethcli completions # Generate shell completions (bash, zsh, fish, powershell)
@@ -1946,6 +1947,7 @@ src/
     ├── tenderly.rs   # Tenderly API commands
     ├── token.rs      # Token commands
     ├── update.rs     # Self-update from GitHub
+    ├── skills.rs     # Embedded skills (build.rs embeds crates/ethcli/skills/, a copy of skills/ kept in sync by a test)
     ├── price.rs      # Aggregated price command
     ├── portfolio.rs  # Aggregated portfolio command
     ├── nfts.rs       # Aggregated NFT command

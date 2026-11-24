@@ -138,8 +138,36 @@ See [ethcli-mcp](https://crates.io/crates/ethcli-mcp) for full documentation.
 tells a coding agent (Claude Code, Codex and others that read skills) which
 ethcli command answers which question, and which output fields to check
 before trusting a result: partial balance changes, guessed error names,
-incomplete histories. Copy the `skills/ethcli` folder into your agent's skills
-directory, for example `~/.claude/skills/ethcli/` for Claude Code.
+incomplete histories. `skills/bytecode-to-source/SKILL.md` covers rebuilding
+source for unverified contracts. Two ways to install them:
+
+- **`ethcli skills install`** (offline, matches the installed binary). The
+  skills are embedded in ethcli, so they always describe the version you run,
+  and `ethcli upgrade` refreshes them afterwards.
+
+  ```bash
+  ethcli skills list                        # embedded skills, version, content hash
+  ethcli skills show ethcli                 # print one
+  ethcli skills install                     # Claude Code: ~/.claude/skills/<name>/
+  ethcli skills install --target codex      # Codex and other agents: ~/.agents/skills/<name>/
+  ethcli skills install --target claude --project   # ./.claude/skills/<name>/
+  ethcli skills install --target codex --project    # ./.agents/skills/<name>/
+  ethcli skills install --target dir --dir <skills-folder> --name ethcli
+  ethcli skills status                      # current / outdated / modified / missing
+  ethcli skills update                      # refresh files unchanged since ethcli wrote them
+  ```
+
+  Locations match the `skills` CLI below (`$CLAUDE_CONFIG_DIR` is honoured).
+  Each file written is recorded with its hash in `skills-installed.json` in
+  ethcli's config folder (not the main config file). A file ethcli did not
+  write, or one you have edited, is never replaced silently: `install`
+  refuses it and `update` skips it. `install --force` replaces it and keeps
+  a `.bak-<timestamp>` copy. Skill hashes use the same algorithm as the
+  `skills` CLI's `computedHash` in `skills-lock.json`.
+
+- **`npx skills add yldfi/yldfi-rs`**, if you use the open agent-skills CLI
+  ([vercel-labs/skills](https://github.com/vercel-labs/skills)); it installs
+  from this repository's `skills/` folder for any agent it supports.
 
 ## Quick Start
 

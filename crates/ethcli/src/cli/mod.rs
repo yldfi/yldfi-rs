@@ -43,6 +43,7 @@ pub mod safe;
 pub mod schema;
 pub mod sig;
 pub mod simulate;
+pub mod skills;
 pub mod solodit;
 pub mod source_view;
 pub mod tenderly;
@@ -299,6 +300,8 @@ pub const MUTATING_COMMANDS: &[&str] = &[
     "simulate call",
     "simulate share",
     "simulate unshare",
+    "skills install",
+    "skills update",
     "tenderly actions resume",
     "tenderly actions resume-many",
     "tenderly actions stop",
@@ -701,8 +704,14 @@ pub enum Commands {
     /// Check for available updates
     Update,
 
-    /// Download and install the latest version
+    /// Download and install the latest version (then refreshes installed skills)
     Upgrade,
+
+    /// Agent skills shipped with this binary: list, show, install, update, status
+    Skills {
+        #[command(subcommand)]
+        action: skills::SkillsCommands,
+    },
 
     /// Check configuration and endpoint health
     Doctor,

@@ -352,6 +352,10 @@ async fn run(args: Vec<String>) -> anyhow::Result<()> {
             return ethcli::cli::update::handle(true, cli.quiet).await;
         }
 
+        Commands::Skills { action } => {
+            return ethcli::cli::skills::handle(action.clone());
+        }
+
         Commands::Doctor => {
             return ethcli::cli::doctor::handle(cli.quiet).await;
         }
