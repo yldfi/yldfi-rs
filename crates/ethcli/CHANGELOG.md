@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.30.15](https://github.com/yldfi/yldfi-rs/compare/ethcli-v0.30.14...ethcli-v0.30.15) (2026-11-24)
+
+
+### Features
+
+* **ethcli:** ship agent skills in the binary ([#327](https://github.com/yldfi/yldfi-rs/issues/327)) ([a0033b3](https://github.com/yldfi/yldfi-rs/commit/a0033b3db10e39877ed9c983f3573599b5e5f680))
+
 ## [0.30.14](https://github.com/yldfi/yldfi-rs/compare/ethcli-v0.30.13...ethcli-v0.30.14) (2026-11-24)
 
 
