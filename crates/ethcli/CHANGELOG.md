@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.30.18](https://github.com/yldfi/yldfi-rs/compare/ethcli-v0.30.17...ethcli-v0.30.18) (2026-11-24)
+
+
+### Features
+
+* **ethcli:** confirm proxies before following, EVM bounds and runs bucket in fingerprint ([#334](https://github.com/yldfi/yldfi-rs/issues/334)) ([e863851](https://github.com/yldfi/yldfi-rs/commit/e86385167e5ca642a48f33c965c8f898fda58701))
+
 ## [0.30.17](https://github.com/yldfi/yldfi-rs/compare/ethcli-v0.30.16...ethcli-v0.30.17) (2026-11-24)
 
 

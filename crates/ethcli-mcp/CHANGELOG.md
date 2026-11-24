@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.15](https://github.com/yldfi/yldfi-rs/compare/ethcli-mcp-v0.6.14...ethcli-mcp-v0.6.15) (2026-11-24)
+
+
+### Features
+
+* **ethcli:** confirm proxies before following, EVM bounds and runs bucket in fingerprint ([#334](https://github.com/yldfi/yldfi-rs/issues/334)) ([e863851](https://github.com/yldfi/yldfi-rs/commit/e86385167e5ca642a48f33c965c8f898fda58701))
+
 ## [0.6.14](https://github.com/yldfi/yldfi-rs/compare/ethcli-mcp-v0.6.13...ethcli-mcp-v0.6.14) (2026-11-24)
 
 
