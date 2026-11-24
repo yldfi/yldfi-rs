@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.14](https://github.com/yldfi/yldfi-rs/compare/ethcli-mcp-v0.6.13...ethcli-mcp-v0.6.14) (2026-11-24)
+
+
+### Features
+
+* **ethcli:** list Uniswap v4 positions in uniswap lp-positions ([#332](https://github.com/yldfi/yldfi-rs/issues/332)) ([c47ef4b](https://github.com/yldfi/yldfi-rs/commit/c47ef4bf6f91d2c75b9938fdc93f5f77fa1425c5))
+
 ## [0.6.13](https://github.com/yldfi/yldfi-rs/compare/ethcli-mcp-v0.6.12...ethcli-mcp-v0.6.13) (2026-11-24)
 
 
