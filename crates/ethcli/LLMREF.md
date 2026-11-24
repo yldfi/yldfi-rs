@@ -86,12 +86,14 @@ ethcli contract analyze <addr> --follow-proxy --lookup --dispatcher --checks
                                       # Unverified/proxy review: handler map + guard heuristics
                                       # analyze also adds `inferred` (evmole storage layout, CFG summary,
                                       # CBOR compiler metadata) and a `calls` summary; --no-inference skips them
-ethcli contract fingerprint <addr>  # Compiler + version, metadata hash, min EVM version, pipeline guess
+ethcli contract fingerprint <addr>  # Compiler + version, metadata hash, min EVM version, pipeline guess,
+                                     # optimizer_runs_hint (+ evidence pcs), fallback-only dispatcher
 ethcli contract decompile <addr> [--backend evmdec|heimdall|all]
                                      # Optional external decompilers, cross-checked first
 ethcli contract match <addr> --artifact out/X.sol/X.json [--contract X] [--creation-tx <hash>] [--build-info out/build-info/<id>.json]
                                      # exact / partial (ignoring metadata, NOT verified) /
                                      # partial_unverified_metadata (metadata bytes may hide code) / mismatch
+                                     # --diff: aligned artifact vs deployed opcodes per differing function
 ethcli contract calls <addr> [--block N] [--follow-proxy] [--lookup] [--json]
                                       # Every CALL/DELEGATECALL/STATICCALL/CALLCODE/CREATE/CREATE2: pc, function,
                                       # target/selector/value/args provenance (constant, storage slot, calldata

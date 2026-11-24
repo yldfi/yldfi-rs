@@ -18,10 +18,19 @@ Tools: `ethcli` (or the MCP tools `contract_fingerprint`, `contract_inspect`,
    Note the compiler and version (`metadata.version`), the metadata hash type,
    `min_evm_version` and the pipeline guess. Set `solc_version`,
    `evm_version` and the hash type (`bytecode_hash = "ipfs"`, `"bzzr1"` or
-   `"none"`) in `foundry.toml` to match. The optimizer runs and via-IR are not
-   in the code; start with the optimizer on at 200 runs and the legacy
-   pipeline, and change one setting at a time. If the proxy was followed, the
-   output names the implementation: rebuild that.
+   `"none"`) in `foundry.toml` to match. Via-IR is not in the code; start
+   with the legacy pipeline. Runs: read `optimizer_runs_hint` before
+   sweeping. Solc writes wide constants out when runs are high and computes
+   them when runs are low: `PUSH32 0x08c379a0..` (the `Error(string)`
+   selector) means about 5000 runs or more, `PUSH3 0x461bcd PUSH1 0xe5 SHL`
+   means fewer, and other selectors or masks written out (`PUSH32
+   0x70a08231..`, `PUSH20 0xff..ff`) next to the shifted selector mean about
+   1000-4000. Start at the hinted value (200 when `unknown`); optimizer-off
+   code also writes constants out. If the proxy was followed, the output
+   names the implementation: rebuild that. When `dispatcher` says
+   "fallback-only / packed-calldata executor", there are no ABI functions:
+   rebuild a `fallback()` that decodes the packed calldata at
+   `calldata_reads`.
 2. **Interface and storage from facts.** `ethcli contract inspect <addr> --json`
    (functions, mutability, proxy), `ethcli contract selectors <impl> --lookup`
    (evmole types), `ethcli contract analyze <impl> --dispatcher --checks`, and
@@ -39,12 +48,27 @@ Tools: `ethcli` (or the MCP tools `contract_fingerprint`, `contract_inspect`,
    fingerprint and disassembly show the original used it, and then keep it to
    the smallest block and say so. Assembly can copy bytecode without
    explaining it, so a match reached through assembly proves little.
+   A high inline-assembly share is acceptable when the disassembly shows
+   the original used assembly: raw `calldatacopy` loops, `revert(0, 0)`
+   with no return data copied, calls with no `extcodesize` check,
+   `BALANCE(ADDRESS)` where Solidity would emit `SELFBALANCE`. Then say the
+   match proves the bytes, not the intent.
+   In assembly-heavy code, statement order, the order variables are
+   declared (their final stack order) and pointer style (a `p := add(p, n)`
+   cursor against computed offsets) change the bytes even when the meaning
+   is the same: the legacy optimizer's common-subexpression step only
+   rewrites a block when its version is cheaper. Try the cursor style and
+   reorder declarations before changing logic.
 5. **Build.** `forge build --ast --build-info` (the ASTs of every source
    let `contract match` name functions, including inherited modifiers in
    other files, and measure the inline-assembly share).
 6. **Match.** `ethcli contract match <addr> --artifact out/<File>.sol/<Name>.json --json`.
    - `mismatch`: read `match.mismatch.function`, the bytes around
-     `first_difference_offset` and the per-function table. Fix only the
+     `first_difference_offset` and the per-function table. Add `--diff` to
+     see the artifact and deployed opcodes side by side for each function
+     marked different (`functions[].diff`: equal, changed, inserted,
+     deleted rows); `changed` DUP/SWAP rows with the same other opcodes
+     point to statement or declaration order. Fix only the
      function named `different`, rebuild, and match again. When the size
      differs, fix size-changing differences first (missing or extra
      statements, types, checked vs unchecked arithmetic).

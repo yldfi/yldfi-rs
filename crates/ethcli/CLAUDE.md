@@ -657,6 +657,21 @@ ethcli contract match <addr> --artifact <forge-or-solc-json> [--contract Name] [
   effectful opcode and the code has computed jumps, so entry cannot be ruled
   out because the call analysis did not resolve every path. A block the
   analysis executes is compared as code.
+- `match --diff` (`matcher::function_diffs`, `bytecode/opdiff.rs`): one
+  alignment over the executable code (prefix/suffix trim, LCS for pieces up
+  to 4M cells, else patience anchors; a piece with no anchor is shown as
+  replaced and `diff_method` says APPROXIMATE). Rows are bucketed by artifact
+  label; deployed-only rows take the label before them. Masked artifact
+  bytes match any deployed value. 3 rows of context, 200 rows per function.
+- Fingerprint `optimizer_runs_hint` (`metadata::optimizer_runs_hint`):
+  calibrated with solc 0.8.29 legacy: selectors and address masks are
+  written out from about 1000 runs, the `Error(string)` selector from about
+  5000; `PUSH1 0x1f NOT` stays at any runs and is ignored. Optimizer-off code
+  reads high; no shift opcodes reached gives `unknown`. `dispatcher` /
+  `calldata_reads` (also in `contract inspect`'s `interface`) are set when no
+  selector is found and reached code reads calldata.
+- `contract calls` table leaves `in_metadata` sites out of "not reached"
+  (a note counts them).
 - Fixture: `tests/fixtures/match/` (a small forge build and a one-line variant).
 ### `contract calls`, inferred facts, twins
 

@@ -320,6 +320,9 @@ pub struct ContractMatchInput {
     /// Use the address's own code even if it is a proxy
     #[serde(default)]
     pub no_follow_proxy: bool,
+    /// On a mismatch, add an aligned artifact/deployed instruction diff to each function marked different (functions[].diff; up to 200 rows per function)
+    #[serde(default)]
+    pub diff: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]

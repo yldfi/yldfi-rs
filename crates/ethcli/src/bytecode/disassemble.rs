@@ -132,6 +132,15 @@ pub fn operations_to_disassembled_ops(operations: &[Operation]) -> Vec<Disassemb
         .collect()
 }
 
+/// Mnemonic for a raw opcode byte; bytes with no defined opcode read
+/// `UNKNOWN(0x..)`
+pub fn mnemonic(op: u8) -> String {
+    match Opcode::from_byte(op) {
+        Opcode::INVALID if op != 0xfe => format!("UNKNOWN({op:#04x})"),
+        o => opcode_to_static_str(o).to_string(),
+    }
+}
+
 /// Get a static string for an opcode (avoids format! allocation)
 fn opcode_to_static_str(opcode: Opcode) -> &'static str {
     match opcode {

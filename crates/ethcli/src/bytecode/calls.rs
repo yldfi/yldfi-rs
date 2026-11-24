@@ -2262,7 +2262,8 @@ pub fn analyze_calls_with(
     if in_metadata > 0 {
         notes.push(format!(
             "{in_metadata} sensitive opcode byte(s) sit in the trailing metadata region, which \
-             holds no JUMPDEST; they are listed with in_metadata: true"
+             holds no JUMPDEST: data, not code, so not counted as unreached; they are listed \
+             with in_metadata: true"
         ));
     }
     if let Some(start) = metadata_offset.filter(|s| *s < code.len()) {

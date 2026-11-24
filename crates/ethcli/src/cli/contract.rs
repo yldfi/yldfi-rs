@@ -2349,9 +2349,11 @@ fn format_calls_table(
     let ue: Vec<String> = report
         .opcode_sites
         .iter()
-        .filter(|o| !o.reached)
+        .filter(|o| !o.reached && !o.in_metadata)
         .map(|o| format!("{}@{}", o.opcode, o.pc))
         .collect();
+    // Sites in the trailing metadata (which holds no JUMPDEST) are data, not
+    // code: they are counted by a note, not listed as unreached code
     let c = &report.coverage;
     let _ = writeln!(s, "\nCOVERAGE");
     let _ = writeln!(
@@ -3342,16 +3344,36 @@ async fn inspect_address(
             {
                 lookup_signatures(&client, &mut functions).await;
             }
+            // No dispatcher: say whether reached code still reads calldata
+            // (a fallback-only or packed-calldata executor)
+            let reads = if functions.is_empty() && !target_code.is_empty() {
+                let report = crate::bytecode::analyze_calls(&target_code, CallsBudget::default());
+                crate::bytecode::metadata::calldata_reads(&target_code, &report.visited)
+            } else {
+                Vec::new()
+            };
             out["interface"] = serde_json::json!({
                 "source": "bytecode",
                 "of": interface_target.to_checksum(None),
                 "functions": functions,
             });
-            notes.push(
-                "No verified ABI: selectors were recovered from bytecode, and any function names \
-                 are guesses from the signature database"
-                    .to_string(),
-            );
+            if reads.is_empty() {
+                notes.push(
+                    "No verified ABI: selectors were recovered from bytecode, and any function \
+                     names are guesses from the signature database"
+                        .to_string(),
+                );
+            } else {
+                out["interface"]["dispatcher"] =
+                    serde_json::json!(crate::bytecode::metadata::FALLBACK_ONLY);
+                out["interface"]["calldata_reads"] = serde_json::json!(reads);
+                notes.push(
+                    "No verified ABI and no selector dispatcher: reached code reads calldata \
+                     directly (interface.calldata_reads), so the input is a custom encoding, \
+                     not ABI calls"
+                        .to_string(),
+                );
+            }
         }
     }
 
@@ -3533,7 +3555,23 @@ fn format_inspect_table(report: &serde_json::Value) -> String {
             let _ = writeln!(out, "{:<16}{}", "", text(owner).unwrap_or_default());
         }
     }
-    if let Some(functions) = report["interface"]["functions"].as_array() {
+    if let Some(dispatcher) = text(&report["interface"]["dispatcher"]) {
+        let reads: Vec<String> = report["interface"]["calldata_reads"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(|p| p.as_u64().map(|p| format!("{p:#x}")))
+            .collect();
+        line(
+            &mut out,
+            "Functions",
+            format!(
+                "{dispatcher} (code of {}; calldata read at {})",
+                text(&report["interface"]["of"]).unwrap_or_default(),
+                reads.join(", ")
+            ),
+        );
+    } else if let Some(functions) = report["interface"]["functions"].as_array() {
         let from_abi = report["interface"]["source"].as_str() == Some("abi");
         line(
             &mut out,
@@ -3946,6 +3984,24 @@ mod tests {
     use super::*;
 
     #[test]
+    fn calls_table_does_not_list_metadata_bytes_as_unreached() {
+        // CALLER (0x33) as the metadata length byte, and in dead code before
+        // it (after a REVERT, no JUMPDEST): only the latter is listed
+        let meta = "a26469706673582212208b5d96ae75ef7e28d88d1c3820279a801b63c4e1319cce2a5166f9a221abe79564736f6c63430008150033";
+        let code = hex::decode(format!("6080604052600080fd33{meta}")).unwrap();
+        let report = crate::bytecode::analyze_calls(&code, CallsBudget::default());
+        assert!(report.opcode_sites.iter().any(|o| o.in_metadata));
+        let table = format_calls_table(&report, &serde_json::Map::new());
+        let line = table
+            .lines()
+            .find(|l| l.contains("sensitive opcodes not reached"))
+            .expect("unreached line");
+        assert!(line.contains("CALLER@9"), "{line}");
+        assert_eq!(line.matches('@').count(), 1, "{line}");
+        assert!(table.contains("trailing metadata region"), "{table}");
+    }
+
+    #[test]
     fn similar_match_source_is_marked_in_json() {
         let listed = serde_json::json!([{"path": "A.sol", "lines": 3}]);
         let marked = with_verified_for(listed.clone(), Some("0xb4e1"));
@@ -4016,6 +4072,21 @@ mod tests {
             "{out}"
         );
         assert!(out.contains("  0xa9059cbb  [nonpayable]"), "{out}");
+
+        let executor = serde_json::json!({
+            "address": "0x03", "chain": "Ethereum", "block": 1, "kind": "contract", "verified": false,
+            "balance": {"wei": "0", "formatted": "0.0", "symbol": "ETH"},
+            "interface": {"source": "bytecode", "of": "0x03", "functions": [],
+                          "dispatcher": crate::bytecode::metadata::FALLBACK_ONLY,
+                          "calldata_reads": [55, 60]},
+            "notes": []
+        });
+        let out = format_inspect_table(&executor);
+        assert!(
+            out.contains("no selector dispatcher: fallback-only / packed-calldata executor (code of 0x03; calldata read at 0x37, 0x3c)"),
+            "{out}"
+        );
+        assert!(!out.contains("Functions:      0"), "{out}");
     }
 
     #[test]
