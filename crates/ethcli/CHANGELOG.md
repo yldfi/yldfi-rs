@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.30.19](https://github.com/yldfi/yldfi-rs/compare/ethcli-v0.30.18...ethcli-v0.30.19) (2026-11-25)
+
+
+### Features
+
+* **ethcli:** follow Compound delegators and Aragon app proxies by DELEGATECALL provenance ([#336](https://github.com/yldfi/yldfi-rs/issues/336)) ([cac2113](https://github.com/yldfi/yldfi-rs/commit/cac21135df191068036d4ce2eae94bf5477f432b))
+
 ## [0.30.18](https://github.com/yldfi/yldfi-rs/compare/ethcli-v0.30.17...ethcli-v0.30.18) (2026-11-24)
 
 
