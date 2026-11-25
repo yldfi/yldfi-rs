@@ -547,21 +547,29 @@ fn strip_unpacks(v: &V) -> bool {
     }
 }
 
-/// Whether `strip` takes the high 160 bits of the word (shr 96 or a
-/// division by 2^96): the address sits in the high bytes of the slot
+/// Whether the whole unpacking chain is exactly one shr(96) or div(2^96),
+/// optionally under masks of 160 bits or more (and identities): the address
+/// is then the high 160 bits of the word. A narrower mask, a second shift or
+/// division, or anything else is another layout
 fn strip_takes_high(v: &V) -> bool {
     if let Some(x) = identity_of(v) {
         return strip_takes_high(x);
     }
     match v {
         V::Op(0x16, a) if a.len() == 2 => match (&a[0], &a[1]) {
-            (V::Const(m, _), x) | (x, V::Const(m, _)) if low_mask(*m) => strip_takes_high(x),
+            (V::Const(m, _), x) | (x, V::Const(m, _)) if low_mask(*m) => {
+                m.bit_len() >= 160 && strip_takes_high(x)
+            }
             _ => false,
         },
-        V::Op(0x1c, a) => matches!(a.as_slice(), [V::Const(s, _), _] if *s == U256::from(96u8)),
-        V::Op(0x04, a) => {
-            matches!(a.as_slice(), [_, V::Const(d, _)] if *d == U256::from(1u8) << 96)
-        }
+        V::Op(0x1c, a) => match a.as_slice() {
+            [V::Const(s, _), x] if *s == U256::from(96u8) => !strip_unpacks(x),
+            _ => false,
+        },
+        V::Op(0x04, a) => match a.as_slice() {
+            [x, V::Const(d, _)] if *d == U256::from(1u8) << 96 => !strip_unpacks(x),
+            _ => false,
+        },
         _ => false,
     }
 }
@@ -3098,6 +3106,32 @@ mod tests {
         let sites = opcode_sites(&plain, Some(1));
         assert_eq!(sites.len(), 2);
         assert!(sites.iter().all(|s| s.in_metadata));
+    }
+
+    /// The note on a DELEGATECALL target read from slot 0 through `unpack`
+    fn packed_note(unpack: &str) -> Option<String> {
+        let r = run(&format!("6000600060006000600054{unpack}5af400"));
+        r.call_sites[0].target[0].note.clone()
+    }
+
+    #[test]
+    fn only_a_plain_shr_96_is_the_high_160_bits() {
+        let high = |n: Option<String>| n.is_some_and(|n| n.contains("high 160 bits"));
+        let other = |n: Option<String>| n.as_deref() == Some("packed with other values");
+        // shr(96)
+        assert!(high(packed_note("60601c")));
+        // shr(96) & (2^160 - 1)
+        assert!(high(packed_note(&format!("60601c73{}16", "ff".repeat(20)))));
+        // shr(96) & 0xff
+        assert!(other(packed_note("60601c60ff16")));
+        // shr(96) then shr(8)
+        assert!(other(packed_note("60601c60081c")));
+        // div(2^96) then div(2)
+        assert!(other(packed_note(
+            "6c01000000000000000000000000900460029004"
+        )));
+        // A plain read: no note
+        assert_eq!(packed_note(""), None);
     }
 
     #[test]
