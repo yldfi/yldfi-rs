@@ -36,15 +36,19 @@ Tools: `ethcli` (or the MCP tools `contract_fingerprint`, `contract_inspect`,
    or `unknown` when the evidence is weak. A computed `Error(string)`
    selector with every other constant written out is only "≥ ~1000" (solc
    0.8.17 keeps the selector computed even at 20000 runs), so the bucket is
-   `unknown` there. Sweep coarse values, keyed on
+   `unknown` there. EVM lower bounds come from executed opcodes; REVERT
+   does not count (solc emitted it before Byzantium too). Sweep coarse values, keyed on
    the executable size: try the bucket's value (200, 1000 or 10000) and
    its neighbours, keep the run count whose executable size equals the
    deployed one, then refine. Optimizer-off code also writes constants out,
-   so check `optimizer` first: `likely off` (the same mask applied twice in
-   a row, `PUSH c AND PUSH c AND`, which the optimizer always folds; see
-   `optimizer_evidence`) means build with the optimizer disabled, and the
-   runs bucket is then `unknown (optimizer likely off)`. `not detected as
-   off` is not proof that it was on.
+   so check `optimizer` first. `likely off` means two shapes solc's
+   optimizer removes are both frequent (`SWAP2 SWAP1 POP` cleanups and the
+   free memory pointer re-read at block starts; counts in
+   `optimizer_evidence`): try a build with the optimizer disabled first,
+   and confirm by size. It is a heuristic calibrated on 80 contracts, not
+   proof. The runs bucket is then `unknown (optimizer likely off)`, with
+   the hint as read kept in its evidence. `not detected as off` is not
+   proof that it was on (small off contracts can miss it).
    If the proxy was followed, the output names the implementation: rebuild
    that. A set EIP-1967 slot is not proof of a proxy: some contracts keep an
    address there and run their own dispatcher, delegating only the
@@ -53,15 +57,26 @@ Tools: `ethcli` (or the MCP tools `contract_fingerprint`, `contract_inspect`,
    only when the call analysis confirms every unmatched call runs that
    code with no dispatcher of its own; otherwise `target.proxy_slot`
    shows the value, its source and why it was not followed, and
-   `--follow-proxy` forces it. A proxy whose DELEGATECALL target depends on
-   who calls (Arbitrum's RollupProxy: the admin runs the EIP-1967
-   implementation, everyone else a secondary slot) is never followed by
-   default: `proxy_slot.kind` is `msg.sender-dependent proxy` and
-   `candidates` lists each slot, value and `caller` (`admin`, `user`).
-   Rebuild the one you need: `--follow-proxy` follows the `user` target,
-   `--follow-proxy-target admin|user|<address>` picks one. Transparent
-   proxies (the admin is refused or handled in the proxy itself) are not
-   affected. Proxies with no standard slot (Compound
+   `--follow-proxy` forces it. A slot proxy whose forwarding DELEGATECALL
+   can also take its target from somewhere else is held as uncertain. A
+   proxy whose DELEGATECALL target depends on who calls (Arbitrum's
+   RollupProxy: the admin runs the EIP-1967 implementation, everyone else
+   a secondary slot) is never followed by default: `proxy_slot.kind` is
+   `msg.sender-dependent proxy`, `reason` says why (one caller check with a
+   different target on each side; one target only the checked caller
+   reaches; a target computed from msg.sender/tx.origin; or incomplete
+   analysis with several targets behind checks), and `candidates` lists
+   each target (slot or constant), its value, `caller` (`admin`, `user`,
+   `any`) and the `caller_checks` on the way (msg.sender or tx.origin
+   against a value, one of several values, or a role mapping). Rebuild the
+   one you need: `--follow-proxy` follows the user-side target only when
+   there is exactly one; otherwise pick with `--follow-proxy-target
+   admin|user|<address>` (an impossible choice is an `invalid_argument`
+   error, never a silent fallback). The same decision is used by inspect,
+   storage and the `--follow-proxy` paths of selectors, calls and analyze.
+   Transparent proxies (the admin is refused or handled in the proxy
+   itself) are not affected. The recognition covers branches on these
+   checks; a check written another way may still be missed. Proxies with no standard slot (Compound
    delegators such as cDAI, Compound's Unitroller, aragonOS app proxies
    such as stETH, Decentraland LAND) are followed when all of these hold:
    every DELEGATECALL the analysis finds on the dispatcher path takes its

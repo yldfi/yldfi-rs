@@ -332,9 +332,9 @@ pub struct Fingerprint {
     pub optimizer_runs_bucket: String,
     /// Counts behind the bucket
     pub optimizer_runs_bucket_evidence: Vec<String>,
-    /// "likely off" when the code shows what solc's optimizer always
-    /// removes (the same mask applied twice in a row), else "not detected as
-    /// off" (which is not proof that it was on)
+    /// "likely off" when the code has two shapes solc's optimizer removes
+    /// (see `OptimizerOff::likely_off`), else "not detected as off" (which
+    /// is not proof that it was on)
     pub optimizer: String,
     pub optimizer_evidence: Vec<String>,
     /// Selectors found by the dispatcher scan
@@ -466,11 +466,12 @@ fn runs_from_evidence(ev: &RunsEvidence, shifts_reached: bool) -> &'static str {
         match share {
             None => "likely < ~5000",
             Some(0.0) => "likely low (≈200)",
-            // Every other constant written out with the selector still
-            // computed: solc before 0.8.20 or so keeps the selector computed
-            // up to high runs (0.8.17 at 20000), so this only bounds runs
-            // from below
-            Some(x) if x >= 0.9 => "likely ≥ ~1000",
+            // Nearly every other constant written out with the selector
+            // still computed: solc keeps the selector computed up to high
+            // runs in some versions and in via-IR (0.8.17 legacy and 0.8.28
+            // via-IR at 20000 runs had 90-100% written out; 1000-2000 runs
+            // had 27-67%), so this only bounds runs from below
+            Some(x) if x >= 0.8 => "likely ≥ ~1000",
             Some(x) if x >= 0.1 => "likely mid (≈1000-4000)",
             Some(_) => "likely < ~5000",
         }
@@ -600,7 +601,9 @@ const FORK_OPCODES: &[(&str, &[(u8, &str)])] = &[
             (0x3d, "RETURNDATASIZE"),
             (0x3e, "RETURNDATACOPY"),
             (0xfa, "STATICCALL"),
-            (0xfd, "REVERT"),
+            // Not REVERT: solc emits it from 0.4.10 whatever the target, and
+            // before byzantium it runs as an invalid instruction, so code
+            // deployed earlier carries it too
         ],
     ),
 ];
@@ -725,31 +728,27 @@ pub fn fingerprint(code: &[u8], visited: &[bool]) -> Fingerprint {
             notes.push("Metadata has no version: solc before 0.5.9".to_string());
         }
     }
-    let (mut optimizer_runs_hint, optimizer_runs_evidence) = optimizer_runs_hint(code, visited);
+    let (optimizer_runs_hint, optimizer_runs_evidence) = optimizer_runs_hint(code, visited);
     let exec_end = trailing
         .as_ref()
         .map_or(code.len(), |t| t.start.min(code.len()));
     let off = optimizer_off(&code[..exec_end]);
-    let optimizer_evidence = vec![format!(
-        "same constant mask applied twice in a row (PUSH c AND PUSH c AND) x{} in {} instructions ({:.2} per 1000; solc's optimizer folds these, its always-on peephole pass does not; off code measured at 1.45 or more per 1000, optimised code at 0.38 or less)",
-        off.double_masks,
-        off.instructions,
-        off.per_mille()
-    )];
+    let optimizer_evidence = vec![off.evidence()];
     let optimizer = if off.likely_off() {
-        // Unoptimised code writes every constant out, which reads as high
-        // runs: there are no runs to infer
-        optimizer_runs_hint = "unknown (optimizer likely off)".to_string();
         "likely off"
     } else {
         "not detected as off"
     }
     .to_string();
     let (optimizer_runs_bucket, optimizer_runs_bucket_evidence) = if off.likely_off() {
-        (
-            "unknown (optimizer likely off)".to_string(),
-            optimizer_evidence.clone(),
-        )
+        // Unoptimised code writes every constant out, which reads as high
+        // runs; the hint is kept as read, and the bucket says why it is
+        // not used
+        let mut ev = optimizer_evidence.clone();
+        ev.push(format!(
+            "runs hint read from constants: {optimizer_runs_hint} (not used: code built without the optimizer writes constants out too)"
+        ));
+        ("unknown (optimizer likely off)".to_string(), ev)
     } else {
         runs_bucket(&optimizer_runs_hint, &optimizer_runs_evidence)
     };
@@ -812,52 +811,74 @@ pub fn fingerprint(code: &[u8], visited: &[bool]) -> Fingerprint {
 /// Counts behind the optimizer-off test
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct OptimizerOff {
-    /// `PUSHn c AND PUSHn c AND` with the same constant
-    pub double_masks: usize,
+    /// `SWAP2 SWAP1 POP`: a function's result moved under its arguments
+    /// and a stack slot dropped, as solc writes it before optimisation
+    pub swap_cleanups: usize,
+    /// `JUMPDEST PUSH1 0x40 MLOAD DUP1`: the free memory pointer read again
+    /// at the start of a block, which the optimizer's common subexpression
+    /// pass reuses instead
+    pub fmp_reloads: usize,
     /// Instructions in the executable part
     pub instructions: usize,
 }
 
 impl OptimizerOff {
-    pub fn per_mille(&self) -> f64 {
+    fn rate(&self, n: usize) -> f64 {
         if self.instructions == 0 {
             0.0
         } else {
-            1000.0 * self.double_masks as f64 / self.instructions as f64
+            1000.0 * n as f64 / self.instructions as f64
         }
     }
 
-    /// At least 4 sites and at least 1 per 1000 instructions. Measured on 40
-    /// verified mainnet contracts (solc 0.4.24 to 0.8.38, legacy and via-IR):
-    /// the 8 built without the optimizer had 7 to 40 sites (1.45 to 11.4 per
-    /// 1000), the 32 optimised ones at most 2 (0.38 per 1000)
+    /// Both shapes at least 3 per 1000 instructions and at least 5 times
+    /// each. Calibrated on 80 verified mainnet contracts (two random samples
+    /// plus known cases; solc 0.4.18 to 0.8.38, legacy and via-IR): the 13
+    /// built without the optimizer had at least 3.26 and 3.32 per 1000; of
+    /// the 67 optimised ones none had both above 2.8 with 5 sites (a tiny
+    /// one had 2 of each). Either shape alone is not enough, and an older
+    /// solc's optimizer leaves repeated masks in place (UniswapV2Router02,
+    /// KittyCore), so those are not counted
     pub fn likely_off(&self) -> bool {
-        self.double_masks >= 4 && self.per_mille() >= 1.0
+        self.swap_cleanups >= 5
+            && self.fmp_reloads >= 5
+            && self.rate(self.swap_cleanups) >= 3.0
+            && self.rate(self.fmp_reloads) >= 3.0
+    }
+
+    pub fn evidence(&self) -> String {
+        format!(
+            "SWAP2 SWAP1 POP x{} ({:.2} per 1000) and JUMPDEST PUSH1 0x40 MLOAD DUP1 x{} ({:.2} per 1000) in {} instructions; unoptimised solc code had both at 3.26 or more per 1000 in calibration, optimised code never both above 2.8 (\"likely off\" needs both at 3.0 or more and 5 or more sites each)",
+            self.swap_cleanups,
+            self.rate(self.swap_cleanups),
+            self.fmp_reloads,
+            self.rate(self.fmp_reloads),
+            self.instructions
+        )
     }
 }
 
-/// Count the same constant mask applied twice in a row. Without the
-/// optimizer solc cleans a value each time it is used (an address is masked
-/// when loaded and again when passed on); the optimizer's common
-/// subexpression pass folds `and(and(x, c), c)` to one mask, and the
-/// peephole pass that runs even with the optimizer off does not
+/// Count two shapes solc leaves in code built without the optimizer
 pub fn optimizer_off(code: &[u8]) -> OptimizerOff {
     let ins = linear_sweep(code);
-    let arg = |pc: usize, op: u8| -> &[u8] {
-        let n = (op - 0x5f) as usize;
-        code.get(pc + 1..(pc + 1 + n).min(code.len()))
-            .unwrap_or(&[])
-    };
-    let is_push = |op: u8| (0x60..=0x7f).contains(&op);
-    let mut double_masks = 0;
-    for w in ins.windows(4) {
-        let [(p1, o1), (_, a1), (p2, o2), (_, a2)] = [w[0], w[1], w[2], w[3]];
-        if is_push(o1) && a1 == 0x16 && o1 == o2 && a2 == 0x16 && arg(p1, o1) == arg(p2, o2) {
-            double_masks += 1;
+    let mut swap_cleanups = 0;
+    let mut fmp_reloads = 0;
+    for (k, w) in ins.windows(3).enumerate() {
+        if w[0].1 == 0x91 && w[1].1 == 0x90 && w[2].1 == 0x50 {
+            swap_cleanups += 1;
+        }
+        if w[0].1 == 0x5b
+            && w[1].1 == 0x60
+            && code.get(w[1].0 + 1) == Some(&0x40)
+            && w[2].1 == 0x51
+            && ins.get(k + 3).is_some_and(|x| x.1 == 0x80)
+        {
+            fmp_reloads += 1;
         }
     }
     OptimizerOff {
-        double_masks,
+        swap_cleanups,
+        fmp_reloads,
         instructions: ins.len(),
     }
 }
@@ -866,23 +887,22 @@ pub fn optimizer_off(code: &[u8]) -> OptimizerOff {
 mod tests {
     use super::*;
 
-    /// `PUSH20 mask AND PUSH20 mask AND` four times in 40 instructions is
-    /// optimizer-off code; one such pair is not
+    /// Both shapes, five times each in 150 instructions, read as off; one
+    /// shape alone does not
     #[test]
-    fn optimizer_off_needs_repeated_double_masks() {
-        let mask = format!("73{}16", "ff".repeat(20));
-        let pair = format!("{mask}{mask}");
-        let filler = "6001".repeat(8);
-        let off = hex::decode(format!("{pair}{filler}").repeat(4)).unwrap();
-        let r = optimizer_off(&off);
-        assert_eq!(r.double_masks, 4);
+    fn optimizer_off_needs_both_shapes() {
+        let cleanup = "919050";
+        let reload = "5b60405180";
+        let filler = "6001".repeat(10);
+        let both = hex::decode(format!("{cleanup}{reload}{filler}").repeat(5)).unwrap();
+        let r = optimizer_off(&both);
+        assert_eq!((r.swap_cleanups, r.fmp_reloads), (5, 5));
         assert!(r.likely_off(), "{r:?}");
-        let once = hex::decode(format!("{pair}{}", filler.repeat(4))).unwrap();
-        assert!(!optimizer_off(&once).likely_off());
-        // Different masks in a row are not the shape
-        let two = format!("{mask}60ff16");
-        let differ = hex::decode(format!("{two}{filler}").repeat(4)).unwrap();
-        assert_eq!(optimizer_off(&differ).double_masks, 0);
+        let one = hex::decode(format!("{cleanup}{filler}").repeat(5)).unwrap();
+        assert!(!optimizer_off(&one).likely_off());
+        // Too few sites, however dense
+        let few = hex::decode(format!("{cleanup}{reload}").repeat(2)).unwrap();
+        assert!(!optimizer_off(&few).likely_off());
     }
 
     fn fixture(text: &str) -> Vec<u8> {
@@ -898,7 +918,22 @@ mod tests {
         ));
         let r = optimizer_off(&dai);
         assert!(r.likely_off(), "{r:?}");
+        // A small optimizer-off contract (solc 0.8.7)
+        let small = fixture(include_str!(
+            "../../tests/fixtures/bytecode/batch_zero_optimizer_off.hex"
+        ));
+        let r = optimizer_off(&small);
+        assert!(r.likely_off(), "{r:?}");
         for (name, text) in [
+            // Older optimizers leave repeated masks; these are optimised
+            (
+                "uniswap_v2_router02 (0.6.6, 999999 runs)",
+                include_str!("../../tests/fixtures/bytecode/uniswap_v2_router02.hex"),
+            ),
+            (
+                "kittycore (0.4.18, 200 runs)",
+                include_str!("../../tests/fixtures/bytecode/kittycore_opt200.hex"),
+            ),
             (
                 "univ3_pool",
                 include_str!("../../tests/fixtures/bytecode/univ3_pool.hex"),

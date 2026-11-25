@@ -259,6 +259,10 @@ pub async fn find_verified(http: &reqwest::Client, chain_id: u64, address: &str)
             if let Some(found) = parse_sourcify(&v) {
                 return Fallback::Found(Box::new(found));
             }
+            // Verified, but the answer could not be read: not a "no"
+            if v["match"].is_string() {
+                unavailable.push("Sourcify: verified, but its answer could not be read".into());
+            }
         }
         Fetched::NotFound => {}
         Fetched::Unavailable(why) => unavailable.push(format!("Sourcify: {why}")),
@@ -270,9 +274,16 @@ pub async fn find_verified(http: &reqwest::Client, chain_id: u64, address: &str)
                 if let Some(found) = parse_blockscout(&v, host) {
                     return Fallback::Found(Box::new(found));
                 }
-                // No verification keys at all is not a "no"
-                if v["is_verified"].as_bool().is_none() && !v.is_null() {
-                    unavailable.push("Blockscout: no verification status in its answer".into());
+                // No verification keys at all, or verified with an answer
+                // that could not be read (an ABI that does not parse), is
+                // not a "no"
+                match v["is_verified"].as_bool() {
+                    None if !v.is_null() => {
+                        unavailable.push("Blockscout: no verification status in its answer".into())
+                    }
+                    Some(true) => unavailable
+                        .push("Blockscout: verified, but its answer could not be read".into()),
+                    _ => {}
                 }
             }
             Fetched::NotFound => {}

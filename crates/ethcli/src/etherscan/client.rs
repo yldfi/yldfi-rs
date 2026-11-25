@@ -409,11 +409,27 @@ impl Client {
     pub async fn creation_data(&self, address: &str) -> Result<ContractCreationData> {
         self.ensure_api_supported()?;
         let addr = parse_address(address)?;
-        Ok(self
-            .inner
-            .contract_creation_data(addr)
-            .await
-            .map_err(|e| map_etherscan_error(e, address))?)
+        Ok(
+            with_rate_limit_retry(|| self.inner.contract_creation_data(addr))
+                .await
+                .map_err(|e| map_etherscan_error(e, address))?,
+        )
+    }
+
+    /// Gas oracle (`gastracker/gasoracle`), paced and retried on rate limits
+    pub async fn gas_oracle(
+        &self,
+    ) -> std::result::Result<foundry_block_explorers::gas::GasOracle, EtherscanError> {
+        with_rate_limit_retry(|| self.inner.gas_oracle()).await
+    }
+
+    /// Confirmation time estimate (`gastracker/gasestimate`), paced and
+    /// retried on rate limits
+    pub async fn gas_estimate(
+        &self,
+        gas_price: alloy::primitives::U256,
+    ) -> std::result::Result<u32, EtherscanError> {
+        with_rate_limit_retry(|| self.inner.gas_estimate(gas_price)).await
     }
 
     // ========================================================================

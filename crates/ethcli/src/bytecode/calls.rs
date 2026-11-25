@@ -1253,8 +1253,14 @@ pub struct CallSite {
 pub struct SenderBranch {
     /// pc of the JUMPI
     pub pc: usize,
+    /// `msg_sender` or `tx_origin`
+    pub subject: String,
+    /// `eq` (compared with one value), `any_of` (an OR of comparisons) or
+    /// `mapping_lookup` (a storage mapping keyed by the subject: a role)
+    pub check: String,
     pub against: Provenance,
-    /// Whether msg.sender equalled `against` on this path
+    /// Whether the check passed on this path (the subject equalled
+    /// `against`, one of them, or the mapping entry was non-zero)
     pub equal: bool,
 }
 
@@ -1264,6 +1270,10 @@ pub struct SenderTarget {
     pub target: Provenance,
     /// Empty when no msg.sender branch was passed
     pub sender: Vec<SenderBranch>,
+    /// The target value itself is computed from msg.sender or tx.origin
+    /// (a branchless select, or a mapping keyed by the caller)
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub reads_sender: bool,
 }
 
 /// Branches on msg.sender kept per path
@@ -1271,31 +1281,119 @@ const MAX_SENDER_BRANCHES: usize = 4;
 /// Target / branch records kept per DELEGATECALL site
 const MAX_SENDER_TARGETS: usize = 12;
 
-/// A branch condition that compares msg.sender with one value:
-/// `[ISZERO*] EQ(caller, x)` or `[ISZERO*] SUB|XOR(caller, x)`. Returns `x`
-/// and whether a non-zero condition (the jump taken) means they are equal
-fn sender_test(cond: &V) -> Option<(Provenance, bool)> {
+/// What a branch condition checks about the caller
+struct SenderTest {
+    subject: &'static str,
+    check: &'static str,
+    against: Provenance,
+    /// A non-zero condition (the jump taken) means the check passed
+    pass_nonzero: bool,
+}
+
+fn caller_subject(x: &V) -> Option<&'static str> {
+    match strip_subject(x) {
+        V::Caller => Some("msg_sender"),
+        V::Origin => Some("tx_origin"),
+        _ => None,
+    }
+}
+
+/// One comparison of msg.sender or tx.origin with another value:
+/// `EQ(subject, x)` (passes when non-zero) or `SUB|XOR(subject, x)` (passes
+/// when zero)
+fn caller_compare(v: &V) -> Option<(&'static str, &V, bool)> {
+    let (args, eq_nonzero) = match v {
+        V::Op(0x14, a) if a.len() == 2 => (a, true),
+        V::Op(0x03 | 0x18, a) if a.len() == 2 => (a, false),
+        _ => return None,
+    };
+    let (subject, other) = match (caller_subject(&args[0]), caller_subject(&args[1])) {
+        (Some(s), None) => (s, &args[1]),
+        (None, Some(s)) => (s, &args[0]),
+        _ => return None,
+    };
+    Some((subject, other, eq_nonzero))
+}
+
+/// A branch condition that checks the caller:
+/// - `[ISZERO*] EQ|SUB|XOR(caller, x)` (also tx.origin);
+/// - `[ISZERO*] OR(EQ(caller, a), EQ(caller, b))`: one of several;
+/// - `[ISZERO*] sload(keccak(.., caller, ..))`, possibly masked: a role
+///   mapping keyed by the caller.
+fn sender_test(cond: &V) -> Option<SenderTest> {
     let mut v = cond;
     let mut negations = 0usize;
     while let V::Op(0x15, a) = v {
         v = &a[0];
         negations += 1;
     }
-    let (args, eq_nonzero) = match v {
-        V::Op(0x14, a) if a.len() == 2 => (a, true),
-        V::Op(0x03 | 0x18, a) if a.len() == 2 => (a, false),
-        _ => return None,
-    };
-    let is_sender = |x: &V| matches!(strip_subject(x), V::Caller);
-    let other = match (is_sender(&args[0]), is_sender(&args[1])) {
-        (true, false) => &args[1],
-        (false, true) => &args[0],
-        _ => return None,
-    };
-    if matches!(strip(other), V::Origin | V::Caller) {
+    let even = negations.is_multiple_of(2);
+    if let Some((subject, other, eq_nonzero)) = caller_compare(v) {
+        if caller_subject(other).is_some() || matches!(strip(other), V::This) {
+            return None;
+        }
+        return Some(SenderTest {
+            subject,
+            check: "eq",
+            against: provenance(other),
+            pass_nonzero: eq_nonzero == even,
+        });
+    }
+    if let V::Op(0x17, a) = v {
+        let parts: Option<Vec<_>> = a.iter().map(caller_compare).collect();
+        let parts = parts?;
+        if parts.len() == 2 && parts.iter().all(|(s, _, eq)| *s == parts[0].0 && *eq) {
+            let mut p = Provenance::kind("any_of");
+            p.note = Some(
+                parts
+                    .iter()
+                    .map(|(_, o, _)| describe_short(o))
+                    .collect::<Vec<_>>()
+                    .join(" or "),
+            );
+            return Some(SenderTest {
+                subject: parts[0].0,
+                check: "any_of",
+                against: p,
+                pass_nonzero: even,
+            });
+        }
         return None;
     }
-    Some((provenance(other), eq_nonzero == negations.is_multiple_of(2)))
+    // A mapping entry keyed by the caller, as a bool (masked or shifted out)
+    let mut m = v;
+    loop {
+        match m {
+            V::Op(0x16 | 0x1c | 0x04, a)
+                if a.iter().any(|x| matches!(x, V::SLoad(_) | V::Op(..))) =>
+            {
+                m = a.iter().find(|x| !matches!(x, V::Const(..)))?;
+            }
+            _ => break,
+        }
+    }
+    if let V::SLoad(slot) = m {
+        if let V::Hash(words) = slot.v.as_ref() {
+            let subject = words.iter().find_map(caller_subject)?;
+            return Some(SenderTest {
+                subject,
+                check: "mapping_lookup",
+                against: provenance(m),
+                pass_nonzero: even,
+            });
+        }
+    }
+    None
+}
+
+/// Whether a value is computed from msg.sender or tx.origin
+fn reads_sender(v: &V) -> bool {
+    match v {
+        V::Caller | V::Origin => true,
+        V::CallData(b) | V::SLoad(b) | V::TLoad(b) => reads_sender(&b.v),
+        V::Hash(xs) | V::Op(_, xs) => xs.iter().any(reads_sender),
+        _ => false,
+    }
 }
 
 /// A comparison of msg.sender, tx.origin or address(this) that feeds a branch
@@ -2309,14 +2407,16 @@ impl<'a> Interp<'a> {
                             _ => None,
                         };
                         let branch = |equal: bool| {
-                            sender.as_ref().map(|(against, _)| SenderBranch {
+                            sender.as_ref().map(|t| SenderBranch {
                                 pc,
-                                against: against.clone(),
+                                subject: t.subject.to_string(),
+                                check: t.check.to_string(),
+                                against: t.against.clone(),
                                 equal,
                             })
                         };
                         let (take_branch, fall_branch) = match &sender {
-                            Some((_, eq_nonzero)) => (branch(*eq_nonzero), branch(!*eq_nonzero)),
+                            Some(t) => (branch(t.pass_nonzero), branch(!t.pass_nonzero)),
                             None => (None, None),
                         };
                         if fall {
@@ -2560,6 +2660,7 @@ impl<'a> Interp<'a> {
                 site.target_sender.insert(SenderTarget {
                     target: provenance(t),
                     sender: s.sender.clone(),
+                    reads_sender: reads_sender(t),
                 });
             }
         }
@@ -2740,7 +2841,11 @@ pub fn analyze_calls_with(
             },
             args_len: acc.args_len.iter().cloned().collect(),
             resolved: !acc.target.iter().any(Provenance::is_unresolved),
-            target_by_sender: if acc.target_sender.iter().any(|t| !t.sender.is_empty()) {
+            target_by_sender: if acc
+                .target_sender
+                .iter()
+                .any(|t| !t.sender.is_empty() || t.reads_sender)
+            {
                 acc.target_sender.iter().cloned().collect()
             } else {
                 Vec::new()

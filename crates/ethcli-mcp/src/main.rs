@@ -1019,7 +1019,7 @@ impl EthcliMcpServer {
     }
 
     #[tool(
-        description = "Read the 32-byte word at a storage slot (all 64 hex digits, leading zeros kept; value_as_address gives the low 20 bytes when the word fits an address)",
+        description = "Read the 32-byte word at a storage slot (all 64 hex digits, leading zeros kept; low_160_as_address gives the low 20 bytes as an address when the upper 12 bytes are zero (it may still be a number))",
         annotations(read_only_hint = true, open_world_hint = true)
     )]
     async fn rpc_storage(&self, Parameters(input): Parameters<RpcStorageInput>) -> CallToolResult {

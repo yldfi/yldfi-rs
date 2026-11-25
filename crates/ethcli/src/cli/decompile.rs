@@ -222,6 +222,10 @@ struct ProxyCheck {
     /// to a fixed address that it also keeps in the slot. That is not the
     /// proxy shape (the slot can be changed, the constant cannot)
     constant_target: bool,
+    /// Other targets the forwarding DELEGATECALL on the dispatcher path can
+    /// take besides the slot (another slot, a constant, an unresolved
+    /// value): which code runs is then not certain
+    mixed: Vec<String>,
 }
 
 /// A slot alone proves nothing (any contract can write to it), and so does
@@ -291,6 +295,12 @@ fn not_followed_reason(
     }
     if check.ok {
         return None;
+    }
+    if !check.mixed.is_empty() {
+        return Some(format!(
+            "{kind}: {imp} (from the {source}) is not confirmed as the code that runs: the DELEGATECALL that forwards calls can also take its target from {}, so which code runs is not certain",
+            check.mixed.join(", ")
+        ));
     }
     // A pure forwarder: no selectors of its own, every call delegated to a
     // fixed address that is also the slot value. It runs that code for
@@ -442,12 +452,31 @@ fn proxy_check_report(
         }
         if site.functions.iter().any(|f| f == "dispatcher") {
             check.ok = true;
+            if forwards_selector(site) && kind != "Safe proxy" {
+                for t in &site.target {
+                    let same = match kind {
+                        "EIP-1967 proxy" => from_slot(t, EIP1967_IMPL_SLOT),
+                        "OpenZeppelin legacy proxy" => from_slot(t, OZ_LEGACY_SLOT),
+                        k if k.starts_with("EIP-1167") => is_constant(t, implementation),
+                        _ => true,
+                    } || (kind.contains("beacon") && t.kind == "call_return");
+                    if !same {
+                        let d = t.describe();
+                        if !check.mixed.contains(&d) {
+                            check.mixed.push(d);
+                        }
+                    }
+                }
+            }
         } else {
             check.only_under.extend(site.functions.iter().cloned());
         }
     }
     check.only_under.sort();
     check.only_under.dedup();
+    if !check.mixed.is_empty() {
+        check.ok = false;
+    }
     check
 }
 
@@ -1420,294 +1449,23 @@ async fn fetch_target(chain: Chain, args: &TargetArgs, quiet: bool) -> anyhow::R
         own_code = Some(std::mem::replace(&mut code, delegate_code));
         code_address = delegate;
         resolved_via = Some("EIP-7702 delegation".to_string());
-    } else if let Some(cands) =
-        (!code.is_empty() && !args.no_follow_proxy && !is_known_safe_proxy(&code))
-            .then(|| sender_split(&analyze_calls(&code, CallsBudget::default()), &code))
-            .flatten()
-    {
-        // The target depends on who calls: report every candidate, follow
-        // only the one asked for
-        let mut values: Vec<Option<Address>> = Vec::new();
-        let mut cand_json = Vec::new();
-        let mut parts = Vec::new();
-        for c in &cands {
-            let v = slot_address(provider, address, c.slot, block_id, c.shift).await;
-            values.push(v.as_ref().ok().copied());
-            let who = match (c.caller, &c.against) {
-                ("admin", Some(a)) => format!("admin (msg.sender == {a})"),
-                ("user", Some(a)) => format!("user (msg.sender != {a})"),
-                _ => "any caller".to_string(),
-            };
-            parts.push(format!(
-                "{who}: slot {}{} = {}",
-                hex_word(c.slot),
-                if c.shift > 0 {
-                    format!(" ({})", bits_label(c.shift))
-                } else {
-                    String::new()
-                },
-                match &v {
-                    Ok(a) => a.to_checksum(None),
-                    Err(e) => format!("unreadable ({e})"),
-                }
-            ));
-            cand_json.push(json!({
-                "slot": hex_word(c.slot),
-                "bits": bits_label(c.shift),
-                "value": v.as_ref().ok().map(|a| a.to_checksum(None)),
-                "error": v.as_ref().err(),
-                "caller": c.caller,
-                "caller_check": c.against,
-            }));
-        }
-        let want = args
-            .follow_proxy_target
-            .as_deref()
-            .or(args.follow_proxy.then_some("user"));
-        let chosen = match want {
-            None => None,
-            Some(w) if w.eq_ignore_ascii_case("user") => Some(
-                cands
-                    .iter()
-                    .position(|c| c.caller == "user")
-                    .unwrap_or(0),
-            ),
-            Some(w) if w.eq_ignore_ascii_case("admin") => Some(
-                cands
-                    .iter()
-                    .position(|c| c.caller == "admin")
-                    .ok_or_else(|| {
-                        anyhow::anyhow!("--follow-proxy-target admin: no candidate is reached by the admin only")
-                    })?,
-            ),
-            Some(w) => {
-                let a = Address::from_str(w).map_err(|_| {
-                    anyhow::anyhow!("--follow-proxy-target takes admin, user or an address; got '{w}'")
-                })?;
-                Some(values.iter().position(|v| *v == Some(a)).ok_or_else(|| {
-                    anyhow::anyhow!(
-                        "--follow-proxy-target {w} is not one of this proxy's candidate targets ({})",
-                        parts.join("; ")
-                    )
-                })?)
-            }
-        };
-        let kind = "msg.sender-dependent proxy";
-        let reason = format!(
-            "{kind}: the DELEGATECALL target depends on who calls ({}); no single implementation runs for every caller, so none is followed by default",
-            parts.join("; ")
-        );
-        let mut followed = false;
-        let mut no_code = false;
-        let mut chosen_caller = None;
-        if let Some(i) = chosen {
-            let imp = values[i].ok_or_else(|| {
-                anyhow::anyhow!(
-                    "the {} target of this proxy could not be read",
-                    cands[i].caller
-                )
-            })?;
-            let impl_code = get_code(imp).await?;
-            if impl_code.is_empty() {
-                no_code = true;
-            } else {
-                followed = true;
-                if !quiet {
-                    eprintln!(
-                        "{kind}: using the {} target {}",
-                        cands[i].caller,
-                        imp.to_checksum(None)
-                    );
-                }
-                own_code = Some(std::mem::replace(&mut code, impl_code));
-                code_address = imp;
-                resolved_via = Some(format!("{kind} ({} target)", cands[i].caller));
-                chosen_caller = Some(cands[i].caller);
-            }
-        }
-        let line = match chosen_caller {
-            Some(c) => format!("{reason}; followed the {c} target as asked"),
-            None if no_code => format!("{reason}; the chosen target has no code at this block, its own code is analysed"),
-            None => format!("{reason}; analysing its own code (--follow-proxy follows the user target; --follow-proxy-target admin|user|<address> picks one)"),
-        };
-        if !quiet {
-            eprintln!("Warning: {line}");
-        }
-        notes.push(line);
-        proxy_slot = Some(json!({
-            "kind": kind,
-            "source": "slot",
-            "value": cands
-                .iter()
-                .position(|c| c.caller == "user")
-                .and_then(|i| values[i])
-                .map(|a| a.to_checksum(None)),
-            "followed": followed,
-            "followed_target": chosen_caller,
-            "reason": reason,
-            "candidates": cand_json,
-            "force_with": if followed {
-                Value::Null
-            } else {
-                json!("--follow-proxy (the user target) or --follow-proxy-target <admin|user|address>")
-            },
-        }));
     } else if !code.is_empty() && !args.no_follow_proxy {
-        // A canonical Safe proxy keeps its singleton in slot 0; Safe 1.0.0
-        // proxies do not answer masterCopy(), so read the slot directly
-        let safe_singleton = if is_known_safe_proxy(&code) {
-            super::contract::storage_address(provider, address, B256::ZERO, block_id)
-                .await
-                .map(|a| ("Safe proxy", a))
-        } else {
-            None
+        let opts = FollowOpts {
+            follow_proxy: args.follow_proxy,
+            target: args.follow_proxy_target.clone(),
         };
-        let mut found = match safe_singleton {
-            Some(found) => Some(found),
-            None => super::contract::find_implementation(provider, address, &code, block_id).await,
-        };
-        let mut beacon = super::contract::storage_address(
-            provider,
-            address,
-            B256::from_str(EIP1967_BEACON_SLOT).expect("valid slot"),
-            block_id,
-        )
-        .await;
-        if found.is_none() {
-            if let Some(target) = vyper_forwarder(&code) {
-                found = Some(("Vyper forwarder proxy", target));
-            } else if let Some(b) = immutable_beacon(&code) {
-                if let Some(imp) =
-                    super::contract::call_implementation_function_at(provider, b, block_id).await
-                {
-                    beacon = Some(b);
-                    found = Some(("beacon proxy (immutable beacon)", imp));
-                }
-            }
+        let d = resolve_proxy(provider, address, &code, block_id, &opts, quiet).await?;
+        notes.extend(d.notes);
+        proxy_slot = d.proxy_slot;
+        if let Some((imp, via, impl_code)) = d.followed {
+            own_code = Some(std::mem::replace(&mut code, impl_code));
+            code_address = imp;
+            resolved_via = Some(via);
         }
-        // No standard slot confirmed: recognise the proxy by where its
-        // DELEGATECALL target comes from (Compound delegators, aragonOS
-        // app proxies), and resolve it the way the proxy does
-        let getter = found
-            .filter(|(k, _)| k.starts_with("implementation() getter"))
-            .map(|(_, a)| a);
-        let mut delegate = None;
-        if found.is_none() || getter.is_some() {
-            match resolve_delegate(provider, address, &code, block_id).await {
-                DelegateOutcome::Found(d) => {
-                    found = Some((d.kind, d.implementation));
-                    delegate = Some(d);
-                }
-                DelegateOutcome::Note(n) => notes.push(n),
-                DelegateOutcome::None => {}
-            }
-        }
-        if let Some((kind, implementation)) = found {
-            let own_functions = extract_selectors(&code).len();
-            let reason = match &delegate {
-                Some(d) if d.hold.is_empty() => None,
-                Some(d) => Some(format!(
-                    "{kind}: {} (from the {}) is not followed by default: {}",
-                    implementation.to_checksum(None),
-                    d.source,
-                    d.hold.join("; ")
-                )),
-                None => {
-                    let check = if kind.starts_with("implementation() getter") {
-                        ProxyCheck::default()
-                    } else {
-                        proxy_check(kind, &code, implementation, beacon)
-                    };
-                    not_followed_reason(kind, &check, implementation, own_functions)
-                }
-            };
-            let mut followed = false;
-            let mut no_code = false;
-            // Not a msg.sender-dependent proxy: there is one target, so
-            // --follow-proxy-target acts as --follow-proxy, and an address
-            // must be that target
-            if let Some(t) = args.follow_proxy_target.as_deref() {
-                let ok = t.eq_ignore_ascii_case("user")
-                    || Address::from_str(t).is_ok_and(|a| a == implementation);
-                if !ok {
-                    anyhow::bail!(
-                        "--follow-proxy-target {t}: this is not a msg.sender-dependent proxy; its only target is {} ({kind}). Use --follow-proxy, or --follow-proxy-target user",
-                        implementation.to_checksum(None)
-                    );
-                }
-            }
-            if reason.is_none() || args.follow_proxy || args.follow_proxy_target.is_some() {
-                let impl_code = get_code(implementation).await?;
-                if impl_code.is_empty() {
-                    no_code = true;
-                } else {
-                    followed = true;
-                    if !quiet {
-                        eprintln!(
-                            "{kind}: using implementation {}",
-                            implementation.to_checksum(None)
-                        );
-                    }
-                    own_code = Some(std::mem::replace(&mut code, impl_code));
-                    code_address = implementation;
-                    resolved_via = Some(kind.to_string());
-                }
-            }
-            let source = delegate
-                .as_ref()
-                .map(|d| d.source)
-                .unwrap_or_else(|| proxy_value_source(kind));
-            // The reason shown: why it is not followed, or (followed with
-            // --follow-proxy) why it would not have been
-            let shown_reason = if no_code {
-                Some(format!(
-                    "{kind}: {} has no code at this block",
-                    implementation.to_checksum(None)
-                ))
-            } else {
-                reason.clone()
-            };
-            if let Some(r) = &shown_reason {
-                let line = if followed {
-                    format!("{r}; followed anyway because --follow-proxy was given")
-                } else if no_code {
-                    format!("{r}; its own code is analysed")
-                } else {
-                    format!("{r}; not followed, analysing its own code (pass --follow-proxy to use that code instead)")
-                };
-                if !quiet && source != "getter" {
-                    eprintln!("Warning: {line}");
-                }
-                notes.push(line);
-            }
-            if shown_reason.is_some() || delegate.is_some() {
-                let mut slot = json!({
-                    "kind": kind,
-                    "source": source,
-                    "value": implementation.to_checksum(None),
-                    "followed": followed,
-                    "reason": shown_reason,
-                    "force_with": if followed || no_code { Value::Null } else { json!("--follow-proxy") },
-                });
-                if let Some(d) = &delegate {
-                    slot["resolved"] = d.resolution.clone();
-                    slot["analysis_complete"] = json!(d.analysis_complete);
-                    if let Some(g) = getter {
-                        slot["implementation_getter"] = json!(g.to_checksum(None));
-                        slot["getter_agrees"] = json!(g == implementation);
-                        if g != implementation {
-                            notes.push(format!(
-                                "{kind}: implementation() answers {}, but the code delegates to {} (from the {}); the latter is used",
-                                g.to_checksum(None),
-                                implementation.to_checksum(None),
-                                d.source
-                            ));
-                        }
-                    }
-                }
-                proxy_slot = Some(slot);
-            }
-        }
+    } else if args.follow_proxy_target.is_some() && args.no_follow_proxy {
+        return Err(arg_error(
+            "invalid --follow-proxy-target together with --no-follow-proxy".into(),
+        ));
     }
     if code.is_empty() {
         anyhow::bail!(
@@ -1729,141 +1487,600 @@ async fn fetch_target(chain: Chain, args: &TargetArgs, quiet: bool) -> anyhow::R
     })
 }
 
-/// One implementation a msg.sender-dependent proxy can delegate to
+/// Where a candidate target of a msg.sender-dependent proxy comes from
 #[derive(Debug, Clone, PartialEq, Eq)]
-struct SenderCandidate {
-    slot: U256,
-    /// Bit offset of the address in the slot (0 for a whole word)
-    shift: u32,
-    /// `admin` (msg.sender equals `against`), `user` (it does not) or
-    /// `any` (no msg.sender branch on the way)
-    caller: &'static str,
-    /// What msg.sender is compared with
-    against: Option<String>,
+enum CandidateSource {
+    Slot {
+        slot: U256,
+        shift: u32,
+    },
+    Constant(Address),
+    /// Not one slot or constant (described)
+    Other(String),
 }
 
-/// A proxy whose dispatcher-path DELEGATECALL target depends on a
-/// msg.sender comparison: different slots on the two sides of the branch,
-/// or a single slot reached only when msg.sender is the admin. An
-/// OpenZeppelin transparent proxy (the admin is refused or handled in the
-/// proxy, everyone else delegates to the one slot) is not one: its
-/// forwarding DELEGATECALL is reached only on the `user` side. Only
-/// DELEGATECALLs that forward the caller's selector count (an
-/// upgrade-and-call delegates with its own input). Returns the candidates,
-/// `user` first, then `admin`, then `any`
-fn sender_split(report: &CallsReport, code: &[u8]) -> Option<Vec<SenderCandidate>> {
-    let mut out: Vec<SenderCandidate> = Vec::new();
-    // pcs of the msg.sender branches behind `admin` records
-    let mut admin_pcs: Vec<usize> = Vec::new();
-    for site in report.call_sites.iter().filter(|s| {
-        s.kind == "DELEGATECALL"
-            && s.functions.iter().any(|f| f == "dispatcher")
-            && forwards_selector(s)
-    }) {
-        for st in &site.target_by_sender {
-            if st.target.kind != "storage" {
-                continue;
-            }
-            let shift = match st.target.note.as_deref() {
-                None => 0,
+/// One target a msg.sender-dependent proxy can delegate to
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct SenderCandidate {
+    source: CandidateSource,
+    /// `admin` (a caller check passed on the way), `user` (checks on the
+    /// way, none passed) or `any` (no check)
+    caller: &'static str,
+    /// The caller checks on the way, as text
+    checks: Vec<String>,
+}
+
+/// A proxy whose DELEGATECALL target depends on who calls
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct SenderSplit {
+    /// `user` first, then `admin`, then `any`
+    candidates: Vec<SenderCandidate>,
+    /// Why it counts as one
+    why: String,
+}
+
+fn candidate_source(p: &crate::bytecode::Provenance) -> CandidateSource {
+    match p.kind.as_str() {
+        "storage" => {
+            let shift = match p.note.as_deref() {
+                None => Some(0),
                 Some(n) => match packing_of(n) {
-                    Packing::Shift(k) => k,
-                    Packing::Other => continue,
+                    Packing::Shift(k) => Some(k),
+                    Packing::Other => None,
                 },
             };
-            let Some(slot) = st
-                .target
-                .slot
-                .as_deref()
-                .and_then(|v| U256::from_str(v).ok())
-            else {
-                continue;
-            };
-            let (caller, against) = match st.sender.iter().find(|b| b.equal) {
-                Some(b) => {
-                    admin_pcs.push(b.pc);
-                    ("admin", Some(b.against.describe()))
-                }
-                None => match st.sender.first() {
-                    Some(b) => ("user", Some(b.against.describe())),
-                    None => ("any", None),
-                },
-            };
-            let c = SenderCandidate {
-                slot,
+            match (
+                p.slot.as_deref().and_then(|v| U256::from_str(v).ok()),
                 shift,
-                caller,
-                against,
-            };
-            if !out.contains(&c) {
-                out.push(c);
+            ) {
+                (Some(slot), Some(shift)) => CandidateSource::Slot { slot, shift },
+                _ => CandidateSource::Other(p.describe()),
             }
         }
+        "constant" | "code_constant" => {
+            match p.value.as_deref().and_then(|v| U256::from_str(v).ok()) {
+                Some(v) if v.bit_len() <= 160 && !v.is_zero() => {
+                    CandidateSource::Constant(Address::from_slice(&v.to_be_bytes::<32>()[12..]))
+                }
+                _ => CandidateSource::Other(p.describe()),
+            }
+        }
+        _ => CandidateSource::Other(p.describe()),
     }
-    if out.is_empty() || out.iter().all(|c| c.caller == "any") {
+}
+
+fn check_text(b: &crate::bytecode::calls::SenderBranch) -> String {
+    let subject = if b.subject == "tx_origin" {
+        "tx.origin"
+    } else {
+        "msg.sender"
+    };
+    let any_of = b.against.note.clone().unwrap_or_default();
+    match (b.check.as_str(), b.equal) {
+        ("mapping_lookup", true) => format!("{subject} has an entry in {}", b.against.describe()),
+        ("mapping_lookup", false) => format!("{subject} has no entry in {}", b.against.describe()),
+        ("any_of", true) => format!("{subject} is one of {any_of}"),
+        ("any_of", false) => format!("{subject} is none of {any_of}"),
+        (_, true) => format!("{subject} == {}", b.against.describe()),
+        (_, false) => format!("{subject} != {}", b.against.describe()),
+    }
+}
+
+/// Is the DELEGATECALL target on the dispatcher path decided by who calls?
+/// Only DELEGATECALLs that forward the caller's selector count (an
+/// upgrade-and-call delegates with its own input). It is a split when:
+/// - the target is itself computed from msg.sender or tx.origin (a
+///   branchless select, or a mapping keyed by the caller);
+/// - one caller check (msg.sender or tx.origin against a value, one of
+///   several values, or a role mapping) sends the two sides to different
+///   targets;
+/// - there is one target, reached only when a check passes that refuses
+///   everyone else (`guard_admits_only_admin`);
+/// - the analysis did not cover every path and the targets behind caller
+///   checks are several (which caller gets which cannot be told).
+///
+/// An OpenZeppelin transparent proxy (4.x refuses the admin, 5.x handles
+/// upgradeToAndCall itself) and USDC's proxy reach their one slot only on
+/// the non-admin side: not a split
+fn sender_split(report: &CallsReport, code: &[u8]) -> Option<SenderSplit> {
+    let records: Vec<&crate::bytecode::calls::SenderTarget> = report
+        .call_sites
+        .iter()
+        .filter(|s| {
+            s.kind == "DELEGATECALL"
+                && s.functions.iter().any(|f| f == "dispatcher")
+                && forwards_selector(s)
+        })
+        .flat_map(|s| s.target_by_sender.iter())
+        .collect();
+    if records.is_empty() {
         return None;
     }
-    let mut slots: Vec<U256> = out.iter().map(|c| c.slot).collect();
-    slots.sort();
-    slots.dedup();
-    // Different targets with at least one behind a sender branch, or one
-    // target reached only when msg.sender is the admin. The second needs
-    // positive evidence: the analysis merges paths that rejoin with the same
-    // state, so a missing `user` record alone proves nothing; every such
-    // branch must revert for anyone but the admin
-    let split = slots.len() >= 2
-        || (out.iter().all(|c| c.caller == "admin")
-            && !admin_pcs.is_empty()
-            && admin_pcs
-                .iter()
-                .all(|pc| guard_admits_only_admin(code, *pc)));
-    if !split {
-        return None;
+    let mut candidates: Vec<SenderCandidate> = Vec::new();
+    for r in &records {
+        let caller = if r.sender.iter().any(|b| b.equal) {
+            "admin"
+        } else if !r.sender.is_empty() {
+            "user"
+        } else {
+            "any"
+        };
+        let c = SenderCandidate {
+            source: candidate_source(&r.target),
+            caller,
+            checks: r.sender.iter().map(check_text).collect(),
+        };
+        if !candidates.contains(&c) {
+            candidates.push(c);
+        }
     }
     let rank = |c: &SenderCandidate| match c.caller {
         "user" => 0,
         "admin" => 1,
         _ => 2,
     };
-    out.sort_by_key(rank);
-    Some(out)
+    candidates.sort_by_key(rank);
+    let done = |why: String| {
+        Some(SenderSplit {
+            candidates: candidates.clone(),
+            why,
+        })
+    };
+    if records.iter().any(|r| r.reads_sender) {
+        return done("the DELEGATECALL target is itself computed from msg.sender or tx.origin, so it depends on the caller".into());
+    }
+    let mut targets: Vec<&crate::bytecode::Provenance> = Vec::new();
+    for r in &records {
+        if !targets.contains(&&r.target) {
+            targets.push(&r.target);
+        }
+    }
+    for x in &records {
+        for y in &records {
+            if x.target == y.target {
+                continue;
+            }
+            for bx in &x.sender {
+                if y.sender
+                    .iter()
+                    .any(|by| by.pc == bx.pc && by.equal != bx.equal)
+                {
+                    return done(format!(
+                        "the caller check at pc {} ({}) sends the two sides to different targets",
+                        bx.pc,
+                        check_text(bx)
+                    ));
+                }
+            }
+        }
+    }
+    let passing: Vec<&crate::bytecode::calls::SenderBranch> = records
+        .iter()
+        .flat_map(|r| r.sender.iter().filter(|b| b.equal))
+        .collect();
+    if targets.len() == 1
+        && records.iter().all(|r| r.sender.iter().any(|b| b.equal))
+        && passing.iter().all(|b| guard_admits_only_admin(code, b.pc))
+    {
+        return done("the DELEGATECALL is reached only when a caller check passes, and every other caller is refused".into());
+    }
+    if !report.coverage.complete
+        && targets.len() >= 2
+        && records.iter().any(|r| !r.sender.is_empty())
+    {
+        return done("the call analysis did not cover every path, and the DELEGATECALL has several targets behind caller checks, so which caller gets which cannot be told".into());
+    }
+    None
 }
 
-/// Kind reported by `contract::find_implementation` for a proxy whose
-/// target depends on msg.sender; the implementation given is the `user` one
-pub(crate) const SENDER_SPLIT_KIND: &str = "msg.sender-dependent proxy (user target)";
+/// How a proxy should be followed: the `--follow-proxy` and
+/// `--follow-proxy-target` choices
+#[derive(Debug, Clone, Default)]
+pub(crate) struct FollowOpts {
+    pub follow_proxy: bool,
+    pub target: Option<String>,
+}
 
-/// The candidates of a msg.sender-dependent proxy, read at `block`:
-/// (caller, slot, value). `None` when the code is not one. The analysis is
-/// run on a smaller budget than the fingerprint's, since this is called
-/// for every slot proxy that `find_implementation` sees
-pub(crate) async fn sender_split_targets<P: Provider>(
+/// What `resolve_proxy` decided for an address's code
+#[derive(Debug, Default)]
+pub(crate) struct ProxyDecision {
+    /// The implementation to analyse instead, how it was found, and its code
+    pub followed: Option<(Address, String, Vec<u8>)>,
+    /// What was found and not followed (or followed only because asked)
+    pub proxy_slot: Option<Value>,
+    pub notes: Vec<String>,
+}
+
+/// An error in the command line: its text starts with "invalid ", which
+/// `agent_output` classifies as `invalid_argument`
+fn arg_error(msg: String) -> anyhow::Error {
+    crate::error::Error::Other(msg).into()
+}
+
+/// The one proxy decision every command uses (fingerprint, match,
+/// decompile, inspect, the `--follow-proxy` paths of selectors, calls and
+/// analyze, and storage): whether this code is a proxy ethcli follows, and
+/// to what. A proxy whose target depends on the caller is held and its
+/// candidates listed; a slot proxy is followed only when the call analysis
+/// confirms every unmatched call runs the slot's code; anything uncertain is
+/// held, and `opts` can force it
+pub(crate) async fn resolve_proxy<P: Provider>(
     provider: &P,
     address: Address,
     code: &[u8],
-    block: alloy::eips::BlockId,
-) -> Option<Vec<(&'static str, String, Option<Address>)>> {
-    if is_known_safe_proxy(code) || !code.contains(&0x33) || !code.contains(&0xf4) {
-        return None;
-    }
-    let owned = code.to_vec();
-    let cands = tokio::task::spawn_blocking(move || {
-        let budget = CallsBudget {
-            max_time: std::time::Duration::from_secs(8),
-            ..CallsBudget::default()
-        };
-        sender_split(&analyze_calls(&owned, budget), &owned)
-    })
-    .await
-    .ok()??;
-    let mut out = Vec::new();
-    for c in cands {
-        let v = slot_address(provider, address, c.slot, block, c.shift)
+    block_id: alloy::eips::BlockId,
+    opts: &FollowOpts,
+    quiet: bool,
+) -> anyhow::Result<ProxyDecision> {
+    let get_code = |a: Address| async move {
+        provider
+            .get_code_at(a)
+            .block_id(block_id)
             .await
-            .ok();
-        out.push((c.caller, hex_word(c.slot), v));
+            .map(|c| c.to_vec())
+            .map_err(|e| anyhow::anyhow!("Failed to fetch code: {e}"))
+    };
+    let mut decision = ProxyDecision::default();
+    if code.is_empty() {
+        return Ok(decision);
     }
-    Some(out)
+    if !is_known_safe_proxy(code) {
+        if let Some(split) = sender_split(&analyze_calls(code, CallsBudget::default()), code) {
+            return resolve_split(provider, address, block_id, split, opts, quiet).await;
+        }
+    }
+    // A canonical Safe proxy keeps its singleton in slot 0; Safe 1.0.0
+    // proxies do not answer masterCopy(), so read the slot directly
+    let safe_singleton = if is_known_safe_proxy(code) {
+        super::contract::storage_address(provider, address, B256::ZERO, block_id)
+            .await
+            .map(|a| ("Safe proxy", a))
+    } else {
+        None
+    };
+    let mut found = match safe_singleton {
+        Some(found) => Some(found),
+        None => super::contract::find_implementation(provider, address, code, block_id).await,
+    };
+    let mut beacon = super::contract::storage_address(
+        provider,
+        address,
+        B256::from_str(EIP1967_BEACON_SLOT).expect("valid slot"),
+        block_id,
+    )
+    .await;
+    if found.is_none() {
+        if let Some(target) = vyper_forwarder(code) {
+            found = Some(("Vyper forwarder proxy", target));
+        } else if let Some(b) = immutable_beacon(code) {
+            if let Some(imp) =
+                super::contract::call_implementation_function_at(provider, b, block_id).await
+            {
+                beacon = Some(b);
+                found = Some(("beacon proxy (immutable beacon)", imp));
+            }
+        }
+    }
+    // No standard slot confirmed: recognise the proxy by where its
+    // DELEGATECALL target comes from (Compound delegators, aragonOS
+    // app proxies), and resolve it the way the proxy does
+    let getter = found
+        .filter(|(k, _)| k.starts_with("implementation() getter"))
+        .map(|(_, a)| a);
+    let mut delegate = None;
+    if found.is_none() || getter.is_some() {
+        match resolve_delegate(provider, address, code, block_id).await {
+            DelegateOutcome::Found(d) => {
+                found = Some((d.kind, d.implementation));
+                delegate = Some(d);
+            }
+            DelegateOutcome::Note(n) => decision.notes.push(n),
+            DelegateOutcome::None => {}
+        }
+    }
+    if let Some((kind, implementation)) = found {
+        let own_functions = extract_selectors(code).len();
+        let reason = match &delegate {
+            Some(d) if d.hold.is_empty() => None,
+            Some(d) => Some(format!(
+                "{kind}: {} (from the {}) is not followed by default: {}",
+                implementation.to_checksum(None),
+                d.source,
+                d.hold.join("; ")
+            )),
+            None => {
+                let check = if kind.starts_with("implementation() getter") {
+                    ProxyCheck::default()
+                } else {
+                    proxy_check(kind, code, implementation, beacon)
+                };
+                not_followed_reason(kind, &check, implementation, own_functions)
+            }
+        };
+        let mut followed = false;
+        let mut no_code = false;
+        // Not a msg.sender-dependent proxy: there is one target, so
+        // --follow-proxy-target acts as --follow-proxy, and an address
+        // must be that target
+        if let Some(t) = opts.target.as_deref() {
+            let ok = t.eq_ignore_ascii_case("user")
+                || Address::from_str(t).is_ok_and(|a| a == implementation);
+            if !ok {
+                return Err(arg_error(format!(
+                        "invalid --follow-proxy-target {t}: this is not a msg.sender-dependent proxy; its only target is {} ({kind}). Use --follow-proxy, or --follow-proxy-target user",
+                        implementation.to_checksum(None)
+                    )));
+            }
+        }
+        if reason.is_none() || opts.follow_proxy || opts.target.is_some() {
+            let impl_code = get_code(implementation).await?;
+            if impl_code.is_empty() {
+                no_code = true;
+            } else {
+                followed = true;
+                if !quiet {
+                    eprintln!(
+                        "{kind}: using implementation {}",
+                        implementation.to_checksum(None)
+                    );
+                }
+                decision.followed = Some((implementation, kind.to_string(), impl_code));
+            }
+        }
+        let source = delegate
+            .as_ref()
+            .map(|d| d.source)
+            .unwrap_or_else(|| proxy_value_source(kind));
+        // The reason shown: why it is not followed, or (followed with
+        // --follow-proxy) why it would not have been
+        let shown_reason = if no_code {
+            Some(format!(
+                "{kind}: {} has no code at this block",
+                implementation.to_checksum(None)
+            ))
+        } else {
+            reason.clone()
+        };
+        if let Some(r) = &shown_reason {
+            let line = if followed {
+                format!("{r}; followed anyway because --follow-proxy was given")
+            } else if no_code {
+                format!("{r}; its own code is analysed")
+            } else {
+                format!("{r}; not followed, analysing its own code (pass --follow-proxy to use that code instead)")
+            };
+            if !quiet && source != "getter" {
+                eprintln!("Warning: {line}");
+            }
+            decision.notes.push(line);
+        }
+        if shown_reason.is_some() || delegate.is_some() {
+            let mut slot = json!({
+                "kind": kind,
+                "source": source,
+                "value": implementation.to_checksum(None),
+                "followed": followed,
+                "reason": shown_reason,
+                "force_with": if followed || no_code { Value::Null } else { json!("--follow-proxy") },
+            });
+            if let Some(d) = &delegate {
+                slot["resolved"] = d.resolution.clone();
+                slot["analysis_complete"] = json!(d.analysis_complete);
+                if let Some(g) = getter {
+                    slot["implementation_getter"] = json!(g.to_checksum(None));
+                    slot["getter_agrees"] = json!(g == implementation);
+                    if g != implementation {
+                        decision.notes.push(format!(
+                                "{kind}: implementation() answers {}, but the code delegates to {} (from the {}); the latter is used",
+                                g.to_checksum(None),
+                                implementation.to_checksum(None),
+                                d.source
+                            ));
+                    }
+                }
+            }
+            decision.proxy_slot = Some(slot);
+        }
+    }
+
+    if decision.followed.is_none() && decision.proxy_slot.is_none() {
+        if let Some(t) = opts.target.as_deref() {
+            return Err(arg_error(format!(
+                "invalid --follow-proxy-target {t}: {} is not a proxy ethcli recognises",
+                address.to_checksum(None)
+            )));
+        }
+    }
+    Ok(decision)
+}
+
+/// Resolve a msg.sender-dependent proxy: read each candidate, follow only
+/// the one asked for
+async fn resolve_split<P: Provider>(
+    provider: &P,
+    address: Address,
+    block_id: alloy::eips::BlockId,
+    split: SenderSplit,
+    opts: &FollowOpts,
+    quiet: bool,
+) -> anyhow::Result<ProxyDecision> {
+    let mut decision = ProxyDecision::default();
+    let cands = &split.candidates;
+    let mut values: Vec<Option<Address>> = Vec::new();
+    let mut cand_json = Vec::new();
+    let mut parts = Vec::new();
+    for c in cands {
+        let v: Result<Address, String> = match &c.source {
+            CandidateSource::Slot { slot, shift } => {
+                slot_address(provider, address, *slot, block_id, *shift).await
+            }
+            CandidateSource::Constant(a) => Ok(*a),
+            CandidateSource::Other(d) => {
+                Err(format!("target not read from one slot or constant ({d})"))
+            }
+        };
+        values.push(v.as_ref().ok().copied());
+        let from = match &c.source {
+            CandidateSource::Slot { slot, shift } => format!(
+                "slot {}{}",
+                hex_word(*slot),
+                if *shift > 0 {
+                    format!(" ({})", bits_label(*shift))
+                } else {
+                    String::new()
+                }
+            ),
+            CandidateSource::Constant(_) => "a code constant".to_string(),
+            CandidateSource::Other(d) => d.clone(),
+        };
+        let who = if c.checks.is_empty() {
+            format!("{} (no caller check on the way)", c.caller)
+        } else {
+            format!("{} ({})", c.caller, c.checks.join(", "))
+        };
+        parts.push(format!(
+            "{who}: {from} = {}",
+            match &v {
+                Ok(a) => a.to_checksum(None),
+                Err(e) => format!("unreadable ({e})"),
+            }
+        ));
+        cand_json.push(json!({
+            "source": match &c.source {
+                CandidateSource::Slot { .. } => "slot",
+                CandidateSource::Constant(_) => "constant",
+                CandidateSource::Other(_) => "other",
+            },
+            "slot": match &c.source {
+                CandidateSource::Slot { slot, .. } => json!(hex_word(*slot)),
+                _ => Value::Null,
+            },
+            "bits": match &c.source {
+                CandidateSource::Slot { shift, .. } => json!(bits_label(*shift)),
+                _ => Value::Null,
+            },
+            "value": v.as_ref().ok().map(|a| a.to_checksum(None)),
+            "error": v.as_ref().err(),
+            "caller": c.caller,
+            "caller_checks": c.checks,
+        }));
+    }
+    let pick = |caller: &str| -> anyhow::Result<usize> {
+        let idx: Vec<usize> = cands
+            .iter()
+            .enumerate()
+            .filter(|(_, c)| c.caller == caller)
+            .map(|(i, _)| i)
+            .collect();
+        match idx.as_slice() {
+            [i] => Ok(*i),
+            [] => Err(arg_error(format!(
+                "invalid --follow-proxy-target {caller}: this proxy has no {caller}-side target ({}); pick a candidate by address",
+                parts.join("; ")
+            ))),
+            _ => Err(arg_error(format!(
+                "invalid --follow-proxy-target {caller}: this proxy has {} {caller}-side targets ({}); pick one by address",
+                idx.len(),
+                parts.join("; ")
+            ))),
+        }
+    };
+    let want = opts
+        .target
+        .as_deref()
+        .or(opts.follow_proxy.then_some("user"));
+    let chosen = match want {
+        None => None,
+        Some(w) if w.eq_ignore_ascii_case("user") => Some(pick("user")?),
+        Some(w) if w.eq_ignore_ascii_case("admin") => Some(pick("admin")?),
+        Some(w) => {
+            let a = Address::from_str(w).map_err(|_| {
+                arg_error(format!(
+                    "invalid --follow-proxy-target '{w}': expected admin, user or an address"
+                ))
+            })?;
+            Some(values.iter().position(|v| *v == Some(a)).ok_or_else(|| {
+                arg_error(format!(
+                    "invalid --follow-proxy-target {w}: not one of this proxy's candidate targets ({})",
+                    parts.join("; ")
+                ))
+            })?)
+        }
+    };
+    let kind = "msg.sender-dependent proxy";
+    let reason = format!(
+        "{kind}: {}; candidates: {}. No single implementation is known to run for every caller, so none is followed by default",
+        split.why,
+        parts.join("; ")
+    );
+    let mut followed = false;
+    let mut no_code = false;
+    let mut chosen_caller = None;
+    if let Some(i) = chosen {
+        let imp = values[i].ok_or_else(|| {
+            arg_error(format!(
+                "invalid --follow-proxy-target: the chosen {} target could not be read",
+                cands[i].caller
+            ))
+        })?;
+        let impl_code = provider
+            .get_code_at(imp)
+            .block_id(block_id)
+            .await
+            .map(|c| c.to_vec())
+            .map_err(|e| anyhow::anyhow!("Failed to fetch code: {e}"))?;
+        if impl_code.is_empty() {
+            no_code = true;
+        } else {
+            followed = true;
+            if !quiet {
+                eprintln!(
+                    "{kind}: using the {} target {}",
+                    cands[i].caller,
+                    imp.to_checksum(None)
+                );
+            }
+            decision.followed = Some((
+                imp,
+                format!("{kind} ({} target)", cands[i].caller),
+                impl_code,
+            ));
+            chosen_caller = Some(cands[i].caller);
+        }
+    }
+    let line = match chosen_caller {
+        Some(c) => format!("{reason}; followed the {c} target as asked"),
+        None if no_code => format!("{reason}; the chosen target has no code at this block, its own code is analysed"),
+        None => format!("{reason}; analysing its own code (--follow-proxy follows the one user-side target; --follow-proxy-target admin|user|<address> picks one)"),
+    };
+    if !quiet {
+        eprintln!("Warning: {line}");
+    }
+    decision.notes.push(line);
+    let users: Vec<Address> = cands
+        .iter()
+        .zip(&values)
+        .filter(|(c, _)| c.caller == "user")
+        .filter_map(|(_, v)| *v)
+        .collect();
+    decision.proxy_slot = Some(json!({
+        "kind": kind,
+        "source": "slot",
+        "value": match users.as_slice() {
+            [one] => json!(one.to_checksum(None)),
+            _ => Value::Null,
+        },
+        "followed": followed,
+        "followed_target": chosen_caller,
+        "reason": reason,
+        "candidates": cand_json,
+        "force_with": if followed {
+            Value::Null
+        } else {
+            json!("--follow-proxy (the one user-side target) or --follow-proxy-target <admin|user|address>")
+        },
+    }));
+    Ok(decision)
 }
 
 /// Facts about the address's own code when another code was analysed: a
@@ -4068,7 +4285,131 @@ mod tests {
 
     fn split_of(text: &str) -> Option<Vec<SenderCandidate>> {
         let code = fixture_code(text);
+        sender_split(&analyze_calls(&code, CallsBudget::default()), &code).map(|s| s.candidates)
+    }
+
+    fn slot_of(c: &SenderCandidate) -> U256 {
+        match &c.source {
+            CandidateSource::Slot { slot, .. } => *slot,
+            other => panic!("not a slot: {other:?}"),
+        }
+    }
+
+    /// `calldatacopy(0, 0, calldatasize)`, then `cond` decides: when it is
+    /// zero, delegate the calldata to `fall_target`; else to `jump_target`
+    /// (each the bytes that push the target)
+    fn two_target_program(cond: &str, fall_target: &str, jump_target: &str) -> Vec<u8> {
+        let call = |t: &str| format!("60006000366000{t}5af400");
+        let head = "366000600037";
+        let fall = call(fall_target);
+        let dest = head.len() / 2 + cond.len() / 2 + 3 + fall.len() / 2;
+        hex::decode(format!(
+            "{head}{cond}60{dest:02x}57{fall}5b{}",
+            call(jump_target)
+        ))
+        .unwrap()
+    }
+
+    fn split_program(cond: &str, fall: &str, jump: &str) -> Option<SenderSplit> {
+        let code = two_target_program(cond, fall, jump);
         sender_split(&analyze_calls(&code, CallsBudget::default()), &code)
+    }
+
+    /// --follow-proxy-target mistakes are `invalid_argument`
+    #[test]
+    fn follow_target_errors_are_invalid_argument() {
+        let e = arg_error(
+            "invalid --follow-proxy-target user: this proxy has no user-side target".into(),
+        );
+        assert_eq!(
+            crate::agent_output::classify(&e),
+            crate::agent_output::ErrorCode::InvalidArgument
+        );
+    }
+
+    /// tx.origin, either-of and role-mapping checks with a different target
+    /// on each side are splits; the same checks in front of one target are
+    /// not
+    #[test]
+    fn caller_checks_of_every_shape_split_targets() {
+        let sload1 = "600154";
+        let sload2 = "600254";
+        for (name, cond) in [
+            ("msg.sender eq", "3360005414"),
+            ("tx.origin eq", "3260005414"),
+            (
+                "either of",
+                "33600054143360035414 17".replace(' ', "").leak() as &str,
+            ),
+            (
+                "role mapping",
+                "3360405260056060526040604020 54".replace(' ', "").leak() as &str,
+            ),
+        ] {
+            let split = split_program(cond, sload1, sload2).unwrap_or_else(|| panic!("{name}"));
+            let slots: Vec<U256> = split.candidates.iter().map(slot_of).collect();
+            assert!(
+                slots.contains(&U256::from(1)) && slots.contains(&U256::from(2)),
+                "{name}"
+            );
+            assert!(
+                split.candidates.iter().any(|c| c.caller == "admin"),
+                "{name}"
+            );
+            assert!(
+                split.candidates.iter().any(|c| c.caller == "user"),
+                "{name}"
+            );
+            if name == "tx.origin eq" {
+                assert!(
+                    split.candidates[0].checks[0].starts_with("tx.origin"),
+                    "{split:?}"
+                );
+            }
+            assert!(
+                split_program(cond, sload1, sload1).is_none(),
+                "{name}: one target"
+            );
+        }
+    }
+
+    /// The non-admin side delegating to a code constant (an immutable) and
+    /// the admin side to the EIP-1967 slot: a split, with the constant as a
+    /// candidate
+    #[test]
+    fn constant_on_the_user_side_is_a_candidate() {
+        let constant = format!("73{}", "11".repeat(20));
+        let slot = format!("7f{}54", &EIP1967_IMPL_SLOT[2..]);
+        let split = split_program("3360005414", &constant, &slot).expect("split");
+        let user = split
+            .candidates
+            .iter()
+            .find(|c| c.caller == "user")
+            .unwrap();
+        assert_eq!(
+            user.source,
+            CandidateSource::Constant(Address::from_slice(&[0x11; 20]))
+        );
+        let admin = split
+            .candidates
+            .iter()
+            .find(|c| c.caller == "admin")
+            .unwrap();
+        assert_eq!(slot_of(admin), word(EIP1967_IMPL_SLOT));
+    }
+
+    /// A target computed from the caller with no branch (a select, or a
+    /// mapping keyed by msg.sender) is held as a split
+    #[test]
+    fn branchless_target_from_the_caller_is_held() {
+        let code = hex::decode("36600060003760006000366000 3354 5af400".replace(' ', "")).unwrap();
+        let split =
+            sender_split(&analyze_calls(&code, CallsBudget::default()), &code).expect("split");
+        assert!(
+            split.why.contains("computed from msg.sender"),
+            "{}",
+            split.why
+        );
     }
 
     /// Arbitrum's RollupProxy (DoubleLogic): the admin is delegated to the
@@ -4083,15 +4424,14 @@ mod tests {
         assert_eq!(c.len(), 2, "{c:?}");
         assert_eq!(c[0].caller, "user");
         assert_eq!(
-            c[0].slot,
+            slot_of(&c[0]),
             word("0x2b1dbce74324248c222f0ec2d5ed7bd323cfc425b336f0253c5ccfda7265546d")
         );
         assert_eq!(c[1].caller, "admin");
-        assert_eq!(c[1].slot, word(EIP1967_IMPL_SLOT));
-        assert!(c.iter().all(|x| x
-            .against
-            .as_deref()
-            .is_some_and(|a| a.contains("b53127684a"))));
+        assert_eq!(slot_of(&c[1]), word(EIP1967_IMPL_SLOT));
+        assert!(c
+            .iter()
+            .all(|x| x.checks.iter().any(|t| t.contains("b53127684a"))));
     }
 
     /// Transparent proxies (OpenZeppelin 4.x and 5.x, and USDC's zeppelinos

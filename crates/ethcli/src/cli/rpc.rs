@@ -740,7 +740,10 @@ async fn run_action(
             if format.is_table() {
                 println!("{:#066x}", value);
                 if let (Some(a), false) = (as_address, quiet) {
-                    eprintln!("as an address (low 20 bytes): {}", a.to_checksum(None));
+                    eprintln!(
+                        "low 20 bytes as an address (may not be one): {}",
+                        a.to_checksum(None)
+                    );
                 }
             } else {
                 let out = serde_json::json!({
@@ -749,7 +752,7 @@ async fn run_action(
                     "block": block,
                     "value": format!("{:#066x}", value),
                     "decimal": value.to_string(),
-                    "value_as_address": as_address.map(|a| a.to_checksum(None)),
+                    "low_160_as_address": as_address.map(|a| a.to_checksum(None)),
                 });
                 print_json(&out, *format)?;
             }
@@ -1586,9 +1589,9 @@ fn format_tx_table(tx: &serde_json::Value) -> String {
 }
 
 /// Print a JSON value pretty (json) or on one line (ndjson)
-/// A storage word read as an address: when it fits in 20 bytes and is
-/// wider than 12 bytes (a counter or flag is not shown as one). It may
-/// still not be an address
+/// The low 20 bytes of a storage word as an address, when the upper 12
+/// bytes are zero and the value is wider than 12 bytes (a counter, flag or
+/// small amount is not shown as one). It may still be a number
 fn storage_word_address(value: U256) -> Option<Address> {
     (value.bit_len() > 96 && value.bit_len() <= 160)
         .then(|| Address::from_slice(&value.to_be_bytes::<32>()[12..]))

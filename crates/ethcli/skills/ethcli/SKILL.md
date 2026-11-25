@@ -114,11 +114,14 @@ single facts.
   `compiler`: `compiler_version`, `evm_version`, `via_ir` (null when no
   verifier reports it; `via_ir_from` names the source), `optimizer`
   enabled/runs and `libraries`. Explorer calls are paced machine-wide
-  (`ETHCLI_EXPLORER_RPS`, default 3) and retried on rate limits, so
+  (`ETHCLI_EXPLORER_RPS`, default 3/s, shared by ethcli processes using the
+  same state folder) and retried on short rate limits (not daily ones), so
   parallel calls are fine; `not_verified` is only reported when every
-  verifier answered.
+  verifier answered. `evm_version: "default"` is resolved to the
+  compiler's default (`evm_version_from`).
 - **Storage words:** `rpc storage` prints the whole 32-byte word (leading
-  zeros kept); JSON adds `value_as_address` when it fits an address.
+  zeros kept); JSON adds `low_160_as_address` (the low 20 bytes when the
+  upper 12 are zero; it may still be a number).
 - **Verification match:** `contract inspect` `verification[]` and the
   `contract source` stderr line say `exact` (code and metadata hash
   match) or `partial` (code only; comments/names may differ from what was
