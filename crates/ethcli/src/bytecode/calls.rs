@@ -473,7 +473,31 @@ fn strip_subject(v: &V) -> &V {
     }
 }
 
+/// `x` when `v` is an identity operation on it: div(x, 1), shr(0, x),
+/// shl(0, x), mul(x, 1) (old solc writes `sload(s) / 0x100**0 & mask`)
+fn identity_of(v: &V) -> Option<&V> {
+    let one = U256::from(1u8);
+    match v {
+        V::Op(0x04, a) => match a.as_slice() {
+            [x, V::Const(d, _)] if *d == one => Some(x),
+            _ => None,
+        },
+        V::Op(0x1b | 0x1c, a) => match a.as_slice() {
+            [V::Const(s, _), x] if s.is_zero() => Some(x),
+            _ => None,
+        },
+        V::Op(0x02, a) => match a.as_slice() {
+            [x, V::Const(m, _)] | [V::Const(m, _), x] if *m == one => Some(x),
+            _ => None,
+        },
+        _ => None,
+    }
+}
+
 fn strip(v: &V) -> &V {
+    if let Some(x) = identity_of(v) {
+        return strip(x);
+    }
     match v {
         V::Op(0x16, a) if a.len() == 2 => match (&a[0], &a[1]) {
             (V::Const(m, _), x) | (x, V::Const(m, _)) if low_mask(*m) => strip(x),
@@ -497,6 +521,59 @@ fn strip(v: &V) -> &V {
     }
 }
 
+/// Whether `strip` removes a shift, a division or a mask narrower than an
+/// address on the way to `v`'s source: the value is then only part of the
+/// word it came from (a packed storage slot)
+fn strip_unpacks(v: &V) -> bool {
+    if let Some(x) = identity_of(v) {
+        return strip_unpacks(x);
+    }
+    match v {
+        V::Op(0x16, a) if a.len() == 2 => match (&a[0], &a[1]) {
+            (V::Const(m, _), x) | (x, V::Const(m, _)) if low_mask(*m) => {
+                m.bit_len() < 160 || strip_unpacks(x)
+            }
+            _ => false,
+        },
+        V::Op(0x15, a) => match a.as_slice() {
+            [V::Op(0x15, b)] => strip_unpacks(&b[0]),
+            _ => false,
+        },
+        V::Op(0x1c, a) => matches!(a.as_slice(), [V::Const(s, _), _] if *s == U256::from(96u8)),
+        V::Op(0x04, a) => {
+            matches!(a.as_slice(), [_, V::Const(d, _)] if *d == U256::from(1u8) << 96)
+        }
+        _ => false,
+    }
+}
+
+/// Whether the whole unpacking chain is exactly one shr(96) or div(2^96),
+/// optionally under masks of 160 bits or more (and identities): the address
+/// is then the high 160 bits of the word. A narrower mask, a second shift or
+/// division, or anything else is another layout
+fn strip_takes_high(v: &V) -> bool {
+    if let Some(x) = identity_of(v) {
+        return strip_takes_high(x);
+    }
+    match v {
+        V::Op(0x16, a) if a.len() == 2 => match (&a[0], &a[1]) {
+            (V::Const(m, _), x) | (x, V::Const(m, _)) if low_mask(*m) => {
+                m.bit_len() >= 160 && strip_takes_high(x)
+            }
+            _ => false,
+        },
+        V::Op(0x1c, a) => match a.as_slice() {
+            [V::Const(s, _), x] if *s == U256::from(96u8) => !strip_unpacks(x),
+            _ => false,
+        },
+        V::Op(0x04, a) => match a.as_slice() {
+            [x, V::Const(d, _)] if *d == U256::from(1u8) << 96 => !strip_unpacks(x),
+            _ => false,
+        },
+        _ => false,
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Provenance (serialised)
 
@@ -504,8 +581,8 @@ fn strip(v: &V) -> &V {
 #[derive(Debug, Clone, Serialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Provenance {
     /// constant, code_constant, storage, storage_computed, transient_storage,
-    /// calldata, msg_sender, tx_origin, address_this, msg_value,
-    /// call_return, computed, unresolved
+    /// calldata, calldatasize, msg_sender, tx_origin, address_this,
+    /// msg_value, call_return, computed, unresolved
     pub kind: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub value: Option<String>,
@@ -572,7 +649,19 @@ fn describe_short(v: &V) -> String {
 }
 
 fn provenance(v: &V) -> Provenance {
-    let v = strip(v);
+    let unpacked = strip_unpacks(v);
+    let mut p = provenance_stripped(strip(v));
+    if unpacked && p.kind == "storage" && p.note.is_none() {
+        p.note = Some(if strip_takes_high(v) {
+            "packed with other values (high 160 bits)".into()
+        } else {
+            "packed with other values".into()
+        });
+    }
+    p
+}
+
+fn provenance_stripped(v: &V) -> Provenance {
     match v {
         V::Const(c, n) => {
             let mut p = Provenance::kind(if *n >= 20 {
@@ -635,6 +724,7 @@ fn provenance(v: &V) -> Provenance {
             p.call_pc = Some(*pc);
             p
         }
+        V::Env(0x36) => Provenance::kind("calldatasize"),
         V::Unknown | V::Fresh(_) | V::Env(_) => Provenance::kind("unresolved"),
         V::Hash(words) => {
             let mut p = Provenance::kind("keccak");
@@ -690,6 +780,9 @@ fn collect_sources(v: &V, out: &mut BTreeSet<&'static str>) {
         }
         V::Ret(_) => {
             out.insert("call_return");
+        }
+        V::Env(0x36) => {
+            out.insert("calldatasize");
         }
         V::Unknown | V::Fresh(_) | V::Env(_) => {
             out.insert("unresolved");
@@ -1116,6 +1209,9 @@ pub struct Guard {
 pub struct StoreSite {
     pub pc: usize,
     pub slot: Provenance,
+    /// Where the stored value comes from (not serialised)
+    #[serde(skip)]
+    pub value: Provenance,
     #[serde(skip_serializing_if = "std::ops::Not::not")]
     pub transient: bool,
 }
@@ -1135,7 +1231,22 @@ pub struct FunctionFacts {
     pub delegatecall_pcs: Vec<usize>,
     pub selfdestruct_pcs: Vec<usize>,
     pub create_pcs: Vec<usize>,
+    /// One entry per stored value; serialised once per (pc, slot)
+    #[serde(serialize_with = "serialize_stores")]
     pub sstores: Vec<StoreSite>,
+}
+
+fn serialize_stores<S: serde::Serializer>(v: &[StoreSite], s: S) -> Result<S::Ok, S::Error> {
+    let mut out: Vec<&StoreSite> = Vec::new();
+    for x in v {
+        if !out
+            .iter()
+            .any(|y| y.pc == x.pc && y.slot == x.slot && y.transient == x.transient)
+        {
+            out.push(x);
+        }
+    }
+    serde::Serialize::serialize(&out, s)
 }
 
 /// A sensitive opcode found by a linear scan of the code
@@ -2040,9 +2151,10 @@ impl<'a> Interp<'a> {
                     }
                     0x55 | 0x5d => {
                         let k = pop!();
-                        pop!();
+                        let stored = pop!();
                         let site = StoreSite {
                             pc,
+                            value: provenance(&stored),
                             slot: match k.as_const() {
                                 Some(c) => {
                                     let mut p = Provenance::kind("constant");
@@ -2153,6 +2265,10 @@ impl<'a> Interp<'a> {
                         self.fnacc(s.ctx).selfdestruct.insert(pc);
                         continue 'paths;
                     }
+                    // RETURNDATASIZE before any call in this frame is 0
+                    // (proxies use it as a cheap zero: calldatacopy(p,
+                    // returndatasize(), calldatasize()))
+                    0x3d if s.last_call.is_none() => push!(V::Const(U256::ZERO, 0)),
                     _ => match generic_arity(op) {
                         Some((pops, pushes)) => {
                             let mut args = Vec::with_capacity(pops);
@@ -2878,8 +2994,8 @@ mod tests {
     }
 
     /// A constant in memory that a later write may have overwritten is not
-    /// reported as the call target (the review's cases a-d, plus a write at
-    /// returndatasize())
+    /// reported as the call target (the review's cases a-d), and a write at
+    /// returndatasize() before any call lands at 0
     #[test]
     fn stale_constant_cases_are_unresolved() {
         let k = "731111111111111111111111111111111111111111";
@@ -2896,8 +3012,6 @@ mod tests {
                 "{k}604435600435 01 52 602435 600435 52 {}",
                 call_with("604435600435 01 51")
             ),
-            // (e) constant at 0, write at returndatasize() (0 before a call)
-            format!("{k}5f52 602435 3d 52 {}", call_with("5f51")),
         ];
         for (i, code) in cases.iter().enumerate() {
             let r = run(&code.replace(' ', ""));
@@ -2907,6 +3021,11 @@ mod tests {
                 r.call_sites[0].target
             );
         }
+        // (e) constant at 0, write at returndatasize(): 0 before any call,
+        // so the write replaces the constant with calldata
+        let r = run(&format!("{k}5f52 602435 3d 52 {}", call_with("5f51")).replace(' ', ""));
+        assert_eq!(r.call_sites[0].target[0].kind, "calldata");
+        assert_eq!(r.call_sites[0].target[0].offset.as_deref(), Some("0x24"));
     }
 
     /// 1inch v5 style: selector at 0x80, a dynamic copy after it, then a
@@ -2987,6 +3106,32 @@ mod tests {
         let sites = opcode_sites(&plain, Some(1));
         assert_eq!(sites.len(), 2);
         assert!(sites.iter().all(|s| s.in_metadata));
+    }
+
+    /// The note on a DELEGATECALL target read from slot 0 through `unpack`
+    fn packed_note(unpack: &str) -> Option<String> {
+        let r = run(&format!("6000600060006000600054{unpack}5af400"));
+        r.call_sites[0].target[0].note.clone()
+    }
+
+    #[test]
+    fn only_a_plain_shr_96_is_the_high_160_bits() {
+        let high = |n: Option<String>| n.is_some_and(|n| n.contains("high 160 bits"));
+        let other = |n: Option<String>| n.as_deref() == Some("packed with other values");
+        // shr(96)
+        assert!(high(packed_note("60601c")));
+        // shr(96) & (2^160 - 1)
+        assert!(high(packed_note(&format!("60601c73{}16", "ff".repeat(20)))));
+        // shr(96) & 0xff
+        assert!(other(packed_note("60601c60ff16")));
+        // shr(96) then shr(8)
+        assert!(other(packed_note("60601c60081c")));
+        // div(2^96) then div(2)
+        assert!(other(packed_note(
+            "6c01000000000000000000000000900460029004"
+        )));
+        // A plain read: no note
+        assert_eq!(packed_note(""), None);
     }
 
     #[test]
