@@ -676,44 +676,60 @@ ethcli contract match <addr> --artifact <forge-or-solc-json> [--contract Name] [
   `tests/fixtures/match/yearn_v3_strategy_runtime.hex`).
 - When no standard slot is confirmed (nothing found, or only an
   `implementation()` getter), `resolve_delegate` / `delegate_finding`
-  recognise a proxy by provenance. Shape (else not a proxy):
-  1. every dispatcher-path DELEGATECALL target is one plain storage slot
+  recognise a proxy by provenance. Shape (else not a proxy; a note says
+  why when a slot or kernel was involved):
+  1. every dispatcher-path DELEGATECALL target is one storage slot
      (`storage-slot proxy`; `Aragon AppProxyPinned` for the pinned-code
      slot) or the return of one dispatcher-path
      `getApp(APP_BASES_NAMESPACE, sload(appIdSlot))` call to
      `sload(kernelSlot)` (`Aragon AppProxyUpgradeable`). Code constants
      (Yearn V3 strategies), calldata, mappings (diamonds) or a mix give
-     nothing. A target shifted or masked below 160 bits out of a slot
-     (`calls::strip_unpacks`, provenance note "packed with other values")
-     is refused with a note;
-  2. at least one of those DELEGATECALLs forwards the caller's calldata:
-     selector records from calldata (some may be unresolved, none
-     constant) and length `calldatasize` (provenance `calldatasize`, or
-     `computed` from calldatasize and unresolved terms only). A constant
-     selector alone is a library call: refused with a note;
+     nothing. `calls::identity_of` drops div(x,1), shr/shl(0,x) and
+     mul(x,1) (old solc `sload(0) / 0x100**0 & mask`, Decentraland LAND);
+  2. at least one of them forwards the caller's calldata: selector records
+     from calldata offset 0 (unresolved records allowed beside one) and
+     length `calldatasize`, or `computed` "from calldatasize" alone.
+     A constant selector or `msg.data[4:]` is a library call;
   3. no dispatcher-path CALL/CALLCODE/STATICCALL to the same target (the
-     slot, or the getApp return for Aragon) has any selector record from
-     calldata, whatever the other records are (`call_forwarding`,
-     deliberately permissive; Synthetix Proxy): refused with a note.
-  Held (reported with `followed: false`, `reason`, `force_with`):
-  4. any CALL/CALLCODE/DELEGATECALL/STATICCALL in `opcode_sites` not
+     slot, or the getApp return) has any selector record from calldata,
+     whatever the other records are (`call_forwarding`; Synthetix Proxy).
+  Held (`followed: false`, `reason`, `force_with: --follow-proxy`):
+  4. the target is shifted or masked out of a packed slot (provenance note
+     "packed with other values", `calls::strip_unpacks`; shr 96 / div 2^96
+     read as the high 160 bits, `resolved.bits`);
+  5. any CALL/CALLCODE/DELEGATECALL/STATICCALL in `opcode_sites` not
      reached, outside the metadata trailer and `calls::dead_regions`;
-  5. own logic: an own function (not the dispatcher, and not one with a
-     msg.sender guard against storage, i.e. admin-only) with a call whose
-     target is not `address_this` or the proxy's slots, or an SSTORE to a
-     slot other than the implementation/kernel slot, a slot some guard
-     compares msg.sender with, or the EIP-1967 admin slot (mapping and
-     transient writes count as own logic).
-  Resolution reads the slot (low 160 bits) or calls the kernel at the
-  pinned block; an RPC error or a zero address gives a note, never a
-  silent "not a proxy". `proxy_slot` has `source` `storage` /
-  `aragon_kernel`, `resolved` (reads, `analysis_complete`) and the getter
-  cross-check (`implementation_getter`, `getter_agrees`). An implementation
-  with no code gives `followed: false`, a reason and no `force_with`.
-  Fixtures in `tests/fixtures/bytecode/`: stETH, Lido EVMScriptRegistry
-  (pinned), cDAI, cUSDT, Unitroller (followed); cUSDC, SNX ProxyERC20,
-  `not_proxy_library_call_ac1fe5`, `not_proxy_transient_passthrough_09707f`,
-  `not_proxy_own_logic_5ac9bc` (not followed).
+  6. dispatcher-path logic: a CALL/CALLCODE/STATICCALL to anything but
+     `address_this` or the proxy's slots (the getApp call goes to the
+     kernel slot), or an SSTORE in the `dispatcher` function facts outside
+     the slots of rule 7 that no reverting msg.sender check (against
+     storage or a code constant) precedes;
+  7. own logic in a selector body: a call to anything but `address_this`
+     or the proxy's slots, or an SSTORE to a slot other than the
+     implementation/kernel slot, a slot compared with msg.sender, or the
+     EIP-1967 admin slot. Exempt (admin-only): effects at a higher pc than
+     a msg.sender `eq`/`mapping_lookup` guard against storage, a constant
+     (hard-coded or immutable admin) or a STATICCALL return (admin read
+     from another contract) whose JUMPI
+     has a branch that reverts (`guard_reverts`: REVERT/INVALID before any
+     other halt, branch, write or call, following up to two pushed
+     jumps), limited to SSTOREs to fixed slots and calls to `address_this`
+     or to a calldata argument the same function stores in the
+     implementation slot (upgrade and call; `StoreSite.value`, not
+     serialised). A STATICCALL in a function with no SSTORE and no other
+     call (a view), or one whose return a msg.sender guard compares, is not
+     counted. Pc order stands in for dominance.
+  Resolution reads the slot (low 160 bits, or high for shr 96 packing) or
+  calls the kernel at the pinned block; an RPC error or a zero address
+  gives a note, never a silent "not a proxy". `proxy_slot` has `source`
+  `storage` / `aragon_kernel`, `resolved` (reads, `analysis_complete`) and
+  the getter cross-check (`implementation_getter`, `getter_agrees`). An
+  implementation with no code gives `followed: false`, a reason and no
+  `force_with`. Fixtures in `tests/fixtures/bytecode/`: stETH, Lido
+  EVMScriptRegistry (pinned), cDAI, cUSDT, Unitroller, Decentraland LAND
+  (followed); cUSDC, SNX ProxyERC20, `not_proxy_library_call_ac1fe5`,
+  `not_proxy_transient_passthrough_09707f`, `not_proxy_own_logic_5ac9bc`
+  (not followed); synthetic probes A0-A3, C, D, E in `own_logic_probes_are_held`.
 - `--block` takes a decimal or hex number, a tag or a time; anything else is
   an error.
 - `match --creation-tx` must be the transaction that created the analysed
@@ -789,10 +805,11 @@ ethcli contract twins <addr> --submit-similarity # WRITES to Sourcify
   carry provenance (`constant`, `code_constant` (PUSH20/PUSH32 or codecopy;
   an immutable is indistinguishable from a literal), `storage` slot,
   `storage_computed` (mapping), `calldata` offset (also `shr(96, ...)`
-  packed), `msg_sender`, `tx_origin`, `address_this`, `call_return`,
+  packed), `calldatasize`, `msg_sender`, `tx_origin`, `address_this`, `call_return`,
   `keccak`, `computed`, `unresolved`). Memory is keyed by symbolic base +
   constant offset; `calldatacopy`, constant `codecopy` and return data are
-  modelled, and EXTCODECOPY makes its range unknown. Addresses are sums
+  modelled, and EXTCODECOPY makes its range unknown. RETURNDATASIZE is 0
+  until the path makes a call or create. Addresses are sums
   of symbolic terms (taken as unsigned) plus a constant, with a proven
   lower bound (`x - (len & 31)` and `x & ~31` keep x's bound) and a
   symbolic floor. A write drops same-base entries it fully covers and any

@@ -588,33 +588,40 @@ fn aragon_get_app_call(report: &CallsReport, pc: usize) -> Option<DelegateSource
     found
 }
 
-/// Does the call's input start with the caller's calldata (no constant
-/// selector of its own)? Some records may be unresolved (another path's
-/// memory), but at least one must be calldata and none a constant
+/// Does the call's input start with the caller's calldata from offset 0?
+/// Every selector record is calldata at offset 0, except that records the
+/// analysis could not resolve (another path's memory) are allowed beside at
+/// least one such record. A constant selector, or calldata from another
+/// offset (`msg.data[4:]`), is not forwarding
 fn forwards_selector(c: &crate::bytecode::CallSite) -> bool {
-    c.selector.iter().any(|s| s.kind == "calldata")
+    let at_zero = |s: &crate::bytecode::Provenance| {
+        s.kind == "calldata" && s.offset.as_deref() == Some("0x0")
+    };
+    c.selector.iter().any(at_zero)
         && c.selector
             .iter()
-            .all(|s| matches!(s.kind.as_str(), "calldata" | "unresolved"))
+            .all(|s| at_zero(s) || s.kind == "unresolved")
 }
 
-/// Is the input length `calldatasize`, or computed from it and nothing
-/// else the analysis could name (solc adds and subtracts the free memory
-/// pointer, which is not resolved)?
+/// Is the input the whole calldata: selector from calldata offset 0 and
+/// length exactly `calldatasize`, or computed from `calldatasize` alone
+/// (solc adds and subtracts the free memory pointer, which cancels)?
 fn forwards_whole_calldata(c: &crate::bytecode::CallSite) -> bool {
     forwards_selector(c)
         && !c.args_len.is_empty()
         && c.args_len.iter().all(|l| {
             l.kind == "calldatasize"
-                || (l.kind == "computed"
-                    && l.note.as_deref().is_some_and(|n| {
-                        n.strip_prefix("from ").is_some_and(|r| {
-                            r.split(", ")
-                                .all(|x| matches!(x, "calldatasize" | "unresolved"))
-                                && r.contains("calldatasize")
-                        })
-                    }))
+                || (l.kind == "computed" && l.note.as_deref() == Some("from calldatasize"))
         })
+}
+
+/// How the proxy's target sits in a packed slot
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Packing {
+    /// shr(96) or a division by 2^96: the high 160 bits
+    High,
+    /// Some other shift or a mask narrower than an address
+    Other,
 }
 
 /// A proxy shape recognised by `delegate_finding`, with the reasons (if any)
@@ -622,8 +629,64 @@ fn forwards_whole_calldata(c: &crate::bytecode::CallSite) -> bool {
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct DelegateFinding {
     source: DelegateSource,
+    /// Set when the target is part of a packed slot
+    packed: Option<Packing>,
     /// Why it is not followed by default; empty when it is
     hold: Vec<String>,
+}
+
+/// The pc a JUMPI at `pc` jumps to, when the instruction before it pushes
+/// a constant
+fn pushed_dest(code: &[u8], pc: usize) -> Option<usize> {
+    if pc >= 3 && code[pc - 3] == 0x61 {
+        return Some(u16::from_be_bytes([code[pc - 2], code[pc - 1]]) as usize);
+    }
+    if pc >= 2 && code[pc - 2] == 0x60 {
+        return Some(code[pc - 1] as usize);
+    }
+    None
+}
+
+/// Does the code starting at `start` revert (REVERT or INVALID) before any
+/// other halt, branch, storage write or call? Follows up to two
+/// unconditional jumps to a pushed constant (solc's shared revert helpers)
+fn block_reverts(code: &[u8], start: usize, jumps_left: u8) -> bool {
+    let mut pc = start;
+    if code.get(pc) == Some(&0x5b) {
+        pc += 1;
+    }
+    for _ in 0..96 {
+        let Some(&op) = code.get(pc) else {
+            return false;
+        };
+        match op {
+            0xfd | 0xfe => return true,
+            0x56 => {
+                return jumps_left > 0
+                    && pushed_dest(code, pc).is_some_and(|d| {
+                        code.get(d) == Some(&0x5b) && block_reverts(code, d, jumps_left - 1)
+                    })
+            }
+            0x00 | 0xf3 | 0xff | 0x57 | 0x5b | 0x55 | 0x5d | 0xf0 | 0xf1 | 0xf2 | 0xf4 | 0xf5
+            | 0xfa => return false,
+            _ => {}
+        }
+        pc += 1 + if (0x60..=0x7f).contains(&op) {
+            (op - 0x5f) as usize
+        } else {
+            0
+        };
+    }
+    false
+}
+
+/// A JUMPI whose failing branch reverts: one of its two branches (the fall
+/// through, or the pushed destination) reverts straight away
+fn guard_reverts(code: &[u8], jumpi_pc: usize) -> bool {
+    code.get(jumpi_pc) == Some(&0x57)
+        && (block_reverts(code, jumpi_pc + 1, 2)
+            || pushed_dest(code, jumpi_pc)
+                .is_some_and(|d| code.get(d) == Some(&0x5b) && block_reverts(code, d, 2)))
 }
 
 /// Recognise a proxy by where its DELEGATECALL target comes from.
@@ -631,33 +694,44 @@ struct DelegateFinding {
 /// `Err(None)`: no such shape (no dispatcher-path DELEGATECALL, or its
 /// targets come from a code constant, calldata, a mapping or a mix).
 /// `Err(Some(why))`: a DELEGATECALL reads a slot or kernel, but the shape is
-/// not a proxy's (packed slot, no forwarding of the caller's calldata,
-/// CALL-forwarding to the same slot). `Ok`: the shape, plus reasons to hold.
+/// not a proxy's (no forwarding of the caller's calldata, CALL-forwarding
+/// to the same target). `Ok`: the shape, plus reasons to hold.
 ///
 /// The rule, as implemented:
 /// 1. Every DELEGATECALL reached on the dispatcher path (the path every
 ///    selector the dispatcher does not match runs) takes its target from the
-///    same plain (unpacked) storage slot, or from the return of the same
-///    dispatcher-path `getApp(APP_BASES_NAMESPACE, sload(appIdSlot))` call to
-///    `sload(kernelSlot)` (aragonOS).
-/// 2. At least one of them forwards the caller's calldata: input from
-///    calldata offset 0 with length `calldatasize`. Others may build their
-///    own input (Compound's `delegateToImplementation`).
-/// 3. No dispatcher-path CALL, CALLCODE or STATICCALL to the same target
-///    (the slot, or the kernel's getApp return) has any selector record from
-///    calldata (Synthetix Proxy: CALL or DELEGATECALL by a storage flag).
+///    same storage slot, or from the return of the same dispatcher-path
+///    `getApp(APP_BASES_NAMESPACE, sload(appIdSlot))` call to
+///    `sload(kernelSlot)` (aragonOS). Identity operations (div by 1, shift
+///    by 0, mul by 1) and a 160-bit mask are not packing.
+/// 2. At least one of them forwards the caller's calldata: selector from
+///    calldata offset 0, length `calldatasize` (or computed from it alone).
+///    Others may build their own input (Compound's
+///    `delegateToImplementation`).
+/// 3. No dispatcher-path CALL, CALLCODE or STATICCALL to the same target has
+///    any selector record from calldata (Synthetix Proxy).
 ///
 /// Held (found, reported, not followed by default):
-/// 4. A CALL, CALLCODE, DELEGATECALL or STATICCALL opcode in the executable
+/// 4. The target is shifted or masked out of a packed slot.
+/// 5. A CALL, CALLCODE, DELEGATECALL or STATICCALL opcode in the executable
 ///    code (outside PUSH data, a metadata trailer and data after a halt)
 ///    that the analysis did not reach.
-/// 5. Own logic: an own function (a selector body, not the dispatcher path)
-///    that does not check msg.sender against storage (admin-only functions
-///    such as upgrades are exempt) calls an address other than itself or
-///    the proxy's slots, or writes a
-///    storage slot other than the implementation slot, a slot compared with
-///    msg.sender (admin, pending admin, pending implementation) or the
-///    EIP-1967 admin slot.
+/// 6. Logic on the dispatcher path: a CALL, CALLCODE or STATICCALL to
+///    anything but the contract itself, the slot or the kernel, or a write
+///    to a slot outside those of rule 7 that no reverting msg.sender check
+///    precedes (transparent proxies handle their admin in the fallback).
+/// 7. Own logic in a selector body: a call to anything but the contract
+///    itself or the proxy's slots, or a storage write to a slot other than
+///    the implementation/kernel slot, a slot compared with msg.sender, or the
+///    EIP-1967 admin slot. Admin-only effects are exempt: an effect after (by
+///    pc) a msg.sender check against storage, a constant (a hard-coded or
+///    immutable admin) or the return of a STATICCALL (an admin read from
+///    another contract) whose failure reverts, limited
+///    to writes to fixed slots and to calls to the contract itself or to an
+///    address argument the same function stores in the implementation slot
+///    (upgrade and call). A STATICCALL in a function that writes nothing and
+///    makes no other call (a view), or one whose return such a check
+///    compares msg.sender with, is not counted.
 fn delegate_finding(report: &CallsReport, code: &[u8]) -> Result<DelegateFinding, Option<String>> {
     let sites: Vec<_> = report
         .call_sites
@@ -665,22 +739,32 @@ fn delegate_finding(report: &CallsReport, code: &[u8]) -> Result<DelegateFinding
         .filter(|s| s.kind == "DELEGATECALL" && s.functions.iter().any(|f| f == "dispatcher"))
         .collect();
     let mut found = None;
+    let mut packed = None;
     for site in &sites {
         if site.target.is_empty() {
             return Err(None);
         }
         for t in &site.target {
             let source = match t.kind.as_str() {
-                "storage" if t.note.is_some() => {
-                    return Err(Some(format!(
-                        "the DELEGATECALL target is part of storage slot {} ({}), not a whole address in the slot",
-                        t.slot.as_deref().unwrap_or("?"),
-                        t.note.as_deref().unwrap_or("")
-                    )));
+                "storage" => {
+                    if let Some(note) = t.note.as_deref() {
+                        if !note.starts_with("packed") {
+                            return Err(None);
+                        }
+                        let p = if note.contains("high 160 bits") {
+                            Packing::High
+                        } else {
+                            Packing::Other
+                        };
+                        if packed.is_some_and(|q| q != p) {
+                            return Err(None);
+                        }
+                        packed = Some(p);
+                    }
+                    DelegateSource::Storage {
+                        slot: U256::from_str(t.slot.as_deref().ok_or(None)?).map_err(|_| None)?,
+                    }
                 }
-                "storage" => DelegateSource::Storage {
-                    slot: U256::from_str(t.slot.as_deref().ok_or(None)?).map_err(|_| None)?,
-                },
                 "call_return" => aragon_get_app_call(report, t.call_pc.ok_or(None)?).ok_or(None)?,
                 _ => return Err(None),
             };
@@ -693,7 +777,7 @@ fn delegate_finding(report: &CallsReport, code: &[u8]) -> Result<DelegateFinding
     let source = found.ok_or(None)?;
     if !sites.iter().any(|s| forwards_whole_calldata(s)) {
         return Err(Some(
-            "no DELEGATECALL on the dispatcher path forwards the caller's calldata (input taken from calldata, no constant selector, length calldatasize); one with its own input, such as a constant selector, is a library call, not a proxy".into(),
+            "no DELEGATECALL on the dispatcher path forwards the caller's calldata (selector from calldata offset 0, length calldatasize); one with its own input, such as a constant selector or msg.data[4:], is a library call, not a proxy".into(),
         ));
     }
     let target_slots: Vec<U256> = match &source {
@@ -705,7 +789,17 @@ fn delegate_finding(report: &CallsReport, code: &[u8]) -> Result<DelegateFinding
     }
 
     let mut hold = Vec::new();
-    // 4. Coverage of call opcodes
+    if let (Some(p), DelegateSource::Storage { slot }) = (packed, &source) {
+        hold.push(format!(
+            "the DELEGATECALL target is part of storage slot {} ({}), not a whole address in the slot",
+            hex_word(*slot),
+            match p {
+                Packing::High => "its high 160 bits",
+                Packing::Other => "shifted or masked out of a packed slot",
+            }
+        ));
+    }
+    // Coverage of call opcodes
     let dead = crate::bytecode::calls::dead_regions(code);
     let unreached: Vec<String> = report
         .opcode_sites
@@ -727,88 +821,155 @@ fn delegate_finding(report: &CallsReport, code: &[u8]) -> Result<DelegateFinding
             unreached.join(", ")
         ));
     }
-    // 5. Own logic in the selector bodies
+
+    let slot_of = |p: &crate::bytecode::Provenance| -> Option<U256> {
+        (p.kind == "storage" && p.note.is_none())
+            .then(|| p.slot.as_deref().and_then(|s| U256::from_str(s).ok()))
+            .flatten()
+    };
+    let const_slot = |p: &crate::bytecode::Provenance| -> Option<U256> {
+        (p.kind == "constant")
+            .then(|| p.value.as_deref().and_then(|v| U256::from_str(v).ok()))
+            .flatten()
+    };
+    let allowed_target = |p: &crate::bytecode::Provenance| {
+        p.kind == "address_this" || slot_of(p).is_some_and(|s| target_slots.contains(&s))
+    };
+    let is_call = |k: &str| matches!(k, "CALL" | "CALLCODE" | "DELEGATECALL" | "STATICCALL");
+
+    // Slots a proxy may write: its target, the EIP-1967 admin slot and any
+    // slot msg.sender is compared with (admin, pending admin)
     let mut allowed_writes: Vec<U256> = target_slots.clone();
     allowed_writes.push(word(EIP1967_ADMIN_SLOT));
     for f in &report.functions {
         for g in &f.guards {
-            if g.subject == "msg_sender" && g.against.kind == "storage" && g.against.note.is_none()
-            {
-                if let Some(s) = g
-                    .against
-                    .slot
-                    .as_deref()
-                    .and_then(|s| U256::from_str(s).ok())
-                {
+            if g.subject == "msg_sender" {
+                if let Some(s) = slot_of(&g.against) {
                     allowed_writes.push(s);
                 }
             }
         }
     }
-    let allowed_target = |p: &crate::bytecode::Provenance| {
-        p.kind == "address_this"
-            || (p.kind == "storage"
-                && p.note.is_none()
-                && p.slot
-                    .as_deref()
-                    .and_then(|s| U256::from_str(s).ok())
-                    .is_some_and(|s| target_slots.contains(&s)))
-    };
-    // Functions that check msg.sender against storage (admin-only: upgrade,
-    // change admin) are proxy administration, not logic users run
-    let admin_only: Vec<&str> = report
-        .functions
-        .iter()
-        .filter(|f| {
-            f.function != "dispatcher"
-                && f.guards.iter().any(|g| {
-                    g.subject == "msg_sender"
-                        && matches!(g.against.kind.as_str(), "storage" | "storage_computed")
-                })
-        })
-        .map(|f| f.function.as_str())
-        .collect();
-    let mut own_calls = Vec::new();
-    for c in &report.call_sites {
-        let own: Vec<&String> = c
-            .functions
+    // msg.sender checks against storage or a code constant (an immutable
+    // admin) whose failure reverts
+    let reverting_guards = |f: &crate::bytecode::calls::FunctionFacts| -> Vec<usize> {
+        f.guards
             .iter()
-            .filter(|f| *f != "dispatcher" && !admin_only.contains(&f.as_str()))
-            .collect();
-        if own.is_empty()
-            || !matches!(
-                c.kind.as_str(),
-                "CALL" | "CALLCODE" | "DELEGATECALL" | "STATICCALL"
-            )
-        {
-            continue;
-        }
+            .filter(|g| {
+                g.subject == "msg_sender"
+                    && matches!(
+                        g.against.kind.as_str(),
+                        "storage"
+                            | "storage_computed"
+                            | "code_constant"
+                            | "constant"
+                            | "call_return"
+                    )
+                    && matches!(g.check.as_str(), "eq" | "mapping_lookup")
+                    && guard_reverts(code, g.pc)
+            })
+            .map(|g| g.pc)
+            .collect()
+    };
+    // Logic on the dispatcher path (the fallback and the shared preamble)
+    let mut path_logic = Vec::new();
+    for c in report.call_sites.iter().filter(|c| {
+        c.kind != "DELEGATECALL"
+            && is_call(&c.kind)
+            && c.functions.iter().any(|f| f == "dispatcher")
+    }) {
+        // The aragonOS getApp call goes to the kernel slot, which is allowed
         if c.target.is_empty() || !c.target.iter().all(allowed_target) {
-            own_calls.push(format!("{} at pc {} (under {})", c.kind, c.pc, own[0]));
+            path_logic.push(format!("{} at pc {}", c.kind, c.pc));
         }
     }
-    own_calls.sort();
-    own_calls.dedup();
+    if let Some(d) = report.functions.iter().find(|f| f.function == "dispatcher") {
+        let guards = reverting_guards(d);
+        for st in &d.sstores {
+            let fixed = !st.transient && const_slot(&st.slot).is_some();
+            let allowed =
+                fixed && const_slot(&st.slot).is_some_and(|s| allowed_writes.contains(&s));
+            if allowed || (fixed && guards.iter().any(|g| *g < st.pc)) {
+                continue;
+            }
+            path_logic.push(format!("storage write at pc {}", st.pc));
+        }
+    }
+    path_logic.sort();
+    path_logic.dedup();
+    if !path_logic.is_empty() {
+        hold.push(format!(
+            "the path every unmatched call runs does more than forward: {} (a proxy's fallback only reads its target and delegates)",
+            path_logic.join(", ")
+        ));
+    }
+
+    let mut own_calls = Vec::new();
     let mut own_writes = Vec::new();
     for f in report
         .functions
         .iter()
-        .filter(|f| f.function != "dispatcher" && !admin_only.contains(&f.function.as_str()))
+        .filter(|f| f.function != "dispatcher")
     {
-        for st in &f.sstores {
-            let ok = !st.transient
-                && st.slot.kind == "constant"
-                && st
-                    .slot
-                    .value
-                    .as_deref()
-                    .and_then(|v| U256::from_str(v).ok())
-                    .is_some_and(|s| allowed_writes.contains(&s));
-            if !ok {
-                own_writes.push(format!("pc {} (under {})", st.pc, f.function));
+        let guard_pcs = reverting_guards(f);
+        let admin_covered = |pc: usize| guard_pcs.iter().any(|g| *g < pc);
+        // Address arguments this function stores in the implementation slot
+        let upgraded_to: Vec<&crate::bytecode::Provenance> = f
+            .sstores
+            .iter()
+            .filter(|st| const_slot(&st.slot).is_some_and(|s| target_slots.contains(&s)))
+            .filter(|st| st.value.kind == "calldata")
+            .map(|st| &st.value)
+            .collect();
+        let calls: Vec<&crate::bytecode::CallSite> = report
+            .call_sites
+            .iter()
+            .filter(|c| is_call(&c.kind) && c.functions.contains(&f.function))
+            .collect();
+        let view = f.sstores.is_empty() && calls.iter().all(|c| c.kind == "STATICCALL");
+        for c in &calls {
+            if c.target.iter().all(allowed_target) && !c.target.is_empty() {
+                continue;
+            }
+            if c.kind == "STATICCALL" && view {
+                continue;
+            }
+            // A STATICCALL whose return a msg.sender check compares with (the
+            // admin read from another contract) is part of that check
+            if c.kind == "STATICCALL"
+                && f.guards.iter().any(|g| {
+                    g.subject == "msg_sender"
+                        && g.against.kind == "call_return"
+                        && g.against.call_pc == Some(c.pc)
+                })
+            {
+                continue;
+            }
+            let upgrade_and_call = admin_covered(c.pc)
+                && !c.target.is_empty()
+                && c.target.iter().all(|t| {
+                    t.kind == "address_this"
+                        || (t.kind == "calldata"
+                            && upgraded_to
+                                .iter()
+                                .any(|u| u.offset == t.offset && t.offset.is_some()))
+                });
+            if !upgrade_and_call {
+                own_calls.push(format!("{} at pc {} (under {})", c.kind, c.pc, f.function));
             }
         }
+        for st in &f.sstores {
+            let fixed = !st.transient && const_slot(&st.slot).is_some();
+            let allowed =
+                fixed && const_slot(&st.slot).is_some_and(|s| allowed_writes.contains(&s));
+            if allowed || (fixed && admin_covered(st.pc)) {
+                continue;
+            }
+            own_writes.push(format!("pc {} (under {})", st.pc, f.function));
+        }
     }
+    own_calls.sort();
+    own_calls.dedup();
     own_writes.sort();
     own_writes.dedup();
     if !own_calls.is_empty() || !own_writes.is_empty() {
@@ -827,7 +988,7 @@ fn delegate_finding(report: &CallsReport, code: &[u8]) -> Result<DelegateFinding
         }
         if !own_writes.is_empty() {
             parts.push(format!(
-                "{} storage write(s) to slots other than the implementation and admin slots ({})",
+                "{} storage write(s) to other slots ({})",
                 own_writes.len(),
                 own_writes
                     .iter()
@@ -838,11 +999,15 @@ fn delegate_finding(report: &CallsReport, code: &[u8]) -> Result<DelegateFinding
             ));
         }
         hold.push(format!(
-            "it has logic of its own: its own functions that do not check msg.sender against storage make {} (a proxy's own functions, apart from admin-only ones, only call itself or the implementation and write the implementation or admin slots)",
+            "it has logic of its own: its functions make {} (a proxy's own functions only call itself or the implementation and write the implementation or admin slots; after a reverting msg.sender check against storage they may also write fixed slots and call an address they store in the implementation slot)",
             parts.join(" and ")
         ));
     }
-    Ok(DelegateFinding { source, hold })
+    Ok(DelegateFinding {
+        source,
+        packed,
+        hold,
+    })
 }
 
 /// A dispatcher-path CALL (not DELEGATECALL) that may forward the caller's
@@ -921,6 +1086,7 @@ async fn slot_address<P: Provider>(
     address: Address,
     slot: U256,
     block: alloy::eips::BlockId,
+    high: bool,
 ) -> Result<Address, String> {
     let w = provider
         .get_storage_at(address, slot)
@@ -934,7 +1100,11 @@ async fn slot_address<P: Provider>(
     // provenance has no shift or narrower mask (packed values are refused
     // before this), so other data in the high bytes is not part of it
     let bytes = w.to_be_bytes::<32>();
-    let a = Address::from_slice(&bytes[12..]);
+    let a = if high {
+        Address::from_slice(&bytes[..20])
+    } else {
+        Address::from_slice(&bytes[12..])
+    };
     if a.is_zero() {
         return Err(format!(
             "slot {} holds no address at this block",
@@ -981,7 +1151,8 @@ pub(crate) async fn resolve_delegate<P: Provider>(
     };
     let (implementation, source, mut resolution) = match finding.source {
         DelegateSource::Storage { slot } => {
-            let implementation = match slot_address(provider, address, slot, block).await {
+            let high = finding.packed == Some(Packing::High);
+            let implementation = match slot_address(provider, address, slot, block, high).await {
                 Ok(a) => a,
                 Err(e) => return failed(e),
             };
@@ -991,6 +1162,7 @@ pub(crate) async fn resolve_delegate<P: Provider>(
                 json!({
                     "method": "sload",
                     "slot": hex_word(slot),
+                    "bits": if high { "high 160" } else { "low 160" },
                     "delegatecall_target": "every DELEGATECALL the analysis found on the dispatcher path takes its target from this slot, and at least one forwards the caller's calldata",
                 }),
             )
@@ -999,7 +1171,7 @@ pub(crate) async fn resolve_delegate<P: Provider>(
             kernel_slot,
             app_id_slot,
         } => {
-            let kernel = match slot_address(provider, address, kernel_slot, block).await {
+            let kernel = match slot_address(provider, address, kernel_slot, block, false).await {
                 Ok(a) => a,
                 Err(e) => return failed(e),
             };
@@ -3622,11 +3794,22 @@ mod tests {
             fixture_finding("600060003660006001545af450600060003660006002545af400"),
             Err(None)
         );
-        // Delegating to the high 20 bytes of slot 0 (shr 96): packed
-        let packed = fixture_finding("3660006000376000600036600060005460601c5af400");
-        assert!(
-            matches!(&packed, Err(Some(r)) if r.contains("part of storage slot")),
-            "{packed:?}"
+        // Delegating to the high 20 bytes of slot 0 (shr 96): packed, held
+        // (still reported, so --follow-proxy can force it)
+        let packed = fixture_finding("3660006000376000600036600060005460601c5af400").unwrap();
+        assert_eq!(packed.packed, Some(Packing::High));
+        assert!(packed
+            .hold
+            .iter()
+            .any(|h| h.contains("part of storage slot")));
+        // div(sload(0), 1) and shr(0, sload(0)): identities, not packing
+        assert_eq!(
+            followed("36600060003760006000366000600054600190045af400"),
+            DelegateSource::Storage { slot: U256::ZERO }
+        );
+        assert_eq!(
+            followed("3660006000376000600036600060005460001c5af400"),
+            DelegateSource::Storage { slot: U256::ZERO }
         );
         // Delegating with a constant selector only: not forwarding
         let lib = fixture_finding(
@@ -3666,6 +3849,71 @@ mod tests {
         ))
         .expect("shape recognised");
         assert!(!f.hold.is_empty());
+    }
+
+    #[test]
+    fn decentraland_land_proxy_is_followed() {
+        // Decentraland LANDProxy (mainnet, old solc): the target is read as
+        // `sload(0) / 0x100**0 & mask`, a division by 1, not packing
+        assert_eq!(
+            followed(include_str!(
+                "../../tests/fixtures/bytecode/decentraland_land_proxy.hex"
+            ))
+            .kind(),
+            "storage-slot proxy"
+        );
+    }
+
+    #[test]
+    fn own_logic_probes_are_held() {
+        // Each probe forwards unmatched calls to sload(0); selector
+        // 0xaabbccdd calls the address argument at 0x04 and stores the
+        // argument at 0x24 in slot 5
+        let held = |hexc: &str| {
+            let f = fixture_finding(hexc).expect("shape recognised");
+            assert!(!f.hold.is_empty(), "{hexc}: not held");
+            f.hold
+        };
+        // A0: no guard
+        held("60003560e01c8063aabbccdd1461002457366000600037600060003660006000545af4005b600060006000600060006004355af160243560055500");
+        // A1: owner check (msg.sender == sload(1)) that reverts, but the call
+        // goes to an argument that is not stored in the implementation slot
+        let h = held("60003560e01c8063aabbccdd1461002457366000600037600060003660006000545af4005b33600154146100335760006000fd5b600060006000600060006004355af160243560055500");
+        assert!(h.iter().any(|x| x.contains("call(s) to other addresses")));
+        // A2: mapping check keyed by msg.sender, same effects
+        held("60003560e01c8063aabbccdd1461002457366000600037600060003660006000545af4005b33600052600260205260406000205461003d5760006000fd5b600060006000600060006004355af160243560055500");
+        // A3: the check comes after the call and does not revert
+        held("60003560e01c8063aabbccdd1461002457366000600037600060003660006000545af4005b600060006000600060006004355af1602435600555336001541461004457005b00");
+        // C: the fallback calls an argument and writes storage before
+        // forwarding
+        let h = held("60003560f81c61002057600060006000600060006001355af1602135600755005b366000600037600060003660006000545af400");
+        assert!(h.iter().any(|x| x.contains("does more than forward")));
+        // D: forwards msg.data[4:] only, not the caller's calldata
+        assert!(matches!(
+            fixture_finding("600436036004600037600060006004360360006000545af400"),
+            Err(Some(r)) if r.contains("library call")
+        ));
+        // E: a plain forwarder
+        assert_eq!(
+            followed("366000600037600060003660006000545af400"),
+            DelegateSource::Storage { slot: U256::ZERO }
+        );
+        // A forwarder using RETURNDATASIZE (0 before any call) as zero, as
+        // OpenZeppelin-zos proxies do
+        assert_eq!(
+            followed("363d3d373d3d363d6000545af400"),
+            DelegateSource::Storage { slot: U256::ZERO }
+        );
+    }
+
+    #[test]
+    fn guard_reverts_needs_a_reverting_branch() {
+        // eq(caller, sload(1)) PUSH1 0x0d JUMPI; PUSH 0 PUSH 0 REVERT
+        let ok = hex::decode("336001541460 0d5760006000fd5b00".replace(' ', "")).unwrap();
+        assert!(guard_reverts(&ok, 7));
+        // Falls through to STOP, jumps to STOP: no revert
+        let no = hex::decode("3360015414600957005b00").unwrap();
+        assert!(!guard_reverts(&no, 7));
     }
 
     #[test]

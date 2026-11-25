@@ -47,26 +47,26 @@ Tools: `ethcli` (or the MCP tools `contract_fingerprint`, `contract_inspect`,
    shows the value, its source and why it was not followed, and
    `--follow-proxy` forces it. Proxies with no standard slot (Compound
    delegators such as cDAI, Compound's Unitroller, aragonOS app proxies
-   such as stETH) are followed when all of these hold:
+   such as stETH, Decentraland LAND) are followed when all of these hold:
    every DELEGATECALL the analysis finds on the dispatcher path takes its
-   target from one whole storage slot (not shifted or masked out of a
-   packed slot) or from the return of the aragonOS kernel's
-   `getApp(APP_BASES_NAMESPACE, sload(appIdSlot))`; at least one of them
-   forwards the caller's calldata (input from calldata with no constant
-   selector, length `calldatasize`); no dispatcher-path CALL to the same
-   target may take its input from calldata (Synthetix's
-   CALL-or-DELEGATECALL proxy);
-   every CALL/CALLCODE/DELEGATECALL/STATICCALL opcode in the executable
-   code was reached by the analysis; and the own functions that do not
-   check msg.sender against storage call only the contract itself or the
-   proxy's slots and write only the implementation slot, slots compared
-   with msg.sender (admin, pending admin) or the EIP-1967 admin slot.
-   `target.proxy_slot.source` is then `storage` or `aragon_kernel` and
-   `resolved` gives the reads used. A shape that fails the last two checks
-   is reported with `followed: false`, the reason and `force_with:
-   --follow-proxy`; one that fails the others (a library call with a
-   constant selector, a packed slot, CALL-forwarding) is not treated as a
-   proxy and a note says why. When `dispatcher` says
+   target from one storage slot or from the return of the aragonOS
+   kernel's `getApp(APP_BASES_NAMESPACE, sload(appIdSlot))`; at least one
+   of them forwards the caller's calldata (selector from calldata offset
+   0, length `calldatasize`); no dispatcher-path CALL to the same target
+   takes its input from calldata (Synthetix's CALL-or-DELEGATECALL
+   proxy). Even then it is held (`followed: false`, the reason,
+   `force_with: --follow-proxy`) when the target is packed in its slot,
+   when a call opcode was not reached by the analysis, when the fallback
+   path calls anything but itself or the proxy's slots or writes storage,
+   or when a function calls other addresses or writes other slots.
+   Writes to fixed slots and an upgrade-and-call to the stored
+   implementation are allowed after a reverting msg.sender check against
+   storage, a constant or an admin read by STATICCALL, and a STATICCALL in
+   a view function or feeding that check is not counted. A library
+   call (constant selector or `msg.data[4:]`) and CALL-forwarding are not
+   treated as proxies; a note says why. `target.proxy_slot.source` is
+   `storage` or `aragon_kernel` and `resolved` gives the reads used.
+   When `dispatcher` says
    "fallback-only / packed-calldata executor", there are no ABI functions:
    rebuild a `fallback()` that decodes the packed calldata at
    `calldata_reads`.
