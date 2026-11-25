@@ -680,13 +680,68 @@ fn block_reverts(code: &[u8], start: usize, jumps_left: u8) -> bool {
     false
 }
 
-/// A JUMPI whose failing branch reverts: one of its two branches (the fall
-/// through, or the pushed destination) reverts straight away
-fn guard_reverts(code: &[u8], jumpi_pc: usize) -> bool {
-    code.get(jumpi_pc) == Some(&0x57)
-        && (block_reverts(code, jumpi_pc + 1, 2)
-            || pushed_dest(code, jumpi_pc)
-                .is_some_and(|d| code.get(d) == Some(&0x5b) && block_reverts(code, d, 2)))
+/// Start pcs of the instructions, by linear decoding (PUSH data skipped)
+fn instruction_starts(code: &[u8]) -> Vec<usize> {
+    let mut out = Vec::new();
+    let mut pc = 0;
+    while pc < code.len() {
+        out.push(pc);
+        let op = code[pc];
+        pc += 1 + if (0x60..=0x7f).contains(&op) {
+            (op - 0x5f) as usize
+        } else {
+            0
+        };
+    }
+    out
+}
+
+/// An admin check at the JUMPI at `jumpi_pc` that lets only the admin
+/// through: `[EQ | SLOAD (mapping lookup) | SUB | XOR] ISZERO* PUSH dest
+/// JUMPI`, where the branch taken when msg.sender equals the admin (or the
+/// lookup is non-zero) does not revert straight away and the other branch
+/// does. `if (msg.sender == admin) revert()` does not count. Any other
+/// shape before the JUMPI does not count either
+fn guard_admits_only_admin(code: &[u8], jumpi_pc: usize) -> bool {
+    if code.get(jumpi_pc) != Some(&0x57) {
+        return false;
+    }
+    let Some(dest) = pushed_dest(code, jumpi_pc) else {
+        return false;
+    };
+    let starts = instruction_starts(code);
+    let Ok(i) = starts.binary_search(&jumpi_pc) else {
+        return false;
+    };
+    // starts[i - 1] is the PUSH of the destination
+    if i < 2 {
+        return false;
+    }
+    let mut j = i - 2;
+    let mut negations = 0usize;
+    while code[starts[j]] == 0x15 {
+        negations += 1;
+        if j == 0 {
+            return false;
+        }
+        j -= 1;
+    }
+    match code[starts[j]] {
+        // eq(caller, admin), or a non-zero mapping value
+        0x14 | 0x54 => {}
+        // sub/xor: non-zero when they differ
+        0x03 | 0x18 => negations += 1,
+        _ => return false,
+    }
+    // Even: the jump is taken when the check passes
+    let pass_jumps = negations.is_multiple_of(2);
+    let jump_reverts = code.get(dest) == Some(&0x5b) && block_reverts(code, dest, 2);
+    let fall_reverts = block_reverts(code, jumpi_pc + 1, 2);
+    if pass_jumps {
+        fall_reverts && !jump_reverts
+    } else {
+        jump_reverts && !fall_reverts
+    }
 }
 
 /// Recognise a proxy by where its DELEGATECALL target comes from.
@@ -712,21 +767,27 @@ fn guard_reverts(code: &[u8], jumpi_pc: usize) -> bool {
 ///    any selector record from calldata (Synthetix Proxy).
 ///
 /// Held (found, reported, not followed by default):
-/// 4. The target is shifted or masked out of a packed slot.
+/// 4. The target is shifted or masked out of a packed slot (only the
+///    high-160-bit layout, shr 96, is resolved and offered to
+///    `--follow-proxy`; other layouts are reported as unsupported).
 /// 5. A CALL, CALLCODE, DELEGATECALL or STATICCALL opcode in the executable
 ///    code (outside PUSH data, a metadata trailer and data after a halt)
 ///    that the analysis did not reach.
-/// 6. Logic on the dispatcher path: a CALL, CALLCODE or STATICCALL to
+/// 6. Logic on the dispatcher path: CREATE/CREATE2 or SELFDESTRUCT, a
+///    CALL, CALLCODE or STATICCALL to
 ///    anything but the contract itself, the slot or the kernel, or a write
 ///    to a slot outside those of rule 7 that no reverting msg.sender check
 ///    precedes (transparent proxies handle their admin in the fallback).
-/// 7. Own logic in a selector body: a call to anything but the contract
+/// 7. Own logic in a selector body: CREATE/CREATE2 or SELFDESTRUCT (never
+///    exempt), a call to anything but the contract
 ///    itself or the proxy's slots, or a storage write to a slot other than
 ///    the implementation/kernel slot, a slot compared with msg.sender, or the
 ///    EIP-1967 admin slot. Admin-only effects are exempt: an effect after (by
 ///    pc) a msg.sender check against storage, a constant (a hard-coded or
 ///    immutable admin) or the return of a STATICCALL (an admin read from
-///    another contract) whose failure reverts, limited
+///    another contract) that lets only the admin through (the passing
+///    branch continues, the other reverts; `guard_admits_only_admin`),
+///    limited
 ///    to writes to fixed slots and to calls to the contract itself or to an
 ///    address argument the same function stores in the implementation slot
 ///    (upgrade and call). A STATICCALL in a function that writes nothing and
@@ -866,7 +927,7 @@ fn delegate_finding(report: &CallsReport, code: &[u8]) -> Result<DelegateFinding
                             | "call_return"
                     )
                     && matches!(g.check.as_str(), "eq" | "mapping_lookup")
-                    && guard_reverts(code, g.pc)
+                    && guard_admits_only_admin(code, g.pc)
             })
             .map(|g| g.pc)
             .collect()
@@ -884,6 +945,12 @@ fn delegate_finding(report: &CallsReport, code: &[u8]) -> Result<DelegateFinding
         }
     }
     if let Some(d) = report.functions.iter().find(|f| f.function == "dispatcher") {
+        for pc in &d.create_pcs {
+            path_logic.push(format!("CREATE/CREATE2 at pc {pc}"));
+        }
+        for pc in &d.selfdestruct_pcs {
+            path_logic.push(format!("SELFDESTRUCT at pc {pc}"));
+        }
         let guards = reverting_guards(d);
         for st in &d.sstores {
             let fixed = !st.transient && const_slot(&st.slot).is_some();
@@ -966,6 +1033,12 @@ fn delegate_finding(report: &CallsReport, code: &[u8]) -> Result<DelegateFinding
                 continue;
             }
             own_writes.push(format!("pc {} (under {})", st.pc, f.function));
+        } // Never exempt, admin-only or not
+        for pc in &f.create_pcs {
+            own_calls.push(format!("CREATE/CREATE2 at pc {pc} (under {})", f.function));
+        }
+        for pc in &f.selfdestruct_pcs {
+            own_calls.push(format!("SELFDESTRUCT at pc {pc} (under {})", f.function));
         }
     }
     own_calls.sort();
@@ -976,7 +1049,7 @@ fn delegate_finding(report: &CallsReport, code: &[u8]) -> Result<DelegateFinding
         let mut parts = Vec::new();
         if !own_calls.is_empty() {
             parts.push(format!(
-                "{} call(s) to other addresses ({})",
+                "{} call(s) to other addresses, contract creation(s) or self-destruct(s) ({})",
                 own_calls.len(),
                 own_calls
                     .iter()
@@ -1096,9 +1169,9 @@ async fn slot_address<P: Provider>(
     if w.is_zero() {
         return Err(format!("slot {} is empty at this block", hex_word(slot)));
     }
-    // The EVM takes the low 160 bits of a call target, and the target's
-    // provenance has no shift or narrower mask (packed values are refused
-    // before this), so other data in the high bytes is not part of it
+    // The EVM takes the low 160 bits of a call target. `high` is set for a
+    // target the code takes with shr 96 (the high 160 bits); any other
+    // packed layout is reported as unsupported before this and never read
     let bytes = w.to_be_bytes::<32>();
     let a = if high {
         Address::from_slice(&bytes[..20])
@@ -1143,6 +1216,11 @@ pub(crate) async fn resolve_delegate<P: Provider>(
         }
     };
     let kind = finding.source.kind();
+    if finding.packed == Some(Packing::Other) {
+        return DelegateOutcome::Note(format!(
+            "{kind} shape found, but its DELEGATECALL target is shifted or masked out of a packed storage slot in a layout ethcli does not support (only the high 160 bits, shr 96, is read); not followed, and no value is reported"
+        ));
+    }
     let analysis_complete = report.coverage.complete;
     let failed = |e: String| {
         DelegateOutcome::Note(format!(
@@ -3907,13 +3985,52 @@ mod tests {
     }
 
     #[test]
-    fn guard_reverts_needs_a_reverting_branch() {
-        // eq(caller, sload(1)) PUSH1 0x0d JUMPI; PUSH 0 PUSH 0 REVERT
-        let ok = hex::decode("336001541460 0d5760006000fd5b00".replace(' ', "")).unwrap();
-        assert!(guard_reverts(&ok, 7));
+    fn admin_check_needs_the_right_polarity() {
+        // eq(caller, sload(1)) PUSH1 0x0d JUMPI; PUSH 0 PUSH 0 REVERT: only
+        // the admin jumps on
+        let ok = hex::decode("3360015414600d5760006000fd5b00").unwrap();
+        assert!(guard_admits_only_admin(&ok, 7));
         // Falls through to STOP, jumps to STOP: no revert
         let no = hex::decode("3360015414600957005b00").unwrap();
-        assert!(!guard_reverts(&no, 7));
+        assert!(!guard_admits_only_admin(&no, 7));
+        // The admin jumps to a revert: `if (msg.sender == admin) revert()`
+        let inverted = hex::decode("3360015414600957005b60006000fd").unwrap();
+        assert!(!guard_admits_only_admin(&inverted, 7));
+        // iszero(eq): the non-admin jumps to a revert, the admin falls on
+        let negated = hex::decode("336001541415600a57005b60006000fd").unwrap();
+        assert!(guard_admits_only_admin(&negated, 8));
+        // iszero(eq) with the branches swapped: the admin reverts
+        let negated_bad = hex::decode("336001541415600e5760006000fd5b00").unwrap();
+        assert!(!guard_admits_only_admin(&negated_bad, 8));
+    }
+
+    #[test]
+    fn effects_fable_probes() {
+        // P2: the fallback reverts when msg.sender IS the admin, then writes
+        // slot 7: the inverted check does not exempt the write
+        let f = fixture_finding(
+            "336001541461002257602135600755366000600037600060003660006000545af4005b60006000fd",
+        )
+        .expect("shape");
+        assert!(
+            f.hold.iter().any(|h| h.contains("storage write")),
+            "{:?}",
+            f.hold
+        );
+        // P4: the fallback creates a contract before forwarding
+        let f =
+            fixture_finding("600060006000f0366000600037600060003660006000545af400").expect("shape");
+        assert!(f.hold.iter().any(|h| h.contains("CREATE")), "{:?}", f.hold);
+        // P7: an own function self-destructs
+        let f = fixture_finding(
+            "60003560e01c8063aabbccdd1461002457366000600037600060003660006000545af4005b33ff",
+        )
+        .expect("shape");
+        assert!(
+            f.hold.iter().any(|h| h.contains("SELFDESTRUCT")),
+            "{:?}",
+            f.hold
+        );
     }
 
     #[test]

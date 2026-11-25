@@ -55,12 +55,15 @@ Tools: `ethcli` (or the MCP tools `contract_fingerprint`, `contract_inspect`,
    0, length `calldatasize`); no dispatcher-path CALL to the same target
    takes its input from calldata (Synthetix's CALL-or-DELEGATECALL
    proxy). Even then it is held (`followed: false`, the reason,
-   `force_with: --follow-proxy`) when the target is packed in its slot,
-   when a call opcode was not reached by the analysis, when the fallback
-   path calls anything but itself or the proxy's slots or writes storage,
-   or when a function calls other addresses or writes other slots.
+   `force_with: --follow-proxy`) when the target is the high 160 bits of
+   a packed slot, when a call opcode was not reached by the analysis, when
+   the fallback path creates contracts, self-destructs, calls anything but
+   itself or the proxy's slots or writes storage, or when a function does
+   any of that or writes other slots. Another packed layout is only
+   noted as unsupported.
    Writes to fixed slots and an upgrade-and-call to the stored
-   implementation are allowed after a reverting msg.sender check against
+   implementation are allowed after a msg.sender check that lets only the
+   admin through (the other branch reverts) against
    storage, a constant or an admin read by STATICCALL, and a STATICCALL in
    a view function or feeding that check is not counted. A library
    call (constant selector or `msg.data[4:]`) and CALL-forwarding are not

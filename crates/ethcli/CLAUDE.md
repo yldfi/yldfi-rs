@@ -694,31 +694,38 @@ ethcli contract match <addr> --artifact <forge-or-solc-json> [--contract Name] [
      slot, or the getApp return) has any selector record from calldata,
      whatever the other records are (`call_forwarding`; Synthetix Proxy).
   Held (`followed: false`, `reason`, `force_with: --follow-proxy`):
-  4. the target is shifted or masked out of a packed slot (provenance note
-     "packed with other values", `calls::strip_unpacks`; shr 96 / div 2^96
-     read as the high 160 bits, `resolved.bits`);
+  4. the target is the high 160 bits of a packed slot (shr 96 / div 2^96,
+     provenance note "packed with other values (high 160 bits)",
+     `resolved.bits`). Any other packed layout (`calls::strip_unpacks`)
+     gives only a note that the layout is unsupported: no value, no
+     `force_with`;
   5. any CALL/CALLCODE/DELEGATECALL/STATICCALL in `opcode_sites` not
      reached, outside the metadata trailer and `calls::dead_regions`;
-  6. dispatcher-path logic: a CALL/CALLCODE/STATICCALL to anything but
+  6. dispatcher-path logic: CREATE/CREATE2 or SELFDESTRUCT, a
+     CALL/CALLCODE/STATICCALL to anything but
      `address_this` or the proxy's slots (the getApp call goes to the
      kernel slot), or an SSTORE in the `dispatcher` function facts outside
      the slots of rule 7 that no reverting msg.sender check (against
      storage or a code constant) precedes;
-  7. own logic in a selector body: a call to anything but `address_this`
+  7. own logic in a selector body: CREATE/CREATE2 or SELFDESTRUCT (never
+     exempt), a call to anything but `address_this`
      or the proxy's slots, or an SSTORE to a slot other than the
      implementation/kernel slot, a slot compared with msg.sender, or the
      EIP-1967 admin slot. Exempt (admin-only): effects at a higher pc than
      a msg.sender `eq`/`mapping_lookup` guard against storage, a constant
      (hard-coded or immutable admin) or a STATICCALL return (admin read
-     from another contract) whose JUMPI
-     has a branch that reverts (`guard_reverts`: REVERT/INVALID before any
-     other halt, branch, write or call, following up to two pushed
-     jumps), limited to SSTOREs to fixed slots and calls to `address_this`
+     from another contract) that lets only the admin through
+     (`guard_admits_only_admin`: `EQ|SLOAD|SUB|XOR ISZERO* PUSH JUMPI`;
+     the branch taken when msg.sender equals the admin, or the mapping
+     value is non-zero, must not revert straight away and the other must,
+     REVERT/INVALID before any other halt, branch, write or call, following
+     up to two pushed jumps), limited to SSTOREs to fixed slots and calls to `address_this`
      or to a calldata argument the same function stores in the
      implementation slot (upgrade and call; `StoreSite.value`, not
      serialised). A STATICCALL in a function with no SSTORE and no other
      call (a view), or one whose return a msg.sender guard compares, is not
-     counted. Pc order stands in for dominance.
+     counted. Pc order stands in for dominance (known gap: a check on a
+     sibling branch with a lower pc also counts).
   Resolution reads the slot (low 160 bits, or high for shr 96 packing) or
   calls the kernel at the pinned block; an RPC error or a zero address
   gives a note, never a silent "not a proxy". `proxy_slot` has `source`
