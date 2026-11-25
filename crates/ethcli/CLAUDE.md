@@ -655,6 +655,31 @@ ethcli contract match <addr> --artifact <forge-or-solc-json> [--contract Name] [
   mismatches are compared per instruction; size changes are aligned by common
   prefix/suffix with PUSH2/PUSH3 operands ignored. Function mapping uses the
   source map + AST (`forge build --ast`), else approximate dispatcher ranges.
+- msg.sender-dependent proxies (`decompile::sender_split`): the call
+  analysis records, per DELEGATECALL target, the outcome of every
+  `msg.sender == x` branch on the path (`CallSite.target_by_sender`,
+  `calls::sender_test`: `[ISZERO*] EQ|SUB|XOR(caller, x)`; up to 4
+  branches per path, not part of state dedup). On dispatcher-path
+  DELEGATECALLs that forward the caller's selector, storage targets are
+  labelled `admin` (some branch equal), `user` (only not-equal branches)
+  or `any`. Two or more target slots with any sender branch, or one slot
+  reached only as `admin` with every such branch passing
+  `guard_admits_only_admin`, is a split: `fetch_target` follows nothing
+  by default and reports `proxy_slot.kind: "msg.sender-dependent
+  proxy"`, `candidates` (slot, bits, value, caller, caller_check),
+  `value` = the user target; `--follow-proxy` follows the user target,
+  `--follow-proxy-target admin|user|<candidate address>` picks one
+  (`resolved_via: "msg.sender-dependent proxy (<caller> target)"`). An
+  OpenZeppelin transparent proxy (4.x refuses the admin, 5.x handles
+  upgradeToAndCall itself) and USDC's zeppelinos proxy reach the slot
+  only as `user`: not a split. `contract::find_implementation`,
+  `detect_proxy_implementation` and `implementation_from_storage_on`
+  (inspect, selectors/calls/analyze `--follow-proxy`) return the user
+  target for a split
+  (`SENDER_SPLIT_KIND`; inspect adds `proxy.candidates` and a note).
+  Fixtures: `arbitrum_rollup_proxy_double_logic.hex`,
+  `oz4_transparent_proxy_062bf7.hex`, `oz5_transparent_proxy_d19d4b.hex`,
+  `usdc_proxy.hex`.
 - Proxies are followed only when ethcli's call analysis (`bytecode::calls`,
   as in `contract calls`) finds a reached DELEGATECALL whose target comes
   from the EIP-1967 or OpenZeppelin legacy implementation slot, from the
@@ -694,9 +719,13 @@ ethcli contract match <addr> --artifact <forge-or-solc-json> [--contract Name] [
      slot, or the getApp return) has any selector record from calldata,
      whatever the other records are (`call_forwarding`; Synthetix Proxy).
   Held (`followed: false`, `reason`, `force_with: --follow-proxy`):
-  4. the target is the high 160 bits of a packed slot (shr 96 / div 2^96,
-     provenance note "packed with other values (high 160 bits)",
-     `resolved.bits`). Any other packed layout (`calls::strip_unpacks`)
+  4. the target is a whole address packed in a slot at a byte-aligned
+     offset k ≤ 96: shr k / div 2^k under masks of 160 bits or more
+     (`calls::shifted_address`; note "packed with other values (bits
+     k..k+160)", or "(high 160 bits)" for k = 96; `Packing::Shift(k)`,
+     `resolved.bits`). Old solc packs an address after a bool:
+     `sload(6) / 0x100 & mask` (EthVault fixture, held for its own
+     multisig logic). Any other packed layout (`calls::strip_unpacks`)
      gives only a note that the layout is unsupported: no value, no
      `force_with`;
   5. any CALL/CALLCODE/DELEGATECALL/STATICCALL in `opcode_sites` not
@@ -726,7 +755,7 @@ ethcli contract match <addr> --artifact <forge-or-solc-json> [--contract Name] [
      call (a view), or one whose return a msg.sender guard compares, is not
      counted. Pc order stands in for dominance (known gap: a check on a
      sibling branch with a lower pc also counts).
-  Resolution reads the slot (low 160 bits, or high for shr 96 packing) or
+  Resolution reads the slot (low 160 bits, or `(word >> k)` for packing) or
   calls the kernel at the pinned block; an RPC error or a zero address
   gives a note, never a silent "not a proxy". `proxy_slot` has `source`
   `storage` / `aragon_kernel`, `resolved` (reads, `analysis_complete`) and
@@ -793,8 +822,19 @@ ethcli contract match <addr> --artifact <forge-or-solc-json> [--contract Name] [
   `max_evm_version_confidence: consistent` only for solc ≥ 0.8.20 with no
   PUSH0 in the sweep and no shanghai/cancun opcode executed (a shanghai
   build that never pushes zero looks the same); reasons in
-  `evm_version_reasons`. Optimizer-off code
-  reads high; no shift opcodes reached gives `unknown`. `dispatcher` /
+  `evm_version_reasons`. `optimizer` / `optimizer_evidence`
+  (`metadata::optimizer_off`): "likely off" when `PUSHn c AND PUSHn c AND`
+  with the same constant occurs at least 4 times and at least once per
+  1000 instructions of the executable part (the optimizer's CSE folds
+  it; the peephole pass that runs without the optimizer does not). On 40
+  random verified mainnet contracts the 8 optimizer-off builds had 1.45 to
+  11.4 per 1000, the 32 optimised ones at most 0.38. Then the hint and
+  bucket are "unknown (optimizer likely off)" (off code writes every
+  constant out and would read high); else "not detected as off". A
+  computed Error(string) selector with every other constant written out
+  (share ≥ 0.9) is the bound "likely ≥ ~1000", not mid (solc 0.8.17 keeps
+  the selector computed at 20000 runs). No shift opcodes reached gives
+  `unknown`. `dispatcher` /
   `calldata_reads` (also in `contract inspect`'s `interface`) are set when no
   selector is found and reached code reads calldata.
 - `contract calls` table leaves `in_metadata` sites out of "not reached"
@@ -2138,8 +2178,24 @@ ethcli contract abi 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48
 
 # Get verified source code
 ethcli contract source 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48
-# ABI and source come from Etherscan (rate limits retried twice, waiting 1 s
-# then 2 s). If Etherscan has no verified source or fails (no key, plan
+# Explorer requests are paced machine-wide (etherscan/limiter.rs: a lock
+# file in the per-user state dir holds the next free slot; default 3 req/s,
+# ETHCLI_EXPLORER_RPS overrides) and a rate-limit answer in any shape (error
+# response, or the limit text where the library expected ABI JSON or a
+# source list) is retried up to 4 times (1, 2, 4, 8 s plus jitter).
+# Sourcify/Blockscout are retried once on 429/5xx; `fallback::find_verified`
+# returns Found / NotVerified / Unavailable, and an Etherscan "not verified"
+# with an unavailable fallback is reported as an unconfirmed fetch error
+# (code rpc_error), never not_verified.
+# `contract source --format json` (or --json): origin, verification_match,
+# note, and per contract `compiler` (compiler_version, evm_version, via_ir +
+# via_ir_from, optimizer enabled/runs, libraries; viaIR from standard-JSON
+# settings, else Sourcify/Blockscout settings, else false before solc
+# 0.7.2) and `files`. The text header adds "EVM version; viaIR" and
+# libraries. `rpc storage` prints the whole 32-byte word; JSON adds
+# value_as_address (word of 97-160 bits).
+# ABI and source come from Etherscan (paced and retried as above).
+# If Etherscan has no verified source or fails (no key, plan
 # restriction, unsupported chain), Sourcify is tried, then Blockscout on
 # Ethereum and Optimism; stderr says which one answered. This applies to
 # every command that fetches an ABI (contract call, tx decoding, ...).

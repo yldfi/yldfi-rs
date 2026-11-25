@@ -460,7 +460,7 @@ impl EthcliMcpServer {
     }
 
     #[tool(
-        description = "Verified source code for a contract. The full source can be very large: use list=true to see the files, then function, grep or file to return only the part you need",
+        description = "Verified source code for a contract (Etherscan, else Sourcify, then Blockscout). The full source can be very large: use list=true to see the files, then function, grep or file to return only the part you need. json=true returns the files with each contract's compiler settings: evm_version, via_ir (null when no verifier reports it; via_ir_from says where it came from), optimizer enabled/runs and libraries",
         annotations(read_only_hint = true, open_world_hint = true)
     )]
     async fn contract_source(
@@ -475,6 +475,7 @@ impl EthcliMcpServer {
             input.file.as_deref(),
             input.function.as_deref(),
             input.grep.as_deref(),
+            input.json,
         )
         .await
         .to_response()
@@ -538,6 +539,7 @@ impl EthcliMcpServer {
             input.block.as_deref(),
             input.no_follow_proxy,
             input.follow_proxy,
+            input.follow_proxy_target.as_deref(),
             input.timeout,
             input.backend.as_deref(),
         )
@@ -546,7 +548,7 @@ impl EthcliMcpServer {
     }
 
     #[tool(
-        description = "Compiler fingerprint of deployed code: compiler and version and metadata hash type from the CBOR metadata, embedded metadata of created contracts, minimum EVM version from executed opcodes (PUSH0, MCOPY, TLOAD) and max_evm_version (paris when solc >= 0.8.20 code has no PUSH0; push0_executed / push0_in_code, evm_version_reasons), a legacy vs via-IR guess, an optimizer runs hint (optimizer_runs_hint from how constants are written, with evidence pcs, and optimizer_runs_bucket low/medium/high or unknown when the evidence is weak; check it before sweeping runs), dispatcher (no selector dispatcher: fallback-only / packed-calldata executor) when there are no selectors but calldata is read, and an upper bound on address-shaped immutables. Proxies are followed to the implementation (target.resolved_via) only when the call analysis confirms the code delegates every unmatched call through the slot; a slot value that is set but not confirmed (for example a contract with its own dispatcher that keeps a library in the EIP-1967 slot) is reported in target.proxy_slot and not followed unless follow_proxy=true; for a clone with immutable args (wighawag, Sudoswap pairs, Solady LibClone) target.immutable_args holds the appended data (raw; the word/address split is a guess). First step before rebuilding source for an unverified contract",
+        description = "Compiler fingerprint of deployed code: compiler and version and metadata hash type from the CBOR metadata, embedded metadata of created contracts, minimum EVM version from executed opcodes (PUSH0, MCOPY, TLOAD) and max_evm_version (paris when solc >= 0.8.20 code has no PUSH0; push0_executed / push0_in_code, evm_version_reasons), a legacy vs via-IR guess, an optimizer runs hint (optimizer_runs_hint from how constants are written, with evidence pcs, and optimizer_runs_bucket low/medium/high or unknown when the evidence is weak; optimizer=likely off when the code applies the same mask twice in a row, which the optimizer always folds, and the bucket is then unknown; check it before sweeping runs), dispatcher (no selector dispatcher: fallback-only / packed-calldata executor) when there are no selectors but calldata is read, and an upper bound on address-shaped immutables. Proxies are followed to the implementation (target.resolved_via) only when the call analysis confirms the code delegates every unmatched call through the slot; a slot value that is set but not confirmed (for example a contract with its own dispatcher that keeps a library in the EIP-1967 slot) is reported in target.proxy_slot and not followed unless follow_proxy=true; a proxy whose target depends on msg.sender (an admin gets one implementation, everyone else another, as in Arbitrum's RollupProxy) is never followed by default: proxy_slot.candidates lists each slot, value and caller (admin/user), and follow_proxy follows the user one or follow_proxy_target picks; for a clone with immutable args (wighawag, Sudoswap pairs, Solady LibClone) target.immutable_args holds the appended data (raw; the word/address split is a guess). First step before rebuilding source for an unverified contract",
         annotations(read_only_hint = true, open_world_hint = true)
     )]
     async fn contract_fingerprint(
@@ -559,6 +561,7 @@ impl EthcliMcpServer {
             input.block.as_deref(),
             input.no_follow_proxy,
             input.follow_proxy,
+            input.follow_proxy_target.as_deref(),
         )
         .await
         .to_response()
@@ -582,6 +585,7 @@ impl EthcliMcpServer {
             input.block.as_deref(),
             input.no_follow_proxy,
             input.follow_proxy,
+            input.follow_proxy_target.as_deref(),
             input.diff,
             input.only_different,
         )
@@ -1015,7 +1019,7 @@ impl EthcliMcpServer {
     }
 
     #[tool(
-        description = "Get storage value at a slot",
+        description = "Read the 32-byte word at a storage slot (all 64 hex digits, leading zeros kept; value_as_address gives the low 20 bytes when the word fits an address)",
         annotations(read_only_hint = true, open_world_hint = true)
     )]
     async fn rpc_storage(&self, Parameters(input): Parameters<RpcStorageInput>) -> CallToolResult {

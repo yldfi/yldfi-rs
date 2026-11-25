@@ -61,6 +61,9 @@ pub struct Verified {
     pub runs: u64,
     pub evm_version: String,
     pub sources: HashMap<String, String>,
+    /// The verifier's compiler settings (solc standard-JSON `settings`:
+    /// optimizer, evmVersion, viaIR, libraries), when it gives them
+    pub settings: Option<serde_json::Value>,
 }
 
 impl Verified {
@@ -72,8 +75,16 @@ impl Verified {
             .iter()
             .map(|(path, content)| (path.clone(), SourceCodeEntry::from(content.clone())))
             .collect();
+        let source_code = match &self.settings {
+            Some(settings) => SourceCodeMetadata::Metadata {
+                language: None,
+                sources,
+                settings: Some(settings.clone()),
+            },
+            None => SourceCodeMetadata::Sources(sources),
+        };
         Metadata {
-            source_code: SourceCodeMetadata::Sources(sources),
+            source_code,
             abi: serde_json::to_string(&self.abi).unwrap_or_default(),
             contract_name: self.name.clone(),
             compiler_version: self.compiler_version.clone(),
@@ -100,16 +111,58 @@ fn blockscout_host(chain_id: u64) -> Option<&'static str> {
 }
 
 async fn get_json(http: &reqwest::Client, url: &str) -> Option<serde_json::Value> {
-    let response = http
-        .get(url)
-        .timeout(Duration::from_secs(20))
-        .send()
-        .await
-        .ok()?;
-    if !response.status().is_success() {
-        return None;
+    match fetch_json(http, url).await {
+        Fetched::Json(v) => Some(v),
+        _ => None,
     }
-    response.json().await.ok()
+}
+
+/// What a verifier answered
+enum Fetched {
+    Json(serde_json::Value),
+    /// HTTP 404: it has no record of the address
+    NotFound,
+    /// No usable answer (rate limit, timeout, server error): says nothing
+    /// about whether the contract is verified
+    Unavailable(String),
+}
+
+/// GET a verifier URL, retrying once after a rate-limit (429) or server
+/// error answer
+async fn fetch_json(http: &reqwest::Client, url: &str) -> Fetched {
+    let mut last = String::new();
+    for attempt in 0..2 {
+        if attempt > 0 {
+            tokio::time::sleep(Duration::from_millis(1500)).await;
+        }
+        let response = match http.get(url).timeout(Duration::from_secs(20)).send().await {
+            Ok(r) => r,
+            Err(e) => {
+                last = if e.is_timeout() {
+                    "timed out".into()
+                } else {
+                    "request failed".into()
+                };
+                continue;
+            }
+        };
+        let status = response.status();
+        if status == reqwest::StatusCode::NOT_FOUND {
+            return Fetched::NotFound;
+        }
+        if !status.is_success() {
+            last = format!("HTTP {status}");
+            if status == reqwest::StatusCode::TOO_MANY_REQUESTS || status.is_server_error() {
+                continue;
+            }
+            return Fetched::Unavailable(last);
+        }
+        return match response.json().await {
+            Ok(v) => Fetched::Json(v),
+            Err(_) => Fetched::Unavailable("unreadable response".into()),
+        };
+    }
+    Fetched::Unavailable(last)
 }
 
 /// Parse a Sourcify v2 `contract` response
@@ -138,6 +191,7 @@ pub fn parse_sourcify(value: &serde_json::Value) -> Option<Verified> {
             .unwrap_or("default")
             .to_string(),
         sources,
+        settings: settings.is_object().then(|| settings.clone()),
     })
 }
 
@@ -179,26 +233,57 @@ pub fn parse_blockscout(value: &serde_json::Value, host: &str) -> Option<Verifie
             .unwrap_or("default")
             .to_string(),
         sources,
+        settings: value["compiler_settings"]
+            .is_object()
+            .then(|| value["compiler_settings"].clone()),
     })
 }
 
-/// Look the contract up on Sourcify, then Blockscout. `None` when neither
-/// has it verified (or neither answered).
-pub async fn find_verified(
-    http: &reqwest::Client,
-    chain_id: u64,
-    address: &str,
-) -> Option<Verified> {
+/// What the Sourcify / Blockscout lookup found
+#[derive(Debug)]
+pub enum Fallback {
+    Found(Box<Verified>),
+    /// Every verifier asked answered, and none has it verified
+    NotVerified,
+    /// At least one verifier gave no usable answer and none has it: whether
+    /// it is verified is unknown. The text says which and why
+    Unavailable(String),
+}
+
+/// Look the contract up on Sourcify, then Blockscout
+pub async fn find_verified(http: &reqwest::Client, chain_id: u64, address: &str) -> Fallback {
+    let mut unavailable = Vec::new();
     let url = format!("{SOURCIFY_API}/{chain_id}/{address}?fields=abi,sources,compilation");
-    if let Some(found) = get_json(http, &url).await.as_ref().and_then(parse_sourcify) {
-        return Some(found);
+    match fetch_json(http, &url).await {
+        Fetched::Json(v) => {
+            if let Some(found) = parse_sourcify(&v) {
+                return Fallback::Found(Box::new(found));
+            }
+        }
+        Fetched::NotFound => {}
+        Fetched::Unavailable(why) => unavailable.push(format!("Sourcify: {why}")),
     }
-    let host = blockscout_host(chain_id)?;
-    let url = format!("https://{host}/api/v2/smart-contracts/{address}");
-    get_json(http, &url)
-        .await
-        .as_ref()
-        .and_then(|v| parse_blockscout(v, host))
+    if let Some(host) = blockscout_host(chain_id) {
+        let url = format!("https://{host}/api/v2/smart-contracts/{address}");
+        match fetch_json(http, &url).await {
+            Fetched::Json(v) => {
+                if let Some(found) = parse_blockscout(&v, host) {
+                    return Fallback::Found(Box::new(found));
+                }
+                // No verification keys at all is not a "no"
+                if v["is_verified"].as_bool().is_none() && !v.is_null() {
+                    unavailable.push("Blockscout: no verification status in its answer".into());
+                }
+            }
+            Fetched::NotFound => {}
+            Fetched::Unavailable(why) => unavailable.push(format!("Blockscout: {why}")),
+        }
+    }
+    if unavailable.is_empty() {
+        Fallback::NotVerified
+    } else {
+        Fallback::Unavailable(unavailable.join("; "))
+    }
 }
 
 /// What Sourcify said about a contract's storage layout

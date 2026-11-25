@@ -283,6 +283,8 @@ pub struct ContractDecompileInput {
     /// Follow a proxy slot or implementation() getter even when the call analysis does not confirm the code delegates every unmatched call to it
     #[serde(default)]
     pub follow_proxy: bool,
+    /// For a proxy whose DELEGATECALL target depends on msg.sender (the admin gets one implementation, everyone else another; target.proxy_slot.candidates lists them): follow "user" (what everyone but the admin runs; also what follow_proxy picks), "admin", or one of the candidate addresses. Such a proxy is not followed by default
+    pub follow_proxy_target: Option<String>,
     /// Seconds before each decompiler is killed (1-100, default 60)
     pub timeout: Option<u32>,
     /// Decompiler: "evmdec" (default), "heimdall", or "all" (every installed one)
@@ -304,6 +306,8 @@ pub struct ContractFingerprintInput {
     /// Follow a proxy slot or implementation() getter even when the call analysis does not confirm the code delegates every unmatched call to it (target.proxy_slot reports such values; by default the address's own code is used)
     #[serde(default)]
     pub follow_proxy: bool,
+    /// For a proxy whose DELEGATECALL target depends on msg.sender (the admin gets one implementation, everyone else another; target.proxy_slot.candidates lists them): follow "user" (what everyone but the admin runs; also what follow_proxy picks), "admin", or one of the candidate addresses. Such a proxy is not followed by default
+    pub follow_proxy_target: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -329,6 +333,8 @@ pub struct ContractMatchInput {
     /// Follow a proxy slot or implementation() getter even when the call analysis does not confirm the code delegates every unmatched call to it (target.proxy_slot reports such values; by default the address's own code is used)
     #[serde(default)]
     pub follow_proxy: bool,
+    /// For a proxy whose DELEGATECALL target depends on msg.sender (the admin gets one implementation, everyone else another; target.proxy_slot.candidates lists them): follow "user" (what everyone but the admin runs; also what follow_proxy picks), "admin", or one of the candidate addresses. Such a proxy is not followed by default
+    pub follow_proxy_target: Option<String>,
     /// On a mismatch, add an aligned artifact/deployed instruction diff to each function marked different (functions[].diff; up to 200 rows per function)
     #[serde(default)]
     pub diff: bool,
@@ -366,6 +372,9 @@ pub struct ContractSourceInput {
     pub function: Option<String>,
     /// Return only lines matching this regular expression, as path:line: text
     pub grep: Option<String>,
+    /// Return JSON: the files plus each contract's compiler settings (compiler_version, evm_version, via_ir with where it came from, optimizer enabled/runs, libraries), origin and verification_match. Also applies to list/file/function/grep
+    #[serde(default)]
+    pub json: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]

@@ -8,6 +8,7 @@
 pub mod cache;
 mod client;
 pub mod fallback;
+pub mod limiter;
 pub mod support;
 
 pub use cache::{

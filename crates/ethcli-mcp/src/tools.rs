@@ -660,6 +660,7 @@ pub async fn contract_source(
     file: Option<&str>,
     function: Option<&str>,
     grep: Option<&str>,
+    json: bool,
 ) -> Result<String, ToolError> {
     reject_file_output(output)?;
 
@@ -670,6 +671,7 @@ pub async fn contract_source(
         .opt("--file", file)
         .opt("--function", function)
         .opt("--grep", grep)
+        .opt("--format", json.then_some("json"))
         .chain(chain)
         .execute()
         .await
@@ -687,12 +689,14 @@ pub async fn contract_inspect(address: &str, chain: Option<&str>) -> Result<Stri
         .map_err(ToolError::from)
 }
 
+#[allow(clippy::too_many_arguments)]
 pub async fn contract_decompile(
     address: &str,
     chain: Option<&str>,
     block: Option<&str>,
     no_follow_proxy: bool,
     follow_proxy: bool,
+    follow_proxy_target: Option<&str>,
     timeout: Option<u32>,
     backend: Option<&str>,
 ) -> Result<String, ToolError> {
@@ -711,6 +715,7 @@ pub async fn contract_decompile(
         .opt("--block", block)
         .opt_flag("--no-follow-proxy", no_follow_proxy)
         .opt_flag("--follow-proxy", follow_proxy)
+        .opt("--follow-proxy-target", follow_proxy_target)
         .opt("--timeout", timeout.as_deref())
         .opt("--backend", backend)
         .format_json()
@@ -725,6 +730,7 @@ pub async fn contract_fingerprint(
     block: Option<&str>,
     no_follow_proxy: bool,
     follow_proxy: bool,
+    follow_proxy_target: Option<&str>,
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("contract")
         .subcommand("fingerprint")
@@ -733,6 +739,7 @@ pub async fn contract_fingerprint(
         .opt("--block", block)
         .opt_flag("--no-follow-proxy", no_follow_proxy)
         .opt_flag("--follow-proxy", follow_proxy)
+        .opt("--follow-proxy-target", follow_proxy_target)
         .format_json()
         .execute()
         .await
@@ -828,6 +835,7 @@ pub async fn contract_match(
     block: Option<&str>,
     no_follow_proxy: bool,
     follow_proxy: bool,
+    follow_proxy_target: Option<&str>,
     diff: bool,
     only_different: bool,
 ) -> Result<String, ToolError> {
@@ -858,6 +866,7 @@ pub async fn contract_match(
         .opt("--block", block)
         .opt_flag("--no-follow-proxy", no_follow_proxy)
         .opt_flag("--follow-proxy", follow_proxy)
+        .opt("--follow-proxy-target", follow_proxy_target)
         .opt_flag("--diff", diff)
         .opt_flag("--only-different", only_different)
         .format_json()
@@ -1532,6 +1541,7 @@ pub async fn rpc_storage(
         .arg(address)
         .arg(slot)
         .chain(chain)
+        .format_json()
         .execute()
         .await
         .map_err(ToolError::from)

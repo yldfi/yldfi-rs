@@ -58,6 +58,19 @@ pub struct TargetArgs {
     #[arg(long, conflicts_with = "no_follow_proxy")]
     pub follow_proxy: bool,
 
+    /// For a proxy whose DELEGATECALL target depends on msg.sender (an
+    /// admin gets one implementation, everyone else another), follow this
+    /// one: `user` (what everyone but the admin runs; also what
+    /// --follow-proxy picks), `admin`, or one of the candidate addresses
+    /// listed in `target.proxy_slot.candidates`. Such a proxy is not
+    /// followed by default
+    #[arg(
+        long,
+        value_name = "admin|user|ADDRESS",
+        conflicts_with = "no_follow_proxy"
+    )]
+    pub follow_proxy_target: Option<String>,
+
     /// Custom RPC URL (overrides config)
     #[arg(long, value_name = "URL")]
     pub rpc_url: Option<String>,
@@ -618,8 +631,10 @@ fn forwards_whole_calldata(c: &crate::bytecode::CallSite) -> bool {
 /// How the proxy's target sits in a packed slot
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Packing {
-    /// shr(96) or a division by 2^96: the high 160 bits
-    High,
+    /// The address is bits `k..k+160` of the slot, taken with shr(k) or a
+    /// division by 2^k (k a multiple of 8, at most 96; 96 is the high 160
+    /// bits)
+    Shift(u32),
     /// Some other shift or a mask narrower than an address
     Other,
 }
@@ -812,11 +827,7 @@ fn delegate_finding(report: &CallsReport, code: &[u8]) -> Result<DelegateFinding
                         if !note.starts_with("packed") {
                             return Err(None);
                         }
-                        let p = if note.contains("high 160 bits") {
-                            Packing::High
-                        } else {
-                            Packing::Other
-                        };
+                        let p = packing_of(note);
                         if packed.is_some_and(|q| q != p) {
                             return Err(None);
                         }
@@ -855,8 +866,9 @@ fn delegate_finding(report: &CallsReport, code: &[u8]) -> Result<DelegateFinding
             "the DELEGATECALL target is part of storage slot {} ({}), not a whole address in the slot",
             hex_word(*slot),
             match p {
-                Packing::High => "its high 160 bits",
-                Packing::Other => "shifted or masked out of a packed slot",
+                Packing::Shift(96) => "its high 160 bits".to_string(),
+                Packing::Shift(k) => format!("bits {k}..{} of it", k + 160),
+                Packing::Other => "shifted or masked out of a packed slot".to_string(),
             }
         ));
     }
@@ -1148,6 +1160,33 @@ pub(crate) struct DelegateResolution {
     pub analysis_complete: bool,
 }
 
+/// The address a call takes from `word >> shift` (its low 160 bits)
+fn address_at_shift(word: U256, shift: u32) -> Address {
+    let bytes = (word >> (shift as usize)).to_be_bytes::<32>();
+    Address::from_slice(&bytes[12..])
+}
+
+/// `low 160`, `high 160`, or `bits k..k+160`
+fn bits_label(shift: u32) -> String {
+    match shift {
+        0 => "low 160".into(),
+        96 => "high 160".into(),
+        k => format!("bits {k}..{}", k + 160),
+    }
+}
+
+/// The packing a provenance note describes
+fn packing_of(note: &str) -> Packing {
+    if note.contains("high 160 bits") {
+        return Packing::Shift(96);
+    }
+    note.split_once("(bits ")
+        .and_then(|(_, r)| r.split_once(".."))
+        .and_then(|(k, _)| k.parse::<u32>().ok())
+        .filter(|k| *k > 0 && *k <= 96 && k.is_multiple_of(8))
+        .map_or(Packing::Other, Packing::Shift)
+}
+
 fn hex_word(v: U256) -> String {
     format!("{:#066x}", v)
 }
@@ -1159,7 +1198,7 @@ async fn slot_address<P: Provider>(
     address: Address,
     slot: U256,
     block: alloy::eips::BlockId,
-    high: bool,
+    shift: u32,
 ) -> Result<Address, String> {
     let w = provider
         .get_storage_at(address, slot)
@@ -1169,15 +1208,11 @@ async fn slot_address<P: Provider>(
     if w.is_zero() {
         return Err(format!("slot {} is empty at this block", hex_word(slot)));
     }
-    // The EVM takes the low 160 bits of a call target. `high` is set for a
-    // target the code takes with shr 96 (the high 160 bits); any other
-    // packed layout is reported as unsupported before this and never read
-    let bytes = w.to_be_bytes::<32>();
-    let a = if high {
-        Address::from_slice(&bytes[..20])
-    } else {
-        Address::from_slice(&bytes[12..])
-    };
+    // The EVM takes the low 160 bits of a call target. `shift` is the bit
+    // offset the code shifts the word by first (96 for the high 160 bits);
+    // any other packed layout is reported as unsupported before this and
+    // never read
+    let a = address_at_shift(w, shift);
     if a.is_zero() {
         return Err(format!(
             "slot {} holds no address at this block",
@@ -1218,7 +1253,7 @@ pub(crate) async fn resolve_delegate<P: Provider>(
     let kind = finding.source.kind();
     if finding.packed == Some(Packing::Other) {
         return DelegateOutcome::Note(format!(
-            "{kind} shape found, but its DELEGATECALL target is shifted or masked out of a packed storage slot in a layout ethcli does not support (only the high 160 bits, shr 96, is read); not followed, and no value is reported"
+            "{kind} shape found, but its DELEGATECALL target is shifted or masked out of a packed storage slot in a layout ethcli does not support (only a whole address at a byte-aligned offset, such as shr 96 or a division by 0x100, is read); not followed, and no value is reported"
         ));
     }
     let analysis_complete = report.coverage.complete;
@@ -1229,8 +1264,11 @@ pub(crate) async fn resolve_delegate<P: Provider>(
     };
     let (implementation, source, mut resolution) = match finding.source {
         DelegateSource::Storage { slot } => {
-            let high = finding.packed == Some(Packing::High);
-            let implementation = match slot_address(provider, address, slot, block, high).await {
+            let shift = match finding.packed {
+                Some(Packing::Shift(k)) => k,
+                _ => 0,
+            };
+            let implementation = match slot_address(provider, address, slot, block, shift).await {
                 Ok(a) => a,
                 Err(e) => return failed(e),
             };
@@ -1240,7 +1278,7 @@ pub(crate) async fn resolve_delegate<P: Provider>(
                 json!({
                     "method": "sload",
                     "slot": hex_word(slot),
-                    "bits": if high { "high 160" } else { "low 160" },
+                    "bits": bits_label(shift),
                     "delegatecall_target": "every DELEGATECALL the analysis found on the dispatcher path takes its target from this slot, and at least one forwards the caller's calldata",
                 }),
             )
@@ -1249,7 +1287,7 @@ pub(crate) async fn resolve_delegate<P: Provider>(
             kernel_slot,
             app_id_slot,
         } => {
-            let kernel = match slot_address(provider, address, kernel_slot, block, false).await {
+            let kernel = match slot_address(provider, address, kernel_slot, block, 0).await {
                 Ok(a) => a,
                 Err(e) => return failed(e),
             };
@@ -1382,6 +1420,138 @@ async fn fetch_target(chain: Chain, args: &TargetArgs, quiet: bool) -> anyhow::R
         own_code = Some(std::mem::replace(&mut code, delegate_code));
         code_address = delegate;
         resolved_via = Some("EIP-7702 delegation".to_string());
+    } else if let Some(cands) =
+        (!code.is_empty() && !args.no_follow_proxy && !is_known_safe_proxy(&code))
+            .then(|| sender_split(&analyze_calls(&code, CallsBudget::default()), &code))
+            .flatten()
+    {
+        // The target depends on who calls: report every candidate, follow
+        // only the one asked for
+        let mut values: Vec<Option<Address>> = Vec::new();
+        let mut cand_json = Vec::new();
+        let mut parts = Vec::new();
+        for c in &cands {
+            let v = slot_address(provider, address, c.slot, block_id, c.shift).await;
+            values.push(v.as_ref().ok().copied());
+            let who = match (c.caller, &c.against) {
+                ("admin", Some(a)) => format!("admin (msg.sender == {a})"),
+                ("user", Some(a)) => format!("user (msg.sender != {a})"),
+                _ => "any caller".to_string(),
+            };
+            parts.push(format!(
+                "{who}: slot {}{} = {}",
+                hex_word(c.slot),
+                if c.shift > 0 {
+                    format!(" ({})", bits_label(c.shift))
+                } else {
+                    String::new()
+                },
+                match &v {
+                    Ok(a) => a.to_checksum(None),
+                    Err(e) => format!("unreadable ({e})"),
+                }
+            ));
+            cand_json.push(json!({
+                "slot": hex_word(c.slot),
+                "bits": bits_label(c.shift),
+                "value": v.as_ref().ok().map(|a| a.to_checksum(None)),
+                "error": v.as_ref().err(),
+                "caller": c.caller,
+                "caller_check": c.against,
+            }));
+        }
+        let want = args
+            .follow_proxy_target
+            .as_deref()
+            .or(args.follow_proxy.then_some("user"));
+        let chosen = match want {
+            None => None,
+            Some(w) if w.eq_ignore_ascii_case("user") => Some(
+                cands
+                    .iter()
+                    .position(|c| c.caller == "user")
+                    .unwrap_or(0),
+            ),
+            Some(w) if w.eq_ignore_ascii_case("admin") => Some(
+                cands
+                    .iter()
+                    .position(|c| c.caller == "admin")
+                    .ok_or_else(|| {
+                        anyhow::anyhow!("--follow-proxy-target admin: no candidate is reached by the admin only")
+                    })?,
+            ),
+            Some(w) => {
+                let a = Address::from_str(w).map_err(|_| {
+                    anyhow::anyhow!("--follow-proxy-target takes admin, user or an address; got '{w}'")
+                })?;
+                Some(values.iter().position(|v| *v == Some(a)).ok_or_else(|| {
+                    anyhow::anyhow!(
+                        "--follow-proxy-target {w} is not one of this proxy's candidate targets ({})",
+                        parts.join("; ")
+                    )
+                })?)
+            }
+        };
+        let kind = "msg.sender-dependent proxy";
+        let reason = format!(
+            "{kind}: the DELEGATECALL target depends on who calls ({}); no single implementation runs for every caller, so none is followed by default",
+            parts.join("; ")
+        );
+        let mut followed = false;
+        let mut no_code = false;
+        let mut chosen_caller = None;
+        if let Some(i) = chosen {
+            let imp = values[i].ok_or_else(|| {
+                anyhow::anyhow!(
+                    "the {} target of this proxy could not be read",
+                    cands[i].caller
+                )
+            })?;
+            let impl_code = get_code(imp).await?;
+            if impl_code.is_empty() {
+                no_code = true;
+            } else {
+                followed = true;
+                if !quiet {
+                    eprintln!(
+                        "{kind}: using the {} target {}",
+                        cands[i].caller,
+                        imp.to_checksum(None)
+                    );
+                }
+                own_code = Some(std::mem::replace(&mut code, impl_code));
+                code_address = imp;
+                resolved_via = Some(format!("{kind} ({} target)", cands[i].caller));
+                chosen_caller = Some(cands[i].caller);
+            }
+        }
+        let line = match chosen_caller {
+            Some(c) => format!("{reason}; followed the {c} target as asked"),
+            None if no_code => format!("{reason}; the chosen target has no code at this block, its own code is analysed"),
+            None => format!("{reason}; analysing its own code (--follow-proxy follows the user target; --follow-proxy-target admin|user|<address> picks one)"),
+        };
+        if !quiet {
+            eprintln!("Warning: {line}");
+        }
+        notes.push(line);
+        proxy_slot = Some(json!({
+            "kind": kind,
+            "source": "slot",
+            "value": cands
+                .iter()
+                .position(|c| c.caller == "user")
+                .and_then(|i| values[i])
+                .map(|a| a.to_checksum(None)),
+            "followed": followed,
+            "followed_target": chosen_caller,
+            "reason": reason,
+            "candidates": cand_json,
+            "force_with": if followed {
+                Value::Null
+            } else {
+                json!("--follow-proxy (the user target) or --follow-proxy-target <admin|user|address>")
+            },
+        }));
     } else if !code.is_empty() && !args.no_follow_proxy {
         // A canonical Safe proxy keeps its singleton in slot 0; Safe 1.0.0
         // proxies do not answer masterCopy(), so read the slot directly
@@ -1453,7 +1623,20 @@ async fn fetch_target(chain: Chain, args: &TargetArgs, quiet: bool) -> anyhow::R
             };
             let mut followed = false;
             let mut no_code = false;
-            if reason.is_none() || args.follow_proxy {
+            // Not a msg.sender-dependent proxy: there is one target, so
+            // --follow-proxy-target acts as --follow-proxy, and an address
+            // must be that target
+            if let Some(t) = args.follow_proxy_target.as_deref() {
+                let ok = t.eq_ignore_ascii_case("user")
+                    || Address::from_str(t).is_ok_and(|a| a == implementation);
+                if !ok {
+                    anyhow::bail!(
+                        "--follow-proxy-target {t}: this is not a msg.sender-dependent proxy; its only target is {} ({kind}). Use --follow-proxy, or --follow-proxy-target user",
+                        implementation.to_checksum(None)
+                    );
+                }
+            }
+            if reason.is_none() || args.follow_proxy || args.follow_proxy_target.is_some() {
                 let impl_code = get_code(implementation).await?;
                 if impl_code.is_empty() {
                     no_code = true;
@@ -1544,6 +1727,143 @@ async fn fetch_target(chain: Chain, args: &TargetArgs, quiet: bool) -> anyhow::R
         proxy_slot,
         endpoint,
     })
+}
+
+/// One implementation a msg.sender-dependent proxy can delegate to
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct SenderCandidate {
+    slot: U256,
+    /// Bit offset of the address in the slot (0 for a whole word)
+    shift: u32,
+    /// `admin` (msg.sender equals `against`), `user` (it does not) or
+    /// `any` (no msg.sender branch on the way)
+    caller: &'static str,
+    /// What msg.sender is compared with
+    against: Option<String>,
+}
+
+/// A proxy whose dispatcher-path DELEGATECALL target depends on a
+/// msg.sender comparison: different slots on the two sides of the branch,
+/// or a single slot reached only when msg.sender is the admin. An
+/// OpenZeppelin transparent proxy (the admin is refused or handled in the
+/// proxy, everyone else delegates to the one slot) is not one: its
+/// forwarding DELEGATECALL is reached only on the `user` side. Only
+/// DELEGATECALLs that forward the caller's selector count (an
+/// upgrade-and-call delegates with its own input). Returns the candidates,
+/// `user` first, then `admin`, then `any`
+fn sender_split(report: &CallsReport, code: &[u8]) -> Option<Vec<SenderCandidate>> {
+    let mut out: Vec<SenderCandidate> = Vec::new();
+    // pcs of the msg.sender branches behind `admin` records
+    let mut admin_pcs: Vec<usize> = Vec::new();
+    for site in report.call_sites.iter().filter(|s| {
+        s.kind == "DELEGATECALL"
+            && s.functions.iter().any(|f| f == "dispatcher")
+            && forwards_selector(s)
+    }) {
+        for st in &site.target_by_sender {
+            if st.target.kind != "storage" {
+                continue;
+            }
+            let shift = match st.target.note.as_deref() {
+                None => 0,
+                Some(n) => match packing_of(n) {
+                    Packing::Shift(k) => k,
+                    Packing::Other => continue,
+                },
+            };
+            let Some(slot) = st
+                .target
+                .slot
+                .as_deref()
+                .and_then(|v| U256::from_str(v).ok())
+            else {
+                continue;
+            };
+            let (caller, against) = match st.sender.iter().find(|b| b.equal) {
+                Some(b) => {
+                    admin_pcs.push(b.pc);
+                    ("admin", Some(b.against.describe()))
+                }
+                None => match st.sender.first() {
+                    Some(b) => ("user", Some(b.against.describe())),
+                    None => ("any", None),
+                },
+            };
+            let c = SenderCandidate {
+                slot,
+                shift,
+                caller,
+                against,
+            };
+            if !out.contains(&c) {
+                out.push(c);
+            }
+        }
+    }
+    if out.is_empty() || out.iter().all(|c| c.caller == "any") {
+        return None;
+    }
+    let mut slots: Vec<U256> = out.iter().map(|c| c.slot).collect();
+    slots.sort();
+    slots.dedup();
+    // Different targets with at least one behind a sender branch, or one
+    // target reached only when msg.sender is the admin. The second needs
+    // positive evidence: the analysis merges paths that rejoin with the same
+    // state, so a missing `user` record alone proves nothing; every such
+    // branch must revert for anyone but the admin
+    let split = slots.len() >= 2
+        || (out.iter().all(|c| c.caller == "admin")
+            && !admin_pcs.is_empty()
+            && admin_pcs
+                .iter()
+                .all(|pc| guard_admits_only_admin(code, *pc)));
+    if !split {
+        return None;
+    }
+    let rank = |c: &SenderCandidate| match c.caller {
+        "user" => 0,
+        "admin" => 1,
+        _ => 2,
+    };
+    out.sort_by_key(rank);
+    Some(out)
+}
+
+/// Kind reported by `contract::find_implementation` for a proxy whose
+/// target depends on msg.sender; the implementation given is the `user` one
+pub(crate) const SENDER_SPLIT_KIND: &str = "msg.sender-dependent proxy (user target)";
+
+/// The candidates of a msg.sender-dependent proxy, read at `block`:
+/// (caller, slot, value). `None` when the code is not one. The analysis is
+/// run on a smaller budget than the fingerprint's, since this is called
+/// for every slot proxy that `find_implementation` sees
+pub(crate) async fn sender_split_targets<P: Provider>(
+    provider: &P,
+    address: Address,
+    code: &[u8],
+    block: alloy::eips::BlockId,
+) -> Option<Vec<(&'static str, String, Option<Address>)>> {
+    if is_known_safe_proxy(code) || !code.contains(&0x33) || !code.contains(&0xf4) {
+        return None;
+    }
+    let owned = code.to_vec();
+    let cands = tokio::task::spawn_blocking(move || {
+        let budget = CallsBudget {
+            max_time: std::time::Duration::from_secs(8),
+            ..CallsBudget::default()
+        };
+        sender_split(&analyze_calls(&owned, budget), &owned)
+    })
+    .await
+    .ok()??;
+    let mut out = Vec::new();
+    for c in cands {
+        let v = slot_address(provider, address, c.slot, block, c.shift)
+            .await
+            .ok();
+        out.push((c.caller, hex_word(c.slot), v));
+    }
+    Some(out)
 }
 
 /// Facts about the address's own code when another code was analysed: a
@@ -2920,6 +3240,13 @@ pub async fn fingerprint_cmd(
         list("other_shifted")
     );
     println!(
+        "Optimizer: {}",
+        f["optimizer"].as_str().unwrap_or("unknown")
+    );
+    for e in f["optimizer_evidence"].as_array().into_iter().flatten() {
+        println!("  {}", e.as_str().unwrap_or(""));
+    }
+    println!(
         "Optimizer runs bucket: {}",
         f["optimizer_runs_bucket"].as_str().unwrap_or("unknown")
     );
@@ -3735,6 +4062,107 @@ mod tests {
         assert!(not_followed_reason("EIP-1967 proxy", &check, library, own).is_some());
     }
 
+    fn fixture_code(text: &str) -> Vec<u8> {
+        hex::decode(text.trim().trim_start_matches("0x")).unwrap()
+    }
+
+    fn split_of(text: &str) -> Option<Vec<SenderCandidate>> {
+        let code = fixture_code(text);
+        sender_split(&analyze_calls(&code, CallsBudget::default()), &code)
+    }
+
+    /// Arbitrum's RollupProxy (DoubleLogic): the admin is delegated to the
+    /// EIP-1967 implementation, everyone else to a secondary slot. Both are
+    /// candidates, the user one first, and the EIP-1967 slot is not followed
+    #[test]
+    fn msg_sender_dependent_proxy_reports_both_targets() {
+        let c = split_of(include_str!(
+            "../../tests/fixtures/bytecode/arbitrum_rollup_proxy_double_logic.hex"
+        ))
+        .expect("split");
+        assert_eq!(c.len(), 2, "{c:?}");
+        assert_eq!(c[0].caller, "user");
+        assert_eq!(
+            c[0].slot,
+            word("0x2b1dbce74324248c222f0ec2d5ed7bd323cfc425b336f0253c5ccfda7265546d")
+        );
+        assert_eq!(c[1].caller, "admin");
+        assert_eq!(c[1].slot, word(EIP1967_IMPL_SLOT));
+        assert!(c.iter().all(|x| x
+            .against
+            .as_deref()
+            .is_some_and(|a| a.contains("b53127684a"))));
+    }
+
+    /// Transparent proxies (OpenZeppelin 4.x and 5.x, and USDC's zeppelinos
+    /// AdminUpgradeabilityProxy) refuse or handle the admin themselves and
+    /// delegate everyone else to the one slot: not a split, still followed
+    #[test]
+    fn transparent_proxies_are_not_split() {
+        for (kind, text) in [
+            (
+                "EIP-1967 proxy",
+                include_str!("../../tests/fixtures/bytecode/oz4_transparent_proxy_062bf7.hex"),
+            ),
+            (
+                "EIP-1967 proxy",
+                include_str!("../../tests/fixtures/bytecode/oz5_transparent_proxy_d19d4b.hex"),
+            ),
+            (
+                "OpenZeppelin legacy proxy",
+                include_str!("../../tests/fixtures/bytecode/usdc_proxy.hex"),
+            ),
+        ] {
+            assert!(split_of(text).is_none(), "{kind}");
+            let code = fixture_code(text);
+            let check = proxy_check(kind, &code, Address::ZERO, None);
+            assert!(check.ok, "{kind}: {check:?}");
+        }
+    }
+
+    /// EthVault (solc 0.5.0 MultiSigWallet): the fallback delegates to
+    /// `implementation`, an address packed after a byte in slot 6
+    /// (`sload(6) / 0x100 & mask`). It is recognised at that offset and held
+    /// for its own multisig logic, not for the getter
+    #[test]
+    fn packed_address_at_a_byte_offset_is_read_and_held_for_own_logic() {
+        let f = fixture_finding(include_str!(
+            "../../tests/fixtures/bytecode/ethvault_packed_slot_1bf68a.hex"
+        ))
+        .expect("recognised");
+        assert_eq!(
+            f.source,
+            DelegateSource::Storage {
+                slot: U256::from(6)
+            }
+        );
+        assert_eq!(f.packed, Some(Packing::Shift(8)));
+        assert!(
+            f.hold.iter().any(|h| h.contains("logic of its own")),
+            "{:?}",
+            f.hold
+        );
+        assert!(
+            f.hold.iter().any(|h| h.contains("bits 8..168")),
+            "{:?}",
+            f.hold
+        );
+        // The address is read from bits 8..168
+        let a = Address::from_str("0xC3430BC8C2C05FC6b42114BF7F82a3e2f3Ee9454").unwrap();
+        let w = (U256::from_be_slice(a.as_slice()) << 8) | U256::from(1u8);
+        assert_eq!(address_at_shift(w, 8), a);
+        assert_eq!(bits_label(8), "bits 8..168");
+        assert_eq!(
+            packing_of("packed with other values (bits 8..168)"),
+            Packing::Shift(8)
+        );
+        assert_eq!(
+            packing_of("packed with other values (high 160 bits)"),
+            Packing::Shift(96)
+        );
+        assert_eq!(packing_of("packed with other values"), Packing::Other);
+    }
+
     fn fixture_finding(hex_code: &str) -> Result<DelegateFinding, Option<String>> {
         let code = hex::decode(hex_code.trim()).unwrap();
         delegate_finding(&analyze_calls(&code, CallsBudget::default()), &code)
@@ -3875,7 +4303,7 @@ mod tests {
         // Delegating to the high 20 bytes of slot 0 (shr 96): packed, held
         // (still reported, so --follow-proxy can force it)
         let packed = fixture_finding("3660006000376000600036600060005460601c5af400").unwrap();
-        assert_eq!(packed.packed, Some(Packing::High));
+        assert_eq!(packed.packed, Some(Packing::Shift(96)));
         assert!(packed
             .hold
             .iter()
@@ -4059,6 +4487,7 @@ mod tests {
             args: vec![],
             args_len: vec![prov("calldatasize")],
             resolved: true,
+            target_by_sender: vec![],
         };
         let calldata = Provenance {
             offset: Some("0x0".into()),
@@ -4230,6 +4659,7 @@ mod tests {
             args: vec![],
             args_len: vec![],
             resolved: true,
+            target_by_sender: vec![],
         }
     }
 

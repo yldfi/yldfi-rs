@@ -648,7 +648,58 @@ fn describe_short(v: &V) -> String {
     p.describe()
 }
 
+/// An address taken out of a storage word at a byte-aligned bit offset
+/// other than 96: `shr(k, sload(s))` or `div(sload(s), 2^k)`, optionally
+/// under masks of 160 bits or more (and identities), with `0 < k < 96` and
+/// `k` a multiple of 8. A call uses the low 160 bits of its target, so the
+/// address is bits `k..k+160` of the word (old solc packs an address after
+/// a bool or a small integer: `sload(s) / 0x100 & (2^160 - 1)`). Returns
+/// the constant slot and `k`
+fn shifted_address(v: &V) -> Option<(U256, u32)> {
+    if let Some(x) = identity_of(v) {
+        return shifted_address(x);
+    }
+    let inner_slot = |x: &V| -> Option<U256> {
+        let mut x = x;
+        while let Some(y) = identity_of(x) {
+            x = y;
+        }
+        match x {
+            V::SLoad(s) => s.as_const(),
+            _ => None,
+        }
+    };
+    let ok = |k: U256| k > U256::ZERO && k < U256::from(96u8) && (k.to::<u32>()).is_multiple_of(8);
+    match v {
+        V::Op(0x16, a) if a.len() == 2 => match (&a[0], &a[1]) {
+            (V::Const(m, _), x) | (x, V::Const(m, _)) if low_mask(*m) && m.bit_len() >= 160 => {
+                shifted_address(x)
+            }
+            _ => None,
+        },
+        V::Op(0x1c, a) => match a.as_slice() {
+            [V::Const(s, _), x] if ok(*s) => Some((inner_slot(x)?, s.to::<u32>())),
+            _ => None,
+        },
+        V::Op(0x04, a) => match a.as_slice() {
+            [x, V::Const(d, _)] if d.count_ones() == 1 => {
+                let k = U256::from(d.bit_len() - 1);
+                ok(k).then_some(())?;
+                Some((inner_slot(x)?, k.to::<u32>()))
+            }
+            _ => None,
+        },
+        _ => None,
+    }
+}
+
 fn provenance(v: &V) -> Provenance {
+    if let Some((slot, k)) = shifted_address(v) {
+        let mut p = Provenance::kind("storage");
+        p.slot = Some(hex_u256(slot));
+        p.note = Some(format!("packed with other values (bits {k}..{})", k + 160));
+        return p;
+    }
     let unpacked = strip_unpacks(v);
     let mut p = provenance_stripped(strip(v));
     if unpacked && p.kind == "storage" && p.note.is_none() {
@@ -1190,6 +1241,61 @@ pub struct CallSite {
     pub args_len: Vec<Provenance>,
     /// Whether every target is resolved
     pub resolved: bool,
+    /// DELEGATECALL only, and only when some path to it passed a branch on
+    /// `msg.sender == x`: each target with the outcome of those branches on
+    /// the paths that reached it (a proxy whose target depends on who calls)
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub target_by_sender: Vec<SenderTarget>,
+}
+
+/// The outcome of a branch on `msg.sender == against`, on one path
+#[derive(Debug, Clone, Serialize, PartialEq, Eq, PartialOrd, Ord)]
+pub struct SenderBranch {
+    /// pc of the JUMPI
+    pub pc: usize,
+    pub against: Provenance,
+    /// Whether msg.sender equalled `against` on this path
+    pub equal: bool,
+}
+
+/// A DELEGATECALL target and the msg.sender branches on the path to it
+#[derive(Debug, Clone, Serialize, PartialEq, Eq, PartialOrd, Ord)]
+pub struct SenderTarget {
+    pub target: Provenance,
+    /// Empty when no msg.sender branch was passed
+    pub sender: Vec<SenderBranch>,
+}
+
+/// Branches on msg.sender kept per path
+const MAX_SENDER_BRANCHES: usize = 4;
+/// Target / branch records kept per DELEGATECALL site
+const MAX_SENDER_TARGETS: usize = 12;
+
+/// A branch condition that compares msg.sender with one value:
+/// `[ISZERO*] EQ(caller, x)` or `[ISZERO*] SUB|XOR(caller, x)`. Returns `x`
+/// and whether a non-zero condition (the jump taken) means they are equal
+fn sender_test(cond: &V) -> Option<(Provenance, bool)> {
+    let mut v = cond;
+    let mut negations = 0usize;
+    while let V::Op(0x15, a) = v {
+        v = &a[0];
+        negations += 1;
+    }
+    let (args, eq_nonzero) = match v {
+        V::Op(0x14, a) if a.len() == 2 => (a, true),
+        V::Op(0x03 | 0x18, a) if a.len() == 2 => (a, false),
+        _ => return None,
+    };
+    let is_sender = |x: &V| matches!(strip_subject(x), V::Caller);
+    let other = match (is_sender(&args[0]), is_sender(&args[1])) {
+        (true, false) => &args[1],
+        (false, true) => &args[0],
+        _ => return None,
+    };
+    if matches!(strip(other), V::Origin | V::Caller) {
+        return None;
+    }
+    Some((provenance(other), eq_nonzero == negations.is_multiple_of(2)))
 }
 
 /// A comparison of msg.sender, tx.origin or address(this) that feeds a branch
@@ -1500,6 +1606,8 @@ struct State {
     mem: Memory,
     ctx: Ctx,
     last_call: Option<usize>,
+    /// msg.sender branches taken on this path (not part of dedup)
+    sender: Vec<SenderBranch>,
 }
 
 #[derive(Default)]
@@ -1510,6 +1618,7 @@ struct SiteAcc {
     value: BTreeSet<Provenance>,
     args: [BTreeSet<Provenance>; 3],
     args_len: BTreeSet<Provenance>,
+    target_sender: BTreeSet<SenderTarget>,
 }
 
 #[derive(Default)]
@@ -1691,6 +1800,11 @@ impl<'a> Interp<'a> {
             for p in acc.target {
                 if fully(&p) || p.is_unresolved() {
                     add(&mut mine.target, p);
+                }
+            }
+            for t in acc.target_sender {
+                if mine.target_sender.len() < MAX_SENDER_TARGETS && fully(&t.target) {
+                    mine.target_sender.insert(t);
                 }
             }
             let fields = [
@@ -1947,6 +2061,7 @@ impl<'a> Interp<'a> {
             mem: Memory::default(),
             ctx: Ctx::Dispatcher,
             last_call: None,
+            sender: Vec::new(),
         }];
         // Memory variants (same stack, different memory) wait here until
         // every other path is done, so they use only what budget is left
@@ -2185,9 +2300,29 @@ impl<'a> Interp<'a> {
                             Some(Some(c)) => (!c.is_zero(), c.is_zero()),
                             Some(None) => (true, true),
                         };
+                        // A branch on msg.sender == x: remember the outcome on
+                        // each side, for DELEGATECALL targets reached after it
+                        let sender = match (&cond, take && fall) {
+                            (Some(c), true) if s.sender.len() < MAX_SENDER_BRANCHES => {
+                                sender_test(c)
+                            }
+                            _ => None,
+                        };
+                        let branch = |equal: bool| {
+                            sender.as_ref().map(|(against, _)| SenderBranch {
+                                pc,
+                                against: against.clone(),
+                                equal,
+                            })
+                        };
+                        let (take_branch, fall_branch) = match &sender {
+                            Some((_, eq_nonzero)) => (branch(*eq_nonzero), branch(!*eq_nonzero)),
+                            None => (None, None),
+                        };
                         if fall {
                             let mut f = s.clone();
                             f.pc = pc + 1;
+                            f.sender.extend(fall_branch);
                             work.push(f);
                         }
                         if take {
@@ -2215,6 +2350,7 @@ impl<'a> Interp<'a> {
                                 let mut t = s.clone();
                                 t.pc = d;
                                 t.ctx = ctx;
+                                t.sender.extend(take_branch.clone());
                                 work.push(t);
                             }
                         }
@@ -2420,6 +2556,12 @@ impl<'a> Interp<'a> {
         site.kind = opname(op);
         if let Some(t) = target {
             insert_capped(&mut site.target, provenance(t));
+            if op == 0xf4 && site.target_sender.len() < MAX_SENDER_TARGETS {
+                site.target_sender.insert(SenderTarget {
+                    target: provenance(t),
+                    sender: s.sender.clone(),
+                });
+            }
         }
         if let Some(v) = value {
             insert_capped(&mut site.value, provenance(v));
@@ -2598,6 +2740,11 @@ pub fn analyze_calls_with(
             },
             args_len: acc.args_len.iter().cloned().collect(),
             resolved: !acc.target.iter().any(Provenance::is_unresolved),
+            target_by_sender: if acc.target_sender.iter().any(|t| !t.sender.is_empty()) {
+                acc.target_sender.iter().cloned().collect()
+            } else {
+                Vec::new()
+            },
         };
         if let Some(prev) = call_sites.last_mut() {
             if prev.pc == site.pc
@@ -2607,6 +2754,11 @@ pub fn analyze_calls_with(
                 && prev.args == site.args
             {
                 prev.functions.extend(site.functions);
+                for t in site.target_by_sender {
+                    if !prev.target_by_sender.contains(&t) {
+                        prev.target_by_sender.push(t);
+                    }
+                }
                 continue;
             }
         }
@@ -3150,6 +3302,7 @@ mod tests {
             mem: Memory::default(),
             ctx: Ctx::Dispatcher,
             last_call: None,
+            sender: Vec::new(),
         };
         let a = st(vec![V::Caller]);
         let b = st(vec![V::Origin]);

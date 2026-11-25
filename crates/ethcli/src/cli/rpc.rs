@@ -734,8 +734,14 @@ async fn run_action(
                 .await
                 .map_err(|e| anyhow::anyhow!("Failed to read storage: {}", e))?;
 
+            // The whole 32-byte word, leading zeros kept, so an address
+            // stored in it reads the same as everywhere else
+            let as_address = storage_word_address(value);
             if format.is_table() {
-                println!("{:#x}", value);
+                println!("{:#066x}", value);
+                if let (Some(a), false) = (as_address, quiet) {
+                    eprintln!("as an address (low 20 bytes): {}", a.to_checksum(None));
+                }
             } else {
                 let out = serde_json::json!({
                     "address": addr.to_checksum(None),
@@ -743,6 +749,7 @@ async fn run_action(
                     "block": block,
                     "value": format!("{:#066x}", value),
                     "decimal": value.to_string(),
+                    "value_as_address": as_address.map(|a| a.to_checksum(None)),
                 });
                 print_json(&out, *format)?;
             }
@@ -1579,6 +1586,14 @@ fn format_tx_table(tx: &serde_json::Value) -> String {
 }
 
 /// Print a JSON value pretty (json) or on one line (ndjson)
+/// A storage word read as an address: when it fits in 20 bytes and is
+/// wider than 12 bytes (a counter or flag is not shown as one). It may
+/// still not be an address
+fn storage_word_address(value: U256) -> Option<Address> {
+    (value.bit_len() > 96 && value.bit_len() <= 160)
+        .then(|| Address::from_slice(&value.to_be_bytes::<32>()[12..]))
+}
+
 fn print_json(value: &serde_json::Value, format: OutputFormat) -> anyhow::Result<()> {
     if format.is_ndjson() {
         println!("{}", serde_json::to_string(value)?);
@@ -1629,6 +1644,25 @@ fn format_gwei(wei: u128) -> String {
 
 #[cfg(test)]
 mod tests {
+    /// A word holding an address with a leading zero nibble keeps all 64
+    /// hex digits, and reads as that address
+    #[test]
+    fn storage_word_keeps_leading_zeros() {
+        use alloy::primitives::{Address, U256};
+        use std::str::FromStr;
+        let v = U256::from_str("0x0f17d856ecc7c8ce9bd7d5b3e52a47eca5e8955a").unwrap();
+        assert_eq!(
+            format!("{v:#066x}"),
+            "0x0000000000000000000000000f17d856ecc7c8ce9bd7d5b3e52a47eca5e8955a"
+        );
+        assert_eq!(
+            super::storage_word_address(v),
+            Some(Address::from_str("0x0f17d856ecc7c8ce9bd7d5b3e52a47eca5e8955a").unwrap())
+        );
+        assert_eq!(super::storage_word_address(U256::from(5u8)), None);
+        assert_eq!(super::storage_word_address(U256::MAX), None);
+    }
+
     #[test]
     fn decode_output_handles_dynamic_values() {
         use alloy::dyn_abi::DynSolValue;

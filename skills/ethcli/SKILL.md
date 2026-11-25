@@ -109,6 +109,16 @@ single facts.
   (`states_pruned`, `invalid_opcodes`, `unresolved_jumps`; `opcode_sites`
   with `reached: false` lists sensitive opcodes no path reached, and
   `in_metadata: true` marks bytes in a trailing metadata region).
+- **Compiler settings of a verified contract:** `contract source <addr>
+  --json` (MCP `contract_source` with `json=true`) gives each contract's
+  `compiler`: `compiler_version`, `evm_version`, `via_ir` (null when no
+  verifier reports it; `via_ir_from` names the source), `optimizer`
+  enabled/runs and `libraries`. Explorer calls are paced machine-wide
+  (`ETHCLI_EXPLORER_RPS`, default 3) and retried on rate limits, so
+  parallel calls are fine; `not_verified` is only reported when every
+  verifier answered.
+- **Storage words:** `rpc storage` prints the whole 32-byte word (leading
+  zeros kept); JSON adds `value_as_address` when it fits an address.
 - **Verification match:** `contract inspect` `verification[]` and the
   `contract source` stderr line say `exact` (code and metadata hash
   match) or `partial` (code only; comments/names may differ from what was

@@ -33,10 +33,18 @@ Tools: `ethcli` (or the MCP tools `contract_fingerprint`, `contract_inspect`,
    means fewer, and other selectors or masks written out (`PUSH32
    0x70a08231..`, `PUSH20 0xff..ff`) next to the shifted selector mean about
    1000-4000; `optimizer_runs_bucket` sums this up as low, medium or high,
-   or `unknown` when the evidence is weak. Sweep coarse values, keyed on
+   or `unknown` when the evidence is weak. A computed `Error(string)`
+   selector with every other constant written out is only "≥ ~1000" (solc
+   0.8.17 keeps the selector computed even at 20000 runs), so the bucket is
+   `unknown` there. Sweep coarse values, keyed on
    the executable size: try the bucket's value (200, 1000 or 10000) and
    its neighbours, keep the run count whose executable size equals the
-   deployed one, then refine. Optimizer-off code also writes constants out.
+   deployed one, then refine. Optimizer-off code also writes constants out,
+   so check `optimizer` first: `likely off` (the same mask applied twice in
+   a row, `PUSH c AND PUSH c AND`, which the optimizer always folds; see
+   `optimizer_evidence`) means build with the optimizer disabled, and the
+   runs bucket is then `unknown (optimizer likely off)`. `not detected as
+   off` is not proof that it was on.
    If the proxy was followed, the output names the implementation: rebuild
    that. A set EIP-1967 slot is not proof of a proxy: some contracts keep an
    address there and run their own dispatcher, delegating only the
@@ -45,7 +53,15 @@ Tools: `ethcli` (or the MCP tools `contract_fingerprint`, `contract_inspect`,
    only when the call analysis confirms every unmatched call runs that
    code with no dispatcher of its own; otherwise `target.proxy_slot`
    shows the value, its source and why it was not followed, and
-   `--follow-proxy` forces it. Proxies with no standard slot (Compound
+   `--follow-proxy` forces it. A proxy whose DELEGATECALL target depends on
+   who calls (Arbitrum's RollupProxy: the admin runs the EIP-1967
+   implementation, everyone else a secondary slot) is never followed by
+   default: `proxy_slot.kind` is `msg.sender-dependent proxy` and
+   `candidates` lists each slot, value and `caller` (`admin`, `user`).
+   Rebuild the one you need: `--follow-proxy` follows the `user` target,
+   `--follow-proxy-target admin|user|<address>` picks one. Transparent
+   proxies (the admin is refused or handled in the proxy itself) are not
+   affected. Proxies with no standard slot (Compound
    delegators such as cDAI, Compound's Unitroller, aragonOS app proxies
    such as stETH, Decentraland LAND) are followed when all of these hold:
    every DELEGATECALL the analysis finds on the dispatcher path takes its
@@ -55,12 +71,15 @@ Tools: `ethcli` (or the MCP tools `contract_fingerprint`, `contract_inspect`,
    0, length `calldatasize`); no dispatcher-path CALL to the same target
    takes its input from calldata (Synthetix's CALL-or-DELEGATECALL
    proxy). Even then it is held (`followed: false`, the reason,
-   `force_with: --follow-proxy`) when the target is the high 160 bits of
-   a packed slot, when a call opcode was not reached by the analysis, when
+   `force_with: --follow-proxy`) when the target is a whole address packed
+   in a slot at a byte offset (the high 160 bits, shr 96, or old solc's
+   `sload(s) / 0x100 & mask`, bits 8..168; `resolved.bits` says which),
+   when a call opcode was not reached by the analysis, when
    the fallback path creates contracts, self-destructs, calls anything but
    itself or the proxy's slots or writes storage, or when a function does
-   any of that or writes other slots. Another packed layout is only
-   noted as unsupported.
+   any of that or writes other slots (a multisig that delegates unknown
+   calls to an `implementation` variable is held for this reason: it has
+   logic of its own). Another packed layout is only noted as unsupported.
    Writes to fixed slots and an upgrade-and-call to the stored
    implementation are allowed after a msg.sender check that lets only the
    admin through (the other branch reverts) against

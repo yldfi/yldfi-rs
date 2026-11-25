@@ -356,6 +356,35 @@ async fn detect_proxy_implementation<P: Provider>(
     provider: &P,
     address: Address,
 ) -> Option<Address> {
+    let slot_impl = detect_slot_implementation(provider, address).await?;
+    // An admin may get the slot's code and everyone else another: follow
+    // the code everyone else runs
+    let block: alloy::eips::BlockId = alloy::eips::BlockNumberOrTag::Latest.into();
+    if let Ok(code) = provider.get_code_at(address).block_id(block).await {
+        if let Some(cands) =
+            super::decompile::sender_split_targets(provider, address, &code, block).await
+        {
+            if let Some(user) = cands
+                .iter()
+                .find(|(caller, _, _)| *caller == "user")
+                .and_then(|(_, _, v)| *v)
+            {
+                eprintln!(
+                    "Note: this proxy delegates to another implementation when msg.sender is its admin; following the one everyone else runs ({}). `contract fingerprint` lists both",
+                    user.to_checksum(None)
+                );
+                return Some(user);
+            }
+        }
+    }
+    Some(slot_impl)
+}
+
+/// The implementation in the EIP-1967, OpenZeppelin legacy or beacon slot
+async fn detect_slot_implementation<P: Provider>(
+    provider: &P,
+    address: Address,
+) -> Option<Address> {
     // Try EIP-1967 implementation slot first
     if let Ok(storage) = provider
         .get_storage_at(address, eip1967_impl_slot().into())
@@ -1144,22 +1173,89 @@ pub async fn handle(
                         "No source code found (contract may not be verified)"
                     ));
                 }
+                // Etherscan gives viaIR only inside standard-JSON settings;
+                // when it is missing, ask Sourcify / Blockscout for theirs
+                let mut extra_settings: Option<(serde_json::Value, String)> = None;
+                if items
+                    .iter()
+                    .any(|i| compiler_settings_json(i, None)["via_ir"].is_null())
+                {
+                    let checksum = Address::from_str(address)?.to_checksum(None);
+                    if let crate::etherscan::fallback::Fallback::Found(v) =
+                        crate::etherscan::fallback::find_verified(
+                            &reqwest::Client::new(),
+                            client.chain().chain_id(),
+                            &checksum,
+                        )
+                        .await
+                    {
+                        if let Some(s) = v.settings.clone() {
+                            extra_settings = Some((s, v.origin.to_string()));
+                        }
+                    }
+                }
+                let extra = extra_settings.as_ref().map(|(s, o)| (s, o.as_str()));
+
+                if !format.is_table() {
+                    let contracts: Vec<serde_json::Value> = items
+                        .iter()
+                        .map(|item| {
+                            let files: Vec<serde_json::Value> =
+                                source_files(std::slice::from_ref(item))
+                                    .into_iter()
+                                    .map(|f| serde_json::json!({"path": f.path, "content": f.content}))
+                                    .collect();
+                            serde_json::json!({
+                                "name": item.contract_name,
+                                "compiler": compiler_settings_json(item, extra),
+                                "license": (!item.license_type.is_empty()).then_some(&item.license_type),
+                                "files": files,
+                            })
+                        })
+                        .collect();
+                    let out = serde_json::json!({
+                        "address": address,
+                        "origin": origin.to_string(),
+                        "verification_match": origin.match_type(),
+                        "verified_for": verified_for,
+                        "note": source_note,
+                        "contracts": contracts,
+                    });
+                    println!("{}", serde_json::to_string_pretty(&out)?);
+                    return Ok(());
+                }
 
                 if let Some(note) = &source_note {
                     println!("// Note: {note}");
                 }
                 for item in items {
+                    let c = compiler_settings_json(&item, extra);
                     println!("// Contract: {}", item.contract_name);
                     println!("// Compiler: {}", item.compiler_version);
                     println!(
                         "// Optimization: {} (runs: {})",
-                        if item.optimization_used == 1 {
+                        if c["optimizer"]["enabled"].as_bool() == Some(true) {
                             "enabled"
                         } else {
                             "disabled"
                         },
-                        item.runs
+                        c["optimizer"]["runs"]
                     );
+                    println!(
+                        "// EVM version: {}; viaIR: {}",
+                        c["evm_version"].as_str().unwrap_or("not reported"),
+                        match c["via_ir"].as_bool() {
+                            Some(v) => v.to_string(),
+                            None => "not reported".to_string(),
+                        }
+                    );
+                    if let Some(libs) = c["libraries"].as_object().filter(|l| !l.is_empty()) {
+                        let list: Vec<String> = libs
+                            .iter()
+                            .map(|(k, v)| format!("{k}={}", v.as_str().unwrap_or("")))
+                            .collect();
+                        println!("// Libraries: {}", list.join(", "));
+                    }
                     println!("\n{}", item.source_code.source_code());
                 }
             }
@@ -2729,11 +2825,32 @@ async fn implementation_from_storage_on(
             .await
             .map_err(|e| anyhow::anyhow!("eth_getStorageAt failed: {}", e))?;
         if let Some(addr) = address_from_storage(u256_to_b256(value)) {
-            return Ok(Some(addr));
+            return Ok(Some(
+                user_target_if_split(provider, proxy_address)
+                    .await
+                    .unwrap_or(addr),
+            ));
         }
     }
 
     Ok(call_implementation_function(provider, proxy_address).await)
+}
+
+/// For a proxy whose DELEGATECALL target depends on msg.sender, the target
+/// everyone but the admin runs (with a note on stderr); `None` otherwise
+async fn user_target_if_split<P: Provider>(provider: &P, address: Address) -> Option<Address> {
+    let block: alloy::eips::BlockId = alloy::eips::BlockNumberOrTag::Latest.into();
+    let code = provider.get_code_at(address).block_id(block).await.ok()?;
+    let cands = super::decompile::sender_split_targets(provider, address, &code, block).await?;
+    let user = cands
+        .iter()
+        .find(|(caller, _, _)| *caller == "user")
+        .and_then(|(_, _, v)| *v)?;
+    eprintln!(
+        "Note: this proxy delegates to another implementation when msg.sender is its admin; following the one everyone else runs ({}). `contract fingerprint` lists both",
+        user.to_checksum(None)
+    );
+    Some(user)
 }
 
 /// Print a nicely formatted analysis table
@@ -3016,11 +3133,27 @@ pub(crate) async fn find_implementation<P: Provider>(
     if let Some(found) = crate::bytecode::detect_proxy(code).implementation {
         return Some(("EIP-1167 minimal proxy", found));
     }
-    if let Some(found) = storage_address(provider, address, eip1967_impl_slot(), block).await {
-        return Some(("EIP-1967 proxy", found));
-    }
-    if let Some(found) = storage_address(provider, address, oz_impl_slot(), block).await {
-        return Some(("OpenZeppelin legacy proxy", found));
+    let slot_kind = match storage_address(provider, address, eip1967_impl_slot(), block).await {
+        Some(found) => Some(("EIP-1967 proxy", found)),
+        None => storage_address(provider, address, oz_impl_slot(), block)
+            .await
+            .map(|found| ("OpenZeppelin legacy proxy", found)),
+    };
+    if let Some(found) = slot_kind {
+        // An admin may get the slot's code and everyone else another: give
+        // the code everyone else runs (`contract fingerprint` lists both)
+        if let Some(cands) =
+            super::decompile::sender_split_targets(provider, address, code, block).await
+        {
+            if let Some(user) = cands
+                .iter()
+                .find(|(caller, _, _)| *caller == "user")
+                .and_then(|(_, _, v)| *v)
+            {
+                return Some((super::decompile::SENDER_SPLIT_KIND, user));
+            }
+        }
+        return Some(found);
     }
     if let Some(beacon) = storage_address(provider, address, eip1967_beacon_slot(), block).await {
         if let Some(found) = call_implementation_function_at(provider, beacon, block).await {
@@ -3142,6 +3275,24 @@ async fn inspect_address(
         });
         if let Some(admin) = storage_address(provider, address, eip1967_admin_slot(), block).await {
             proxy["admin"] = serde_json::json!(admin.to_checksum(None));
+        }
+        if kind == super::decompile::SENDER_SPLIT_KIND {
+            if let Some(cands) =
+                super::decompile::sender_split_targets(provider, address, &code, block).await
+            {
+                proxy["candidates"] = serde_json::json!(cands
+                    .iter()
+                    .map(|(caller, slot, v)| serde_json::json!({
+                        "caller": caller,
+                        "slot": slot,
+                        "value": v.map(|a| a.to_checksum(None)),
+                    }))
+                    .collect::<Vec<_>>());
+            }
+            notes.push(
+                "The proxy delegates to a different implementation when msg.sender is its admin; `implementation` and the functions are those everyone else runs (`proxy.candidates` lists both)"
+                    .to_string(),
+            );
         }
         if let Some(beacon) = storage_address(provider, address, eip1967_beacon_slot(), block).await
         {
@@ -3813,6 +3964,96 @@ fn format_with_decimals(value: &alloy::primitives::U256, decimals: u8) -> String
 
 /// The verified source as separate files, sorted by path. A single-file
 /// verification is named after the contract.
+/// Compiler settings of a verified contract: what the explorer's record
+/// says, filled from its standard-JSON `settings` when it has them, and from
+/// `extra` (another verifier's settings, with its name) for what is still
+/// missing. `via_ir` is null when no source reports it
+fn compiler_settings_json(
+    item: &foundry_block_explorers::contract::Metadata,
+    extra: Option<(&serde_json::Value, &str)>,
+) -> serde_json::Value {
+    let own = item.source_code.settings();
+    let pick = |key: &str| -> Option<(&serde_json::Value, &'static str)> {
+        if let Some(v) = own.and_then(|s| s.get(key)).filter(|v| !v.is_null()) {
+            return Some((v, "explorer"));
+        }
+        extra
+            .and_then(|(s, _)| s.get(key))
+            .filter(|v| !v.is_null())
+            .map(|v| (v, "other_verifier"))
+    };
+    let evm_version = match item.evm_version.trim() {
+        v if !v.is_empty() && !v.eq_ignore_ascii_case("default") => Some(v.to_ascii_lowercase()),
+        _ => pick("evmVersion")
+            .and_then(|(v, _)| v.as_str())
+            .map(str::to_string),
+    };
+    let via_ir = pick("viaIR");
+    let optimizer = own.and_then(|s| s.get("optimizer"));
+    let enabled = optimizer
+        .and_then(|o| o["enabled"].as_bool())
+        .unwrap_or(item.optimization_used == 1);
+    let runs = optimizer
+        .and_then(|o| o["runs"].as_u64())
+        .unwrap_or(item.runs);
+    // Etherscan: "Name:0xaddr;Name2:0xaddr"; standard JSON: {file: {name: addr}}
+    let mut libraries = serde_json::Map::new();
+    for part in item.library.split(';').filter(|p| !p.trim().is_empty()) {
+        if let Some((name, addr)) = part.split_once(':') {
+            libraries.insert(name.trim().to_string(), serde_json::json!(addr.trim()));
+        }
+    }
+    if libraries.is_empty() {
+        if let Some((libs, _)) = pick("libraries") {
+            for (file, names) in libs.as_object().into_iter().flatten() {
+                match names.as_object() {
+                    Some(m) => {
+                        for (name, addr) in m {
+                            libraries.insert(format!("{file}:{name}"), addr.clone());
+                        }
+                    }
+                    None => {
+                        libraries.insert(file.clone(), names.clone());
+                    }
+                }
+            }
+        }
+    }
+    // solc has the via-IR pipeline from 0.7.2; Vyper never had the option
+    let predates_via_ir = {
+        let v = item.compiler_version.trim_start_matches('v');
+        let mut it = v
+            .split(|c: char| !c.is_ascii_digit())
+            .filter(|s| !s.is_empty())
+            .map(|s| s.parse::<u64>().unwrap_or(0));
+        let ver = (
+            it.next().unwrap_or(0),
+            it.next().unwrap_or(0),
+            it.next().unwrap_or(0),
+        );
+        !item.compiler_version.to_ascii_lowercase().contains("vyper")
+            && ver != (0, 0, 0)
+            && ver < (0, 7, 2)
+    };
+    let (via_ir_value, via_ir_from) = match via_ir {
+        Some((v, "explorer")) => (v.as_bool(), Some("explorer".to_string())),
+        Some((v, _)) => (v.as_bool(), extra.map(|(_, o)| o.to_string())),
+        None if predates_via_ir => (
+            Some(false),
+            Some("compiler version (before 0.7.2)".to_string()),
+        ),
+        None => (None, None),
+    };
+    serde_json::json!({
+        "compiler_version": item.compiler_version,
+        "evm_version": evm_version.unwrap_or_else(|| "default".to_string()),
+        "via_ir": via_ir_value,
+        "via_ir_from": via_ir_from,
+        "optimizer": {"enabled": enabled, "runs": runs},
+        "libraries": libraries,
+    })
+}
+
 fn source_files(
     items: &[foundry_block_explorers::contract::Metadata],
 ) -> Vec<super::source_view::SourceFile> {
@@ -4015,6 +4256,75 @@ fn print_source_slice(
         );
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod compiler_settings_tests {
+    use super::compiler_settings_json;
+    use foundry_block_explorers::contract::Metadata;
+    use serde_json::json;
+
+    fn etherscan_item(source_code: &str, version: &str, evm: &str, library: &str) -> Metadata {
+        serde_json::from_value(json!({
+            "SourceCode": source_code,
+            "ABI": "[]",
+            "ContractName": "C",
+            "CompilerVersion": version,
+            "OptimizationUsed": "1",
+            "Runs": "200",
+            "ConstructorArguments": "",
+            "EVMVersion": evm,
+            "Library": library,
+            "LicenseType": "MIT",
+            "Proxy": "0",
+            "Implementation": "",
+            "SwarmSource": ""
+        }))
+        .unwrap()
+    }
+
+    /// Standard-JSON input carries viaIR and the optimizer; Etherscan's
+    /// "Default" EVM version falls back to the settings
+    #[test]
+    fn settings_from_standard_json() {
+        let src = r#"{{"language":"Solidity","sources":{"a.sol":{"content":"contract C {}"}},"settings":{"viaIR":true,"evmVersion":"cancun","optimizer":{"enabled":true,"runs":999},"libraries":{"a.sol":{"L":"0x0000000000000000000000000000000000000001"}}}}}"#;
+        let c = compiler_settings_json(
+            &etherscan_item(src, "v0.8.24+commit.e11b9ed9", "Default", ""),
+            None,
+        );
+        assert_eq!(c["via_ir"], json!(true));
+        assert_eq!(c["via_ir_from"], json!("explorer"));
+        assert_eq!(c["evm_version"], json!("cancun"));
+        assert_eq!(c["optimizer"], json!({"enabled": true, "runs": 999}));
+        assert_eq!(
+            c["libraries"]["a.sol:L"],
+            json!("0x0000000000000000000000000000000000000001")
+        );
+    }
+
+    /// A flat source says nothing about viaIR: another verifier's settings
+    /// fill it, a pre-0.7.2 compiler cannot have it, and otherwise it stays
+    /// null. Etherscan's `Library` string is parsed
+    #[test]
+    fn via_ir_when_the_explorer_does_not_say() {
+        let item = etherscan_item(
+            "contract C {}",
+            "v0.8.17+commit.8df45f5f",
+            "london",
+            "Lib:0xabc",
+        );
+        let c = compiler_settings_json(&item, None);
+        assert!(c["via_ir"].is_null());
+        assert_eq!(c["evm_version"], json!("london"));
+        assert_eq!(c["libraries"]["Lib"], json!("0xabc"));
+        let other = json!({"viaIR": false});
+        let c = compiler_settings_json(&item, Some((&other, "Sourcify (match)")));
+        assert_eq!(c["via_ir"], json!(false));
+        assert_eq!(c["via_ir_from"], json!("Sourcify (match)"));
+        let old = etherscan_item("contract C {}", "v0.4.24+commit.e67f0147", "byzantium", "");
+        let c = compiler_settings_json(&old, None);
+        assert_eq!(c["via_ir"], json!(false));
+    }
 }
 
 #[cfg(test)]
