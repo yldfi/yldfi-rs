@@ -675,25 +675,43 @@ ethcli contract match <addr> --artifact <forge-or-solc-json> [--contract Name] [
   it is not (`not_followed_reason`; fixture
   `tests/fixtures/match/yearn_v3_strategy_runtime.hex`).
 - When no standard slot is confirmed (nothing found, or only an
-  `implementation()` getter), `resolve_delegate` recognises a proxy by
-  provenance (`delegate_source`): every dispatcher-path DELEGATECALL
-  target must be one plain storage slot (`storage-slot proxy`, e.g.
-  Compound CErc20Delegator slot 0x12; `Aragon AppProxyPinned` for the
-  pinned-code slot) or the return of one dispatcher-path
-  `getApp(APP_BASES_NAMESPACE, sload(appIdSlot))` call to
-  `sload(kernelSlot)` (`Aragon AppProxyUpgradeable`). It is resolved like
-  the proxy does (slot read, or the kernel call, at the pinned block) and
-  followed by default, even with an own dispatcher; `proxy_slot` then has
-  `source` `storage`/`aragon_kernel`, `reason` null, `resolved` (the reads)
-  and the getter cross-check (`implementation_getter`, `getter_agrees`).
-  Code constants (Yearn V3 strategies), calldata, mappings (diamonds) or a
-  mix give nothing, and so does a dispatcher-path CALL forwarding calldata
-  to the same slot (Synthetix Proxy: CALL or DELEGATECALL by a flag).
-  Any plain slot qualifies (Compound's Unitroller, slot 2, is followed);
-  the rule is not path-sensitive and covers only the sites the analysis
-  found (`resolved.analysis_complete`). Fixtures in `tests/fixtures/bytecode/`: stETH, Lido
-  EVMScriptRegistry (pinned), cDAI, cUSDT, Unitroller, cUSDC (plain
-  CErc20), SNX ProxyERC20.
+  `implementation()` getter), `resolve_delegate` / `delegate_finding`
+  recognise a proxy by provenance. Shape (else not a proxy):
+  1. every dispatcher-path DELEGATECALL target is one plain storage slot
+     (`storage-slot proxy`; `Aragon AppProxyPinned` for the pinned-code
+     slot) or the return of one dispatcher-path
+     `getApp(APP_BASES_NAMESPACE, sload(appIdSlot))` call to
+     `sload(kernelSlot)` (`Aragon AppProxyUpgradeable`). Code constants
+     (Yearn V3 strategies), calldata, mappings (diamonds) or a mix give
+     nothing. A target shifted or masked below 160 bits out of a slot
+     (`calls::strip_unpacks`, provenance note "packed with other values")
+     is refused with a note;
+  2. at least one of those DELEGATECALLs forwards the caller's calldata:
+     selector records from calldata (some may be unresolved, none
+     constant) and length `calldatasize` (provenance `calldatasize`, or
+     `computed` from calldatasize and unresolved terms only). A constant
+     selector alone is a library call: refused with a note;
+  3. no dispatcher-path CALL forwards the calldata to the same slot
+     (Synthetix Proxy): refused with a note.
+  Held (reported with `followed: false`, `reason`, `force_with`):
+  4. any CALL/CALLCODE/DELEGATECALL/STATICCALL in `opcode_sites` not
+     reached, outside the metadata trailer and `calls::dead_regions`;
+  5. own logic: an own function (not the dispatcher, and not one with a
+     msg.sender guard against storage, i.e. admin-only) with a call whose
+     target is not `address_this` or the proxy's slots, or an SSTORE to a
+     slot other than the implementation/kernel slot, a slot some guard
+     compares msg.sender with, or the EIP-1967 admin slot (mapping and
+     transient writes count as own logic).
+  Resolution reads the slot (low 160 bits) or calls the kernel at the
+  pinned block; an RPC error or a zero address gives a note, never a
+  silent "not a proxy". `proxy_slot` has `source` `storage` /
+  `aragon_kernel`, `resolved` (reads, `analysis_complete`) and the getter
+  cross-check (`implementation_getter`, `getter_agrees`). An implementation
+  with no code gives `followed: false`, a reason and no `force_with`.
+  Fixtures in `tests/fixtures/bytecode/`: stETH, Lido EVMScriptRegistry
+  (pinned), cDAI, cUSDT, Unitroller (followed); cUSDC, SNX ProxyERC20,
+  `not_proxy_library_call_ac1fe5`, `not_proxy_transient_passthrough_09707f`,
+  `not_proxy_own_logic_5ac9bc` (not followed).
 - `--block` takes a decimal or hex number, a tag or a time; anything else is
   an error.
 - `match --creation-tx` must be the transaction that created the analysed

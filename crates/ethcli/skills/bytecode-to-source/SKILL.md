@@ -45,13 +45,27 @@ Tools: `ethcli` (or the MCP tools `contract_fingerprint`, `contract_inspect`,
    only when the call analysis confirms every unmatched call runs that
    code with no dispatcher of its own; otherwise `target.proxy_slot`
    shows the value, its source and why it was not followed, and
-   `--follow-proxy` forces it. A contract whose every unmatched call is
-   delegated to the address in one storage slot (Compound delegators such
-   as cDAI, aragonOS AppProxyPinned) or to the return of its aragonOS
-   kernel's `getApp(APP_BASES_NAMESPACE, appId)` (AppProxyUpgradeable,
-   such as stETH) is followed even with its own dispatcher:
-   `target.proxy_slot.source` is `storage` or `aragon_kernel` and
-   `resolved` gives the reads used. When `dispatcher` says
+   `--follow-proxy` forces it. Proxies with no standard slot (Compound
+   delegators such as cDAI, Compound's Unitroller, aragonOS app proxies
+   such as stETH) are followed when all of these hold:
+   every DELEGATECALL the analysis finds on the dispatcher path takes its
+   target from one whole storage slot (not shifted or masked out of a
+   packed slot) or from the return of the aragonOS kernel's
+   `getApp(APP_BASES_NAMESPACE, sload(appIdSlot))`; at least one of them
+   forwards the caller's calldata (input from calldata with no constant
+   selector, length `calldatasize`); no dispatcher-path CALL forwards the
+   calldata to the same slot (Synthetix's CALL-or-DELEGATECALL proxy);
+   every CALL/CALLCODE/DELEGATECALL/STATICCALL opcode in the executable
+   code was reached by the analysis; and the own functions that do not
+   check msg.sender against storage call only the contract itself or the
+   proxy's slots and write only the implementation slot, slots compared
+   with msg.sender (admin, pending admin) or the EIP-1967 admin slot.
+   `target.proxy_slot.source` is then `storage` or `aragon_kernel` and
+   `resolved` gives the reads used. A shape that fails the last two checks
+   is reported with `followed: false`, the reason and `force_with:
+   --follow-proxy`; one that fails the others (a library call with a
+   constant selector, a packed slot, CALL-forwarding) is not treated as a
+   proxy and a note says why. When `dispatcher` says
    "fallback-only / packed-calldata executor", there are no ABI functions:
    rebuild a `fallback()` that decodes the packed calldata at
    `calldata_reads`.

@@ -497,6 +497,29 @@ fn strip(v: &V) -> &V {
     }
 }
 
+/// Whether `strip` removes a shift, a division or a mask narrower than an
+/// address on the way to `v`'s source: the value is then only part of the
+/// word it came from (a packed storage slot)
+fn strip_unpacks(v: &V) -> bool {
+    match v {
+        V::Op(0x16, a) if a.len() == 2 => match (&a[0], &a[1]) {
+            (V::Const(m, _), x) | (x, V::Const(m, _)) if low_mask(*m) => {
+                m.bit_len() < 160 || strip_unpacks(x)
+            }
+            _ => false,
+        },
+        V::Op(0x15, a) => match a.as_slice() {
+            [V::Op(0x15, b)] => strip_unpacks(&b[0]),
+            _ => false,
+        },
+        V::Op(0x1c, a) => matches!(a.as_slice(), [V::Const(s, _), _] if *s == U256::from(96u8)),
+        V::Op(0x04, a) => {
+            matches!(a.as_slice(), [_, V::Const(d, _)] if *d == U256::from(1u8) << 96)
+        }
+        _ => false,
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Provenance (serialised)
 
@@ -504,8 +527,8 @@ fn strip(v: &V) -> &V {
 #[derive(Debug, Clone, Serialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Provenance {
     /// constant, code_constant, storage, storage_computed, transient_storage,
-    /// calldata, msg_sender, tx_origin, address_this, msg_value,
-    /// call_return, computed, unresolved
+    /// calldata, calldatasize, msg_sender, tx_origin, address_this,
+    /// msg_value, call_return, computed, unresolved
     pub kind: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub value: Option<String>,
@@ -572,7 +595,15 @@ fn describe_short(v: &V) -> String {
 }
 
 fn provenance(v: &V) -> Provenance {
-    let v = strip(v);
+    let unpacked = strip_unpacks(v);
+    let mut p = provenance_stripped(strip(v));
+    if unpacked && p.kind == "storage" && p.note.is_none() {
+        p.note = Some("packed with other values".into());
+    }
+    p
+}
+
+fn provenance_stripped(v: &V) -> Provenance {
     match v {
         V::Const(c, n) => {
             let mut p = Provenance::kind(if *n >= 20 {
@@ -635,6 +666,7 @@ fn provenance(v: &V) -> Provenance {
             p.call_pc = Some(*pc);
             p
         }
+        V::Env(0x36) => Provenance::kind("calldatasize"),
         V::Unknown | V::Fresh(_) | V::Env(_) => Provenance::kind("unresolved"),
         V::Hash(words) => {
             let mut p = Provenance::kind("keccak");
@@ -690,6 +722,9 @@ fn collect_sources(v: &V, out: &mut BTreeSet<&'static str>) {
         }
         V::Ret(_) => {
             out.insert("call_return");
+        }
+        V::Env(0x36) => {
+            out.insert("calldatasize");
         }
         V::Unknown | V::Fresh(_) | V::Env(_) => {
             out.insert("unresolved");
