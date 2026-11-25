@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.30.20](https://github.com/yldfi/yldfi-rs/compare/ethcli-v0.30.19...ethcli-v0.30.20) (2026-11-25)
+
+
+### Bug Fixes
+
+* **ethcli:** hold msg.sender-dependent proxies, detect optimizer-off code, harden explorer fetches ([#338](https://github.com/yldfi/yldfi-rs/issues/338)) ([a10acdd](https://github.com/yldfi/yldfi-rs/commit/a10acddc3637ca54c5d8938dda5ec38f81fddc3d))
+
 ## [0.30.19](https://github.com/yldfi/yldfi-rs/compare/ethcli-v0.30.18...ethcli-v0.30.19) (2026-11-25)
 
 
