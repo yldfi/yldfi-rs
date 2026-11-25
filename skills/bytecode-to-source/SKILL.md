@@ -53,8 +53,9 @@ Tools: `ethcli` (or the MCP tools `contract_fingerprint`, `contract_inspect`,
    packed slot) or from the return of the aragonOS kernel's
    `getApp(APP_BASES_NAMESPACE, sload(appIdSlot))`; at least one of them
    forwards the caller's calldata (input from calldata with no constant
-   selector, length `calldatasize`); no dispatcher-path CALL forwards the
-   calldata to the same slot (Synthetix's CALL-or-DELEGATECALL proxy);
+   selector, length `calldatasize`); no dispatcher-path CALL to the same
+   target may take its input from calldata (Synthetix's
+   CALL-or-DELEGATECALL proxy);
    every CALL/CALLCODE/DELEGATECALL/STATICCALL opcode in the executable
    code was reached by the analysis; and the own functions that do not
    check msg.sender against storage call only the contract itself or the

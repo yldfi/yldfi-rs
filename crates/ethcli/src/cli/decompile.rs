@@ -643,8 +643,9 @@ struct DelegateFinding {
 /// 2. At least one of them forwards the caller's calldata: input from
 ///    calldata offset 0 with length `calldatasize`. Others may build their
 ///    own input (Compound's `delegateToImplementation`).
-/// 3. No dispatcher-path CALL forwards the caller's calldata to the same
-///    slot (Synthetix Proxy: CALL or DELEGATECALL by a storage flag).
+/// 3. No dispatcher-path CALL, CALLCODE or STATICCALL to the same target
+///    (the slot, or the kernel's getApp return) has any selector record from
+///    calldata (Synthetix Proxy: CALL or DELEGATECALL by a storage flag).
 ///
 /// Held (found, reported, not followed by default):
 /// 4. A CALL, CALLCODE, DELEGATECALL or STATICCALL opcode in the executable
@@ -699,19 +700,8 @@ fn delegate_finding(report: &CallsReport, code: &[u8]) -> Result<DelegateFinding
         DelegateSource::Storage { slot } => vec![*slot],
         DelegateSource::AragonKernel { kernel_slot, .. } => vec![*kernel_slot],
     };
-    if let DelegateSource::Storage { slot } = &source {
-        let forwards_by_call = report.call_sites.iter().any(|c| {
-            c.kind != "DELEGATECALL"
-                && c.functions.iter().any(|f| f == "dispatcher")
-                && single_slot(&c.target) == Some(*slot)
-                && forwards_selector(c)
-        });
-        if forwards_by_call {
-            return Err(Some(format!(
-                "a CALL on the dispatcher path also forwards the caller's calldata to the address in slot {}, so that code can run in its own context rather than this address's",
-                hex_word(*slot)
-            )));
-        }
+    if let Some(why) = call_forwarding(report, &source, &sites) {
+        return Err(Some(why));
     }
 
     let mut hold = Vec::new();
@@ -853,6 +843,47 @@ fn delegate_finding(report: &CallsReport, code: &[u8]) -> Result<DelegateFinding
         ));
     }
     Ok(DelegateFinding { source, hold })
+}
+
+/// A dispatcher-path CALL (not DELEGATECALL) that may forward the caller's
+/// calldata to the proxy's target: the code there can then run in its own
+/// context rather than this address's (Synthetix Proxy: CALL or
+/// DELEGATECALL by a storage flag). Deliberately permissive: any selector
+/// record from calldata counts, whatever else the records hold, and any
+/// target record that is the slot (or the kernel's getApp return) counts
+fn call_forwarding(
+    report: &CallsReport,
+    source: &DelegateSource,
+    delegate_sites: &[&crate::bytecode::CallSite],
+) -> Option<String> {
+    let get_app_pcs: Vec<usize> = delegate_sites
+        .iter()
+        .flat_map(|s| s.target.iter())
+        .filter(|t| t.kind == "call_return")
+        .filter_map(|t| t.call_pc)
+        .collect();
+    let to_target = |t: &crate::bytecode::Provenance| match source {
+        DelegateSource::Storage { slot } => {
+            t.kind == "storage"
+                && t.slot
+                    .as_deref()
+                    .and_then(|v| U256::from_str(v).ok())
+                    .is_some_and(|v| v == *slot)
+        }
+        DelegateSource::AragonKernel { .. } => {
+            t.kind == "call_return" && t.call_pc.is_some_and(|pc| get_app_pcs.contains(&pc))
+        }
+    };
+    let hit = report.call_sites.iter().find(|c| {
+        matches!(c.kind.as_str(), "CALL" | "CALLCODE" | "STATICCALL")
+            && c.functions.iter().any(|f| f == "dispatcher")
+            && c.target.iter().any(to_target)
+            && c.selector.iter().any(|s| s.kind == "calldata")
+    })?;
+    Some(format!(
+        "a {} on the dispatcher path (pc {}) may also forward the caller's calldata to the same target, so that code can run in its own context rather than this address's",
+        hit.kind, hit.pc
+    ))
 }
 
 /// Calldata of `getApp(namespace, appId)`
@@ -3564,7 +3595,10 @@ mod tests {
         let snx = fixture_finding(include_str!(
             "../../tests/fixtures/bytecode/synthetix_proxy_erc20_snx.hex"
         ));
-        assert!(matches!(&snx, Err(Some(r)) if r.contains("a CALL on the dispatcher path")));
+        assert!(
+            matches!(&snx, Err(Some(r)) if r.contains("on the dispatcher path") && r.contains("same target")),
+            "{snx:?}"
+        );
         // Library call: the only dispatcher DELEGATECALL to the slot sends a
         // constant selector (0x0d7e33f1), not the caller's calldata
         let lib = fixture_finding(include_str!(
@@ -3632,6 +3666,94 @@ mod tests {
         ))
         .expect("shape recognised");
         assert!(!f.hold.is_empty());
+    }
+
+    #[test]
+    fn call_forwarding_counts_mixed_selector_provenance() {
+        use crate::bytecode::calls::Coverage;
+        use crate::bytecode::{CallSite, Provenance};
+        let prov = |kind: &str| Provenance {
+            kind: kind.into(),
+            value: None,
+            slot: None,
+            offset: None,
+            call_pc: None,
+            note: None,
+        };
+        let slot0 = Provenance {
+            slot: Some("0x0".into()),
+            ..prov("storage")
+        };
+        let site = |kind: &str, selector: Vec<Provenance>, target: Vec<Provenance>| CallSite {
+            pc: 10,
+            kind: kind.into(),
+            functions: vec!["dispatcher".into()],
+            target,
+            selector,
+            value: vec![],
+            args: vec![],
+            args_len: vec![prov("calldatasize")],
+            resolved: true,
+        };
+        let calldata = Provenance {
+            offset: Some("0x0".into()),
+            ..prov("calldata")
+        };
+        let delegate = site("DELEGATECALL", vec![calldata.clone()], vec![slot0.clone()]);
+        let report = |call: CallSite| CallsReport {
+            source: "inferred",
+            bytecode_size: 0,
+            call_sites: vec![delegate.clone(), call],
+            functions: vec![],
+            opcode_sites: vec![],
+            jump_tables: vec![],
+            coverage: Coverage {
+                complete: true,
+                ..Default::default()
+            },
+            notes: vec![],
+            visited: vec![],
+        };
+        let source = DelegateSource::Storage { slot: U256::ZERO };
+        // CALL to the same slot, selector from calldata on one path and
+        // unresolved on another: rejected
+        let mixed = report(site(
+            "CALL",
+            vec![calldata.clone(), prov("unresolved")],
+            vec![slot0.clone(), prov("unresolved")],
+        ));
+        assert!(call_forwarding(&mixed, &source, &[&delegate]).is_some());
+        assert!(matches!(delegate_finding(&mixed, &[]), Err(Some(_))));
+        // Calldata and a constant: still rejected
+        let with_const = report(site(
+            "CALL",
+            vec![calldata.clone(), prov("constant")],
+            vec![slot0.clone()],
+        ));
+        assert!(call_forwarding(&with_const, &source, &[&delegate]).is_some());
+        // A CALL to the slot with a constant selector only (a getter call):
+        // not forwarding
+        let getter = report(site("CALL", vec![prov("constant")], vec![slot0.clone()]));
+        assert!(call_forwarding(&getter, &source, &[&delegate]).is_none());
+        assert!(delegate_finding(&getter, &[]).is_ok());
+        // Aragon: a CALL forwarding calldata to the getApp return
+        let app = Provenance {
+            call_pc: Some(5),
+            ..prov("call_return")
+        };
+        let aragon_delegate = site("DELEGATECALL", vec![calldata.clone()], vec![app.clone()]);
+        let kernel_report = CallsReport {
+            call_sites: vec![
+                aragon_delegate.clone(),
+                site("CALL", vec![calldata, prov("unresolved")], vec![app]),
+            ],
+            ..report(site("CALL", vec![], vec![]))
+        };
+        let kernel = DelegateSource::AragonKernel {
+            kernel_slot: U256::from(1u8),
+            app_id_slot: U256::from(2u8),
+        };
+        assert!(call_forwarding(&kernel_report, &kernel, &[&aragon_delegate]).is_some());
     }
 
     #[test]

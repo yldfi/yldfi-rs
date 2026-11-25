@@ -691,8 +691,10 @@ ethcli contract match <addr> --artifact <forge-or-solc-json> [--contract Name] [
      constant) and length `calldatasize` (provenance `calldatasize`, or
      `computed` from calldatasize and unresolved terms only). A constant
      selector alone is a library call: refused with a note;
-  3. no dispatcher-path CALL forwards the calldata to the same slot
-     (Synthetix Proxy): refused with a note.
+  3. no dispatcher-path CALL/CALLCODE/STATICCALL to the same target (the
+     slot, or the getApp return for Aragon) has any selector record from
+     calldata, whatever the other records are (`call_forwarding`,
+     deliberately permissive; Synthetix Proxy): refused with a note.
   Held (reported with `followed: false`, `reason`, `force_with`):
   4. any CALL/CALLCODE/DELEGATECALL/STATICCALL in `opcode_sites` not
      reached, outside the metadata trailer and `calls::dead_regions`;
