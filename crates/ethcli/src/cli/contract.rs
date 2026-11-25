@@ -438,7 +438,7 @@ pub(crate) async fn call_implementation_function_at<P: Provider>(
 /// An address returned as a single ABI word: exactly 32 bytes, left-padded
 /// with zeros. Anything else (a struct, a string, two values) is not an
 /// `implementation()` answer.
-fn address_from_word(result: &[u8]) -> Option<Address> {
+pub(crate) fn address_from_word(result: &[u8]) -> Option<Address> {
     if result.len() != 32 || result[..12].iter().any(|b| *b != 0) {
         return None;
     }

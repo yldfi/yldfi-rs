@@ -45,7 +45,13 @@ Tools: `ethcli` (or the MCP tools `contract_fingerprint`, `contract_inspect`,
    only when the call analysis confirms every unmatched call runs that
    code with no dispatcher of its own; otherwise `target.proxy_slot`
    shows the value, its source and why it was not followed, and
-   `--follow-proxy` forces it. When `dispatcher` says
+   `--follow-proxy` forces it. A contract whose every unmatched call is
+   delegated to the address in one storage slot (Compound delegators such
+   as cDAI, aragonOS AppProxyPinned) or to the return of its aragonOS
+   kernel's `getApp(APP_BASES_NAMESPACE, appId)` (AppProxyUpgradeable,
+   such as stETH) is followed even with its own dispatcher:
+   `target.proxy_slot.source` is `storage` or `aragon_kernel` and
+   `resolved` gives the reads used. When `dispatcher` says
    "fallback-only / packed-calldata executor", there are no ABI functions:
    rebuild a `fallback()` that decodes the packed calldata at
    `calldata_reads`.

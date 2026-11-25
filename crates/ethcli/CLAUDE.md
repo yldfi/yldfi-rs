@@ -674,6 +674,21 @@ ethcli contract match <addr> --artifact <forge-or-solc-json> [--contract Name] [
   EIP-1167 clone; with its own dispatcher (Yearn V3 tokenized strategies)
   it is not (`not_followed_reason`; fixture
   `tests/fixtures/match/yearn_v3_strategy_runtime.hex`).
+- When no standard slot is confirmed (nothing found, or only an
+  `implementation()` getter), `resolve_delegate` recognises a proxy by
+  provenance (`delegate_source`): every dispatcher-path DELEGATECALL
+  target must be one plain storage slot (`storage-slot proxy`, e.g.
+  Compound CErc20Delegator slot 0x12; `Aragon AppProxyPinned` for the
+  pinned-code slot) or the return of one dispatcher-path
+  `getApp(APP_BASES_NAMESPACE, sload(appIdSlot))` call to
+  `sload(kernelSlot)` (`Aragon AppProxyUpgradeable`). It is resolved like
+  the proxy does (slot read, or the kernel call, at the pinned block) and
+  followed by default, even with an own dispatcher; `proxy_slot` then has
+  `source` `storage`/`aragon_kernel`, `reason` null, `resolved` (the reads)
+  and the getter cross-check (`implementation_getter`, `getter_agrees`).
+  Code constants (Yearn V3 strategies), calldata, mappings (diamonds) or a
+  mix give nothing. Fixtures in `tests/fixtures/bytecode/`: stETH, Lido
+  EVMScriptRegistry (pinned), cDAI, cUSDT, cUSDC (plain CErc20).
 - `--block` takes a decimal or hex number, a tag or a time; anything else is
   an error.
 - `match --creation-tx` must be the transaction that created the analysed
