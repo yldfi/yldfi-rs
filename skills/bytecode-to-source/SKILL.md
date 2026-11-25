@@ -12,6 +12,26 @@ Everything a decompiler prints is a guess.
 Tools: `ethcli` (or the MCP tools `contract_fingerprint`, `contract_inspect`,
 `contract_decompile`, `contract_match`) and Foundry's `forge`.
 
+## How far to trust the output
+
+Every bytecode command (fingerprint, match, decompile, inspect) states
+three tiers (`output_tiers` in JSON, `[fact]` / `[bound]` / `[hint]` in
+tables):
+
+- **Facts** (the proxy follow target and slot or implementation values,
+  selectors, the compiler read from the code's metadata) are reliable:
+  when ethcli cannot be sure it says held or unknown instead of guessing.
+  Build on them.
+- **Bounds** (the EVM version range) are sound "X or later" / "consistent
+  with X" claims. Pick a target inside the range.
+- **Hints** (optimizer on/off, runs, the pipeline guess) are heuristics.
+  Use them as the first settings to try, and let `contract match` and the
+  executable size decide.
+- **Held** means a proxy was found but not followed: read
+  `target.proxy_slot.reason` and `candidates`, then choose with
+  `--follow-proxy` or `--follow-proxy-target admin|user|<address>`. Never
+  rebuild the held value's code without that choice.
+
 ## Procedure
 
 1. **Fingerprint.** `ethcli contract fingerprint <addr> --json`.
@@ -32,13 +52,12 @@ Tools: `ethcli` (or the MCP tools `contract_fingerprint`, `contract_inspect`,
    selector) means about 5000 runs or more, `PUSH3 0x461bcd PUSH1 0xe5 SHL`
    means fewer, and other selectors or masks written out (`PUSH32
    0x70a08231..`, `PUSH20 0xff..ff`) next to the shifted selector mean about
-   1000-4000; `optimizer_runs_bucket` sums this up as low, medium or high,
-   or `unknown` when the evidence is weak. A computed `Error(string)`
-   selector with every other constant written out is only "≥ ~1000" (solc
-   0.8.17 keeps the selector computed even at 20000 runs), so the bucket is
-   `unknown` there. EVM lower bounds come from executed opcodes; REVERT
+   1000-4000; `optimizer_runs_hint` says which, or gives only a bound or
+   `unknown` when the evidence is weak. A computed `Error(string)`
+   selector with nearly every other constant written out is only "≥ ~1000"
+   (solc 0.8.17 keeps the selector computed even at 20000 runs). EVM lower bounds come from executed opcodes; REVERT
    does not count (solc emitted it before Byzantium too). Sweep coarse values, keyed on
-   the executable size: try the bucket's value (200, 1000 or 10000) and
+   the executable size: try the hint's value (200, 1000 or 10000) and
    its neighbours, keep the run count whose executable size equals the
    deployed one, then refine. Optimizer-off code also writes constants out,
    so check `optimizer` first. `likely off` means two shapes solc's
@@ -46,8 +65,8 @@ Tools: `ethcli` (or the MCP tools `contract_fingerprint`, `contract_inspect`,
    free memory pointer re-read at block starts; counts in
    `optimizer_evidence`): try a build with the optimizer disabled first,
    and confirm by size. It is a heuristic calibrated on 80 contracts, not
-   proof. The runs bucket is then `unknown (optimizer likely off)`, with
-   the hint as read kept in its evidence. `not detected as off` is not
+   proof. The runs hint is then `unknown (optimizer likely off)`, with
+   what was read kept in `optimizer_evidence`. `not detected as off` is not
    proof that it was on (small off contracts can miss it).
    If the proxy was followed, the output names the implementation: rebuild
    that. A set EIP-1967 slot is not proof of a proxy: some contracts keep an

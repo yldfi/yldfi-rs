@@ -822,16 +822,26 @@ ethcli contract match <addr> --artifact <forge-or-solc-json> [--contract Name] [
   `--diff`, and a `different` function whose rows are all equal becomes
   `equal_shifted`; `--only-different` keeps only `different` rows
   (`functions_hidden`). 3 rows of context, 200 rows per function.
+- Output tiers (`decompile::output_tiers`, JSON `output_tiers` with a
+  legend and the field paths of each tier, `TIER_LEGEND` and `[fact]` /
+  `[bound]` / `[hint]` labels in tables) for fingerprint, match, decompile
+  and inspect. Fact: proxy follow target, slot/implementation values,
+  candidates, selectors, compiler from metadata; zero tolerance, fail
+  closed to held/unknown. Bound: min/max EVM version, only sound "X or
+  later" / "consistent with X" claims (REVERT is not Byzantium evidence).
+  Hint: optimizer on/off, runs, pipeline guess, address-shaped constants;
+  heuristic. Policy: the hints are frozen. A wrong hint is fixed by
+  widening it to unknown, never by retuning thresholds to a sample.
+  `optimizer_runs_bucket` was dropped (it restated the hint).
 - Fingerprint `optimizer_runs_hint` (`metadata::optimizer_runs_hint`):
   calibrated with solc 0.8.29 legacy: selectors and address masks are
   written out from about 1000 runs, the `Error(string)` selector from about
   5000; `PUSH1 0x1f NOT` stays at any runs and is ignored, and so is the
   address mask `PUSH1 1 PUSH1 0xa0 SHL` (`address_mask_shifted`; solc 0.8.23
-  keeps it at 10000 runs). `optimizer_runs_bucket` maps only the three clear
-  hints to low (≤ ~200) / medium (~1000) / high (≥ ~5000), else
-  `unknown`; high needs the written-out Error(string) selector and other
-  written-out constants, low a computed selector and other computed
-  constants (one class alone gives a bound such as `likely < ~5000`).
+  keeps it at 10000 runs). High needs the written-out Error(string) selector
+  and other written-out constants, low a computed selector and other
+  computed constants (one class alone gives a bound such as `likely <
+  ~5000`).
   EVM bounds: `push0_executed` (visited pcs) and `push0_in_code` (linear
   sweep before the trailing metadata); `max_evm_version: paris` with
   `max_evm_version_confidence: consistent` only for solc ≥ 0.8.20 with no
@@ -847,8 +857,9 @@ ethcli contract match <addr> --artifact <forge-or-solc-json> [--contract Name] [
   BatchZeroTokenFromTo): the 13 off ones had at least 3.26 and 3.32 per
   1000, no optimised one had both above 2.8 with 5 sites. A repeated
   identical mask is not used (old optimizers keep it: Router02,
-  KittyCore). Then the bucket is "unknown (optimizer likely off)" and its
-  evidence keeps the runs hint as read; else "not detected as off". A
+  KittyCore). Then `optimizer_runs_hint` is widened to "unknown (optimizer
+  likely off)" and `optimizer_evidence` keeps the hint as read; else "not
+  detected as off". A
   computed Error(string) selector with other constants at least 80%
   written out is the bound "likely ≥ ~1000", not mid (0.8.17 legacy and
   0.8.28 via-IR at 20000 runs had 90-100%; 1000-2000 runs had 27-67%). No

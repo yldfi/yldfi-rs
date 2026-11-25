@@ -2083,6 +2083,91 @@ async fn resolve_split<P: Provider>(
     Ok(decision)
 }
 
+/// How far each part of the output can be trusted. The same three tiers
+/// in every bytecode command's JSON (`output_tiers`) and as a legend in the
+/// table:
+/// - fact: exact; when ethcli cannot be sure it says held / unknown instead
+///   of guessing (proxy follow target, slot and implementation values,
+///   selectors, the compiler read from the code's metadata);
+/// - bound: a sound "X or later" / "consistent with X" claim (EVM version
+///   range);
+/// - hint: heuristic, a starting point to check (optimizer on/off, runs,
+///   pipeline guess, address-shaped constants). A wrong hint is fixed by
+///   widening it to unknown, never by retuning it to a sample.
+pub(crate) fn output_tiers(command: &str) -> Value {
+    let (facts, bounds, hints): (&[&str], &[&str], &[&str]) = match command {
+        "fingerprint" => (
+            &[
+                "target.code_address",
+                "target.resolved_via",
+                "target.proxy_slot",
+                "fingerprint.metadata",
+                "fingerprint.embedded_metadata",
+                "fingerprint.selector_count",
+                "compiler_metadata",
+            ],
+            &[
+                "fingerprint.min_evm_version",
+                "fingerprint.max_evm_version",
+            ],
+            &[
+                "fingerprint.optimizer",
+                "fingerprint.optimizer_runs_hint",
+                "fingerprint.pipeline_guess",
+                "fingerprint.address_like_push32",
+            ],
+        ),
+        "match" => (
+            &[
+                "target.code_address",
+                "target.resolved_via",
+                "target.proxy_slot",
+                "match.verdict",
+            ],
+            &[],
+            &["match.functions[].name (approximate without an AST)"],
+        ),
+        "decompile" => (
+            &[
+                "target.code_address",
+                "target.resolved_via",
+                "target.proxy_slot",
+                "facts",
+            ],
+            &[],
+            &["decompilers[] (decompiler output: a reading aid, not source)"],
+        ),
+        _ => (
+            &[
+                "proxy.kind",
+                "proxy.implementation",
+                "proxy.held_value",
+                "proxy.candidates",
+                "code",
+            ],
+            &[],
+            &[
+                "interface.functions when interface.source is bytecode (names from the signature database)",
+                "inferred",
+            ],
+        ),
+    };
+    json!({
+        "legend": {
+            "fact": "exact; when ethcli cannot be sure it reports held or unknown instead of guessing",
+            "bound": "a sound 'X or later' / 'consistent with X' claim, never a point value",
+            "hint": "heuristic (confidence: heuristic): a starting point to check, e.g. for a build",
+        },
+        "fact": facts,
+        "bound": bounds,
+        "hint": hints,
+    })
+}
+
+/// One line for the table output
+pub(crate) const TIER_LEGEND_TEXT: &str = TIER_LEGEND;
+const TIER_LEGEND: &str = "Tiers: [fact] exact, or held/unknown when not certain; [bound] sound 'or later'/'consistent with' range; [hint] heuristic starting point";
+
 /// Facts about the address's own code when another code was analysed: a
 /// proxy's own code runs on every call and can hold its own checks
 fn own_code_json(t: &Target) -> Value {
@@ -2994,6 +3079,7 @@ pub async fn decompile(chain: Chain, args: &DecompileArgs, quiet: bool) -> anyho
     let mut out = json!({
         "target": target_json(chain, &target),
         "notes": target.notes,
+        "output_tiers": output_tiers("decompile"),
         "facts": facts,
         "dedaub": {
             "url": dedaub_link(chain, target.code_address),
@@ -3212,6 +3298,7 @@ fn heuristic_json(backend: &str, dec: &Value) -> Value {
 
 fn print_target_table(out: &Value) {
     let t = &out["target"];
+    println!("{TIER_LEGEND}");
     println!(
         "Target: {} on {} at block {}",
         t["address"].as_str().unwrap_or(""),
@@ -3220,13 +3307,13 @@ fn print_target_table(out: &Value) {
     );
     if let Some(via) = t["resolved_via"].as_str() {
         println!(
-            "Decompiled code: {} ({via})",
+            "[fact] Decompiled code: {} ({via})",
             t["code_address"].as_str().unwrap_or("")
         );
     }
     if let Some(p) = t["proxy_slot"].as_object() {
         println!(
-            "Proxy slot: {} = {}, {}",
+            "[fact] Proxy slot: {} = {}, {}",
             p["kind"].as_str().unwrap_or(""),
             p["value"].as_str().unwrap_or(""),
             if p["followed"] == true && p["reason"].is_null() {
@@ -3374,6 +3461,7 @@ pub async fn fingerprint_cmd(
         "target": target_json(chain, &target),
         "notes": target.notes,
         "fingerprint": fp,
+        "output_tiers": output_tiers("fingerprint"),
         // The same trailer as read by evmole (contract analyze's inferred
         // compiler metadata), for cross-reference
         "compiler_metadata": crate::bytecode::compiler_metadata(&target.code).map(|m| {
@@ -3390,7 +3478,7 @@ pub async fn fingerprint_cmd(
     let f = &out["fingerprint"];
     match f["metadata"].as_object() {
         Some(m) => println!(
-            "Compiler: {} {} (metadata hash: {}{})",
+            "[fact] Compiler: {} {} (metadata hash: {}{})",
             m["compiler"].as_str().unwrap_or("?"),
             m.get("version")
                 .and_then(Value::as_str)
@@ -3402,14 +3490,14 @@ pub async fn fingerprint_cmd(
                 ""
             }
         ),
-        None => println!("Compiler: unknown (no metadata at the end of the code)"),
+        None => println!("[fact] Compiler: unknown (no metadata at the end of the code)"),
     }
     let embedded = f["embedded_metadata"].as_array().map(Vec::len).unwrap_or(0);
     if embedded > 0 {
         println!("Embedded metadata blocks (contracts created by this one): {embedded}");
     }
     println!(
-        "EVM version: {} ({})",
+        "[bound] EVM version: {} ({})",
         f["min_evm_version"].as_str().unwrap_or("?"),
         f["evm_evidence"]
             .as_array()
@@ -3421,7 +3509,9 @@ pub async fn fingerprint_cmd(
             .unwrap_or_default()
     );
     if let Some(max) = f["max_evm_version"].as_str() {
-        println!("EVM version: consistent with {max} or earlier (a consistency bound, not proof)");
+        println!(
+            "[bound] EVM version: consistent with {max} or earlier (a consistency bound, not proof)"
+        );
     }
     println!(
         "PUSH0: executed {}, in the executable code {}",
@@ -3431,7 +3521,7 @@ pub async fn fingerprint_cmd(
         println!("  {}", r.as_str().unwrap_or(""));
     }
     println!(
-        "Pipeline (guess): {} - {}",
+        "[hint] Pipeline (guess): {} - {}",
         f["pipeline_guess"].as_str().unwrap_or("?"),
         f["pipeline_evidence"]
             .as_array()
@@ -3443,13 +3533,13 @@ pub async fn fingerprint_cmd(
             .unwrap_or_default()
     );
     println!(
-        "Address-shaped PUSH32 operands (immutables or address constants, upper bound): {}",
+        "[hint] Address-shaped PUSH32 operands (immutables or address constants, upper bound): {}",
         f["address_like_push32"]
     );
     let ev = &f["optimizer_runs_evidence"];
     let list = |k: &str| list_pcs(&ev[k]);
     println!(
-        "Optimizer runs (guess): {} - Error(string) selector written out at {}, computed at {}; other constants written out at {}, computed at {}",
+        "[hint] Optimizer runs (guess): {} - Error(string) selector written out at {}, computed at {}; other constants written out at {}, computed at {}",
         f["optimizer_runs_hint"].as_str().unwrap_or("unknown"),
         list("error_selector_literal"),
         list("error_selector_shifted"),
@@ -3457,30 +3547,19 @@ pub async fn fingerprint_cmd(
         list("other_shifted")
     );
     println!(
-        "Optimizer: {}",
+        "[hint] Optimizer: {}",
         f["optimizer"].as_str().unwrap_or("unknown")
     );
     for e in f["optimizer_evidence"].as_array().into_iter().flatten() {
         println!("  {}", e.as_str().unwrap_or(""));
     }
-    println!(
-        "Optimizer runs bucket: {}",
-        f["optimizer_runs_bucket"].as_str().unwrap_or("unknown")
-    );
-    for e in f["optimizer_runs_bucket_evidence"]
-        .as_array()
-        .into_iter()
-        .flatten()
-    {
-        println!("  {}", e.as_str().unwrap_or(""));
-    }
     match f["dispatcher"].as_str() {
         Some(d) => println!(
-            "Functions: {d} (calldata read at {})",
+            "[fact] Functions: {d} (calldata read at {})",
             list_pcs(&f["calldata_reads"])
         ),
         None => println!(
-            "Functions: {} selector(s) in the dispatcher",
+            "[fact] Functions: {} selector(s) in the dispatcher",
             f["selector_count"]
         ),
     }
@@ -3699,6 +3778,7 @@ pub async fn match_cmd(chain: Chain, args: &MatchArgs, quiet: bool) -> anyhow::R
     let mut out = json!({
         "target": target_json(chain, &target),
         "notes": target.notes,
+        "output_tiers": output_tiers("match"),
         "artifact": {
             "path": args.artifact.file_name().map(|f| f.to_string_lossy().to_string()),
             "format": artifact.format,
@@ -4316,6 +4396,31 @@ mod tests {
     }
 
     /// --follow-proxy-target mistakes are `invalid_argument`
+    /// Every bytecode command states its tiers; the optimizer and runs are
+    /// hints, the EVM range a bound, the proxy decision a fact
+    #[test]
+    fn output_tiers_name_each_tier() {
+        let t = output_tiers("fingerprint");
+        let has = |tier: &str, f: &str| {
+            t[tier]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|x| x.as_str() == Some(f))
+        };
+        assert!(has("fact", "target.code_address"));
+        assert!(has("fact", "target.proxy_slot"));
+        assert!(has("bound", "fingerprint.min_evm_version"));
+        assert!(has("hint", "fingerprint.optimizer"));
+        assert!(has("hint", "fingerprint.optimizer_runs_hint"));
+        for c in ["fingerprint", "match", "decompile", "inspect"] {
+            assert!(output_tiers(c)["legend"]["hint"]
+                .as_str()
+                .unwrap()
+                .contains("heuristic"));
+        }
+    }
+
     #[test]
     fn follow_target_errors_are_invalid_argument() {
         let e = arg_error(

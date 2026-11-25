@@ -326,12 +326,6 @@ pub struct Fingerprint {
     /// "likely < ~5000", "likely ≥ ~1000", "likely ≤ ~2000" or "unknown"
     pub optimizer_runs_hint: String,
     pub optimizer_runs_evidence: RunsEvidence,
-    /// Coarse, approximate bucket from the hint: "low (≤ ~200)", "medium
-    /// (~1000)", "high (≥ ~5000)", or "unknown" when the evidence is weak,
-    /// mixed or of one class only
-    pub optimizer_runs_bucket: String,
-    /// Counts behind the bucket
-    pub optimizer_runs_bucket_evidence: Vec<String>,
     /// "likely off" when the code has two shapes solc's optimizer removes
     /// (see `OptimizerOff::likely_off`), else "not detected as off" (which
     /// is not proof that it was on)
@@ -484,41 +478,6 @@ fn runs_from_evidence(ev: &RunsEvidence, shifts_reached: bool) -> &'static str {
     } else {
         "unknown"
     }
-}
-
-/// The coarse runs bucket for a hint, with the counts behind it. Only the
-/// three clear hints give a bucket; bounds such as "likely ≥ ~1000" stay
-/// unknown
-pub fn runs_bucket(hint: &str, ev: &RunsEvidence) -> (String, Vec<String>) {
-    let bucket = if hint.starts_with("likely high") {
-        "high (≥ ~5000)"
-    } else if hint.starts_with("likely mid") {
-        "medium (~1000)"
-    } else if hint.starts_with("likely low") {
-        "low (≤ ~200)"
-    } else {
-        "unknown"
-    };
-    let mut evidence = Vec::new();
-    if bucket != "unknown" {
-        evidence.push(format!(
-            "Error(string) selector written out (PUSH32 0x08c379a0..) x{}, computed (PUSH3 0x461bcd PUSH1 0xe5 SHL) x{}",
-            ev.error_selector_literal.len(),
-            ev.error_selector_shifted.len()
-        ));
-        evidence.push(format!(
-            "other wide constants written out x{}, computed x{}",
-            ev.other_literal.len(),
-            ev.other_shifted.len()
-        ));
-        if !ev.address_mask_shifted.is_empty() {
-            evidence.push(format!(
-                "address mask computed (PUSH1 1 PUSH1 0xa0 SHL) x{}: not counted, solc keeps it at high runs too",
-                ev.address_mask_shifted.len()
-            ));
-        }
-    }
-    (bucket.to_string(), evidence)
 }
 
 /// Is this solc version (`0.8.23`) at least `0.8.20`?
@@ -728,30 +687,27 @@ pub fn fingerprint(code: &[u8], visited: &[bool]) -> Fingerprint {
             notes.push("Metadata has no version: solc before 0.5.9".to_string());
         }
     }
-    let (optimizer_runs_hint, optimizer_runs_evidence) = optimizer_runs_hint(code, visited);
+    let (mut optimizer_runs_hint, optimizer_runs_evidence) = optimizer_runs_hint(code, visited);
     let exec_end = trailing
         .as_ref()
         .map_or(code.len(), |t| t.start.min(code.len()));
     let off = optimizer_off(&code[..exec_end]);
-    let optimizer_evidence = vec![off.evidence()];
+    let mut optimizer_evidence = vec![off.evidence()];
     let optimizer = if off.likely_off() {
         "likely off"
     } else {
         "not detected as off"
     }
     .to_string();
-    let (optimizer_runs_bucket, optimizer_runs_bucket_evidence) = if off.likely_off() {
-        // Unoptimised code writes every constant out, which reads as high
-        // runs; the hint is kept as read, and the bucket says why it is
-        // not used
-        let mut ev = optimizer_evidence.clone();
-        ev.push(format!(
+    if off.likely_off() {
+        // Code built without the optimizer writes every constant out, which
+        // reads as high runs: there are no runs to infer. Widened to
+        // unknown, with what was read kept in the evidence
+        optimizer_evidence.push(format!(
             "runs hint read from constants: {optimizer_runs_hint} (not used: code built without the optimizer writes constants out too)"
         ));
-        ("unknown (optimizer likely off)".to_string(), ev)
-    } else {
-        runs_bucket(&optimizer_runs_hint, &optimizer_runs_evidence)
-    };
+        optimizer_runs_hint = "unknown (optimizer likely off)".to_string();
+    }
     let push0_in_code = linear_sweep(&code[..exec_end])
         .iter()
         .filter(|(_, op)| *op == 0x5f)
@@ -797,8 +753,6 @@ pub fn fingerprint(code: &[u8], visited: &[bool]) -> Fingerprint {
         evm_version_reasons,
         push0_executed,
         push0_in_code,
-        optimizer_runs_bucket,
-        optimizer_runs_bucket_evidence,
         optimizer,
         optimizer_evidence,
         pipeline_guess: pipeline.to_string(),
@@ -954,14 +908,14 @@ mod tests {
             let r = optimizer_off(&fixture(text));
             assert!(!r.likely_off(), "{name}: {r:?}");
         }
-        // The fingerprint says so and gives no runs bucket
+        // The fingerprint says so and widens the runs hint to unknown
         let fp = fingerprint(&dai, &vec![true; dai.len()]);
         assert_eq!(fp.optimizer, "likely off");
-        assert!(
-            fp.optimizer_runs_bucket.starts_with("unknown"),
-            "{}",
-            fp.optimizer_runs_bucket
-        );
+        assert_eq!(fp.optimizer_runs_hint, "unknown (optimizer likely off)");
+        assert!(fp
+            .optimizer_evidence
+            .iter()
+            .any(|e| e.starts_with("runs hint read from constants")));
     }
 
     fn all_visited(code: &[u8]) -> Vec<bool> {
@@ -993,16 +947,15 @@ mod tests {
         let (h, ev) = optimizer_runs_hint(&low, &all_visited(&low));
         assert_eq!(h, "likely low (≈200)");
         assert_eq!(ev.other_shifted, vec![14]);
-        // The Error(string) selector written out alone is not a high bucket
+        // The Error(string) selector written out alone is only a bound
         let sel_only = hex::decode(format!("{sel32}5060e01c00")).unwrap();
-        let (h, ev) = optimizer_runs_hint(&sel_only, &all_visited(&sel_only));
-        assert_eq!(runs_bucket(&h, &ev).0, "unknown");
+        let (h, _) = optimizer_runs_hint(&sel_only, &all_visited(&sel_only));
+        assert_eq!(h, "likely ≥ ~5000 (Error(string) selector only)");
         // Selector computed, every other constant written out: only a lower
         // bound (solc 0.8.17 at 20000 runs looks like this)
         let bound = hex::decode(format!("62461bcd60e51b50{mask20}5000")).unwrap();
-        let (h, ev) = optimizer_runs_hint(&bound, &all_visited(&bound));
+        let (h, _) = optimizer_runs_hint(&bound, &all_visited(&bound));
         assert_eq!(h, "likely ≥ ~1000");
-        assert_eq!(runs_bucket(&h, &ev).0, "unknown");
         // Mid: selector computed, other constants some written out, some
         // computed
         let mid = hex::decode(format!("62461bcd60e51b50{mask20}5063aabbccdd60e01b5000")).unwrap();
@@ -1039,7 +992,7 @@ mod tests {
         assert_eq!(fp.push0_in_code, 0);
         assert_eq!(fp.max_evm_version.as_deref(), Some("paris"));
         assert!(fp.evm_version_reasons.iter().any(|r| r.contains("0.8.23")));
-        assert_eq!(fp.optimizer_runs_bucket, "high (≥ ~5000)");
+        assert_eq!(fp.optimizer_runs_hint, "likely high (≥ ~5000)");
         assert_eq!(fp.max_evm_version_confidence.as_deref(), Some("consistent"));
         assert!(!fp.optimizer_runs_evidence.address_mask_shifted.is_empty());
         assert!(fp.optimizer_runs_evidence.other_shifted.is_empty());
@@ -1107,31 +1060,6 @@ mod tests {
         assert_eq!(fp.push0_executed, 1);
         assert_eq!(fp.max_evm_version, None);
         assert!(fp.min_evm_version.starts_with("shanghai"));
-    }
-
-    #[test]
-    fn runs_bucket_only_for_clear_hints() {
-        let ev = RunsEvidence::default();
-        assert_eq!(
-            runs_bucket("likely high (≥ ~5000)", &ev).0,
-            "high (≥ ~5000)"
-        );
-        assert_eq!(
-            runs_bucket("likely mid (≈1000-4000)", &ev).0,
-            "medium (~1000)"
-        );
-        assert_eq!(runs_bucket("likely low (≈200)", &ev).0, "low (≤ ~200)");
-        for weak in [
-            "likely ≥ ~1000",
-            "likely ≥ ~5000 (Error(string) selector only)",
-            "likely < ~5000",
-            "likely ≤ ~2000",
-            "unknown",
-        ] {
-            let (b, e) = runs_bucket(weak, &ev);
-            assert_eq!(b, "unknown");
-            assert!(e.is_empty());
-        }
     }
 
     #[test]

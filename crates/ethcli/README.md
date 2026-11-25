@@ -424,9 +424,14 @@ wrote constants in reached code: `PUSH32 0x08c379a0..` (the `Error(string)`
 selector written out) means high runs (about 5000 or more), `PUSH3 0x461bcd
 PUSH1 0xe5 SHL` means fewer; the share of other constants written out
 (selectors, `PUSH20 0xff..ff` masks) separates about 1000-4000 from the
-default 200. The evidence pcs are in `optimizer_runs_evidence`. Code compiled
-with the optimizer off reads as high, and pre-Constantinople code gives
-`unknown`. When there is no selector dispatcher but reached code reads
+default 200. The evidence pcs are in `optimizer_runs_evidence`. `optimizer`
+says "likely off" when two shapes the optimizer removes are both frequent;
+the runs hint is then widened to unknown. Pre-Constantinople code gives
+`unknown`. These are hints (heuristic starting points); the JSON's
+`output_tiers` separates them from facts (exact, or held/unknown: proxy
+target, slot values, selectors, compiler from metadata) and bounds (the EVM
+version range). A wrong hint is fixed by widening it to unknown, never by
+retuning it to a sample. When there is no selector dispatcher but reached code reads
 calldata, fingerprint and `contract inspect` say "no selector dispatcher:
 fallback-only / packed-calldata executor" (`dispatcher`, `calldata_reads`)
 instead of "Functions: 0". The rebuild procedure for agents is in

@@ -3471,6 +3471,7 @@ async fn inspect_address(
     }
 
     out["notes"] = serde_json::json!(notes);
+    out["output_tiers"] = super::decompile::output_tiers("inspect");
     Ok(out)
 }
 
@@ -3485,6 +3486,9 @@ fn format_inspect_table(report: &serde_json::Value) -> String {
         let _ = writeln!(out, "{:<16}{}", format!("{key}:"), value);
     };
 
+    if report.get("output_tiers").is_some() {
+        let _ = writeln!(out, "{}", super::decompile::TIER_LEGEND_TEXT);
+    }
     line(
         &mut out,
         "Address",
@@ -3588,6 +3592,17 @@ fn format_inspect_table(report: &serde_json::Value) -> String {
             format!(
                 "{} slots inferred from bytecode (types are guesses)",
                 slots.len()
+            ),
+        );
+    }
+    if report["proxy"]["followed"] == false {
+        line(
+            &mut out,
+            "Proxy",
+            format!(
+                "{} held, not followed: {}",
+                text(&report["proxy"]["kind"]).unwrap_or_default(),
+                text(&report["proxy"]["reason"]).unwrap_or_default()
             ),
         );
     }
