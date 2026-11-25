@@ -664,7 +664,7 @@ ethcli contract match <addr> --artifact <forge-or-solc-json> [--contract Name] [
   Anything else with a slot set is analysed as its own code, with a warning,
   and the own code is censused whenever another code is analysed. Such a
   value goes in `target.proxy_slot` (kind, `source`
-  slot/getter/safe/beacon/constant, value, followed, reason, `force_with`);
+  slot/getter/safe/beacon/constant/storage/aragon_kernel, value, followed, reason, `force_with`);
   `followed` is true only when the implementation's code was fetched and
   analysed (forced at an address with no code stays false and says so).
   `--follow-proxy` (conflicts with `--no-follow-proxy`) follows it anyway.
@@ -687,8 +687,13 @@ ethcli contract match <addr> --artifact <forge-or-solc-json> [--contract Name] [
   `source` `storage`/`aragon_kernel`, `reason` null, `resolved` (the reads)
   and the getter cross-check (`implementation_getter`, `getter_agrees`).
   Code constants (Yearn V3 strategies), calldata, mappings (diamonds) or a
-  mix give nothing. Fixtures in `tests/fixtures/bytecode/`: stETH, Lido
-  EVMScriptRegistry (pinned), cDAI, cUSDT, cUSDC (plain CErc20).
+  mix give nothing, and so does a dispatcher-path CALL forwarding calldata
+  to the same slot (Synthetix Proxy: CALL or DELEGATECALL by a flag).
+  Any plain slot qualifies (Compound's Unitroller, slot 2, is followed);
+  the rule is not path-sensitive and covers only the sites the analysis
+  found (`resolved.analysis_complete`). Fixtures in `tests/fixtures/bytecode/`: stETH, Lido
+  EVMScriptRegistry (pinned), cDAI, cUSDT, Unitroller, cUSDC (plain
+  CErc20), SNX ProxyERC20.
 - `--block` takes a decimal or hex number, a tag or a time; anything else is
   an error.
 - `match --creation-tx` must be the transaction that created the analysed

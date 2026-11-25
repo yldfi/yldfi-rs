@@ -52,7 +52,9 @@ pub struct TargetArgs {
     /// Follow a proxy slot (EIP-1967, beacon, legacy) or implementation()
     /// getter even when ethcli's call analysis does not confirm that the
     /// code delegates every unmatched call to it. By default such a value is
-    /// reported in `target.proxy_slot` and the address's own code is used
+    /// reported in `target.proxy_slot` and the address's own code is used.
+    /// Proxies whose DELEGATECALL target comes from one storage slot or an
+    /// aragonOS kernel's getApp are followed without it
     #[arg(long, conflicts_with = "no_follow_proxy")]
     pub follow_proxy: bool,
 
@@ -151,7 +153,9 @@ struct Target {
     immutable_args: Option<crate::bytecode::ImmutableArgsClone>,
     notes: Vec<String>,
     /// A proxy slot or getter that was found but not confirmed by the call
-    /// analysis: kind, value, whether it was followed, why not, how to force
+    /// analysis: kind, value, whether it was followed, why not, how to force.
+    /// Also set, with `reason` null and `resolved`, when a storage-slot or
+    /// aragonOS kernel proxy was recognised and followed
     proxy_slot: Option<Value>,
     endpoint: Endpoint,
 }
@@ -614,6 +618,20 @@ fn delegate_source(report: &CallsReport) -> Option<DelegateSource> {
             found = Some(source);
         }
     }
+    // A proxy that can also forward the caller's calldata by CALL to the
+    // same slot (Synthetix Proxy: CALL or DELEGATECALL by a storage flag)
+    // may run that code in its own context, not the proxy's: not followed
+    if let Some(DelegateSource::Storage { slot }) = &found {
+        let forwards_by_call = report.call_sites.iter().any(|c| {
+            c.kind != "DELEGATECALL"
+                && c.functions.iter().any(|f| f == "dispatcher")
+                && single_slot(&c.target) == Some(*slot)
+                && c.selector.iter().any(|s| s.kind == "calldata")
+        });
+        if forwards_by_call {
+            return None;
+        }
+    }
     found
 }
 
@@ -652,7 +670,8 @@ pub(crate) async fn resolve_delegate<P: Provider>(
     let report = analyze_calls(code, CallsBudget::default());
     let source = delegate_source(&report)?;
     let kind = source.kind();
-    match source {
+    let complete = report.coverage.complete;
+    let mut resolved = match source {
         DelegateSource::Storage { slot } => {
             let implementation =
                 super::contract::storage_address(provider, address, B256::from(slot), block)
@@ -664,7 +683,7 @@ pub(crate) async fn resolve_delegate<P: Provider>(
                 resolution: json!({
                     "method": "sload",
                     "slot": hex_word(slot),
-                    "delegatecall_target": "the address in this slot, read on every call",
+                    "delegatecall_target": "the address in this slot, read by every DELEGATECALL on the dispatcher path",
                 }),
             })
         }
@@ -697,11 +716,15 @@ pub(crate) async fn resolve_delegate<P: Provider>(
                     "namespace": hex_word(namespace),
                     "app_id": hex_word(app_id),
                     "app_id_slot": hex_word(app_id_slot),
-                    "delegatecall_target": "the return of this call, made on every call",
+                    "delegatecall_target": "the return of this call, made before every DELEGATECALL on the dispatcher path",
                 }),
             })
         }
+    };
+    if let Some(d) = resolved.as_mut() {
+        d.resolution["analysis_complete"] = json!(complete);
     }
+    resolved
 }
 
 /// Safe proxy runtime code, exactly as the canonical proxy factories of
@@ -3211,6 +3234,14 @@ mod tests {
             )),
             None
         );
+        // Synthetix ProxyERC20 (SNX): CALL or DELEGATECALL to the slot-2
+        // target by a storage flag, so the code may run in its own context
+        assert_eq!(
+            fixture_source(include_str!(
+                "../../tests/fixtures/bytecode/synthetix_proxy_erc20_snx.hex"
+            )),
+            None
+        );
         // Delegating to calldata, or to a fixed address
         assert_eq!(fixture_source("6000600036600060003560601c5af400"), None);
         assert_eq!(
@@ -3226,6 +3257,20 @@ mod tests {
         assert_eq!(
             fixture_source("60006000366000600054 5af400".replace(' ', "").as_str()),
             Some(DelegateSource::Storage { slot: U256::ZERO })
+        );
+    }
+
+    #[test]
+    fn compound_unitroller_delegates_to_its_implementation_slot() {
+        // Compound's Unitroller: fallback delegates to
+        // comptrollerImplementation (slot 2), no implementation() getter
+        assert_eq!(
+            fixture_source(include_str!(
+                "../../tests/fixtures/bytecode/compound_unitroller.hex"
+            )),
+            Some(DelegateSource::Storage {
+                slot: U256::from(2u8)
+            })
         );
     }
 
