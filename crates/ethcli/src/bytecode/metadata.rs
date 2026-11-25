@@ -326,12 +326,11 @@ pub struct Fingerprint {
     /// "likely < ~5000", "likely ≥ ~1000", "likely ≤ ~2000" or "unknown"
     pub optimizer_runs_hint: String,
     pub optimizer_runs_evidence: RunsEvidence,
-    /// Coarse, approximate bucket from the hint: "low (≤ ~200)", "medium
-    /// (~1000)", "high (≥ ~5000)", or "unknown" when the evidence is weak,
-    /// mixed or of one class only
-    pub optimizer_runs_bucket: String,
-    /// Counts behind the bucket
-    pub optimizer_runs_bucket_evidence: Vec<String>,
+    /// "likely off" when the code has two shapes solc's optimizer removes
+    /// (see `OptimizerOff::likely_off`), else "not detected as off" (which
+    /// is not proof that it was on)
+    pub optimizer: String,
+    pub optimizer_evidence: Vec<String>,
     /// Selectors found by the dispatcher scan
     pub selector_count: usize,
     /// Set when there is no selector dispatcher but reached code reads
@@ -461,6 +460,12 @@ fn runs_from_evidence(ev: &RunsEvidence, shifts_reached: bool) -> &'static str {
         match share {
             None => "likely < ~5000",
             Some(0.0) => "likely low (≈200)",
+            // Nearly every other constant written out with the selector
+            // still computed: solc keeps the selector computed up to high
+            // runs in some versions and in via-IR (0.8.17 legacy and 0.8.28
+            // via-IR at 20000 runs had 90-100% written out; 1000-2000 runs
+            // had 27-67%), so this only bounds runs from below
+            Some(x) if x >= 0.8 => "likely ≥ ~1000",
             Some(x) if x >= 0.1 => "likely mid (≈1000-4000)",
             Some(_) => "likely < ~5000",
         }
@@ -473,41 +478,6 @@ fn runs_from_evidence(ev: &RunsEvidence, shifts_reached: bool) -> &'static str {
     } else {
         "unknown"
     }
-}
-
-/// The coarse runs bucket for a hint, with the counts behind it. Only the
-/// three clear hints give a bucket; bounds such as "likely ≥ ~1000" stay
-/// unknown
-pub fn runs_bucket(hint: &str, ev: &RunsEvidence) -> (String, Vec<String>) {
-    let bucket = if hint.starts_with("likely high") {
-        "high (≥ ~5000)"
-    } else if hint.starts_with("likely mid") {
-        "medium (~1000)"
-    } else if hint.starts_with("likely low") {
-        "low (≤ ~200)"
-    } else {
-        "unknown"
-    };
-    let mut evidence = Vec::new();
-    if bucket != "unknown" {
-        evidence.push(format!(
-            "Error(string) selector written out (PUSH32 0x08c379a0..) x{}, computed (PUSH3 0x461bcd PUSH1 0xe5 SHL) x{}",
-            ev.error_selector_literal.len(),
-            ev.error_selector_shifted.len()
-        ));
-        evidence.push(format!(
-            "other wide constants written out x{}, computed x{}",
-            ev.other_literal.len(),
-            ev.other_shifted.len()
-        ));
-        if !ev.address_mask_shifted.is_empty() {
-            evidence.push(format!(
-                "address mask computed (PUSH1 1 PUSH1 0xa0 SHL) x{}: not counted, solc keeps it at high runs too",
-                ev.address_mask_shifted.len()
-            ));
-        }
-    }
-    (bucket.to_string(), evidence)
 }
 
 /// Is this solc version (`0.8.23`) at least `0.8.20`?
@@ -590,7 +560,9 @@ const FORK_OPCODES: &[(&str, &[(u8, &str)])] = &[
             (0x3d, "RETURNDATASIZE"),
             (0x3e, "RETURNDATACOPY"),
             (0xfa, "STATICCALL"),
-            (0xfd, "REVERT"),
+            // Not REVERT: solc emits it from 0.4.10 whatever the target, and
+            // before byzantium it runs as an invalid instruction, so code
+            // deployed earlier carries it too
         ],
     ),
 ];
@@ -715,12 +687,27 @@ pub fn fingerprint(code: &[u8], visited: &[bool]) -> Fingerprint {
             notes.push("Metadata has no version: solc before 0.5.9".to_string());
         }
     }
-    let (optimizer_runs_hint, optimizer_runs_evidence) = optimizer_runs_hint(code, visited);
-    let (optimizer_runs_bucket, optimizer_runs_bucket_evidence) =
-        runs_bucket(&optimizer_runs_hint, &optimizer_runs_evidence);
+    let (mut optimizer_runs_hint, optimizer_runs_evidence) = optimizer_runs_hint(code, visited);
     let exec_end = trailing
         .as_ref()
         .map_or(code.len(), |t| t.start.min(code.len()));
+    let off = optimizer_off(&code[..exec_end]);
+    let mut optimizer_evidence = vec![off.evidence()];
+    let optimizer = if off.likely_off() {
+        "likely off"
+    } else {
+        "not detected as off"
+    }
+    .to_string();
+    if off.likely_off() {
+        // Code built without the optimizer writes every constant out, which
+        // reads as high runs: there are no runs to infer. Widened to
+        // unknown, with what was read kept in the evidence
+        optimizer_evidence.push(format!(
+            "runs hint read from constants: {optimizer_runs_hint} (not used: code built without the optimizer writes constants out too)"
+        ));
+        optimizer_runs_hint = "unknown (optimizer likely off)".to_string();
+    }
     let push0_in_code = linear_sweep(&code[..exec_end])
         .iter()
         .filter(|(_, op)| *op == 0x5f)
@@ -737,7 +724,7 @@ pub fn fingerprint(code: &[u8], visited: &[bool]) -> Fingerprint {
         push0_executed,
         push0_in_code,
     );
-    if optimizer_runs_hint != "unknown" {
+    if !optimizer_runs_hint.starts_with("unknown") {
         notes.push("The optimizer runs hint reads how solc's legacy optimizer wrote constants (measured with 0.8.29); confirm by compiling at the suggested runs. Optimizer off or via-IR code can mislead it".to_string());
     }
     let selector_count = super::extract_selectors(code).len();
@@ -766,8 +753,8 @@ pub fn fingerprint(code: &[u8], visited: &[bool]) -> Fingerprint {
         evm_version_reasons,
         push0_executed,
         push0_in_code,
-        optimizer_runs_bucket,
-        optimizer_runs_bucket_evidence,
+        optimizer,
+        optimizer_evidence,
         pipeline_guess: pipeline.to_string(),
         pipeline_evidence,
         address_like_push32: address_like.len(),
@@ -775,9 +762,161 @@ pub fn fingerprint(code: &[u8], visited: &[bool]) -> Fingerprint {
     }
 }
 
+/// Counts behind the optimizer-off test
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct OptimizerOff {
+    /// `SWAP2 SWAP1 POP`: a function's result moved under its arguments
+    /// and a stack slot dropped, as solc writes it before optimisation
+    pub swap_cleanups: usize,
+    /// `JUMPDEST PUSH1 0x40 MLOAD DUP1`: the free memory pointer read again
+    /// at the start of a block, which the optimizer's common subexpression
+    /// pass reuses instead
+    pub fmp_reloads: usize,
+    /// Instructions in the executable part
+    pub instructions: usize,
+}
+
+impl OptimizerOff {
+    fn rate(&self, n: usize) -> f64 {
+        if self.instructions == 0 {
+            0.0
+        } else {
+            1000.0 * n as f64 / self.instructions as f64
+        }
+    }
+
+    /// Both shapes at least 3 per 1000 instructions and at least 5 times
+    /// each. Calibrated on 80 verified mainnet contracts (two random samples
+    /// plus known cases; solc 0.4.18 to 0.8.38, legacy and via-IR): the 13
+    /// built without the optimizer had at least 3.26 and 3.32 per 1000; of
+    /// the 67 optimised ones none had both above 2.8 with 5 sites (a tiny
+    /// one had 2 of each). Either shape alone is not enough, and an older
+    /// solc's optimizer leaves repeated masks in place (UniswapV2Router02,
+    /// KittyCore), so those are not counted
+    pub fn likely_off(&self) -> bool {
+        self.swap_cleanups >= 5
+            && self.fmp_reloads >= 5
+            && self.rate(self.swap_cleanups) >= 3.0
+            && self.rate(self.fmp_reloads) >= 3.0
+    }
+
+    pub fn evidence(&self) -> String {
+        format!(
+            "SWAP2 SWAP1 POP x{} ({:.2} per 1000) and JUMPDEST PUSH1 0x40 MLOAD DUP1 x{} ({:.2} per 1000) in {} instructions; unoptimised solc code had both at 3.26 or more per 1000 in calibration, optimised code never both above 2.8 (\"likely off\" needs both at 3.0 or more and 5 or more sites each)",
+            self.swap_cleanups,
+            self.rate(self.swap_cleanups),
+            self.fmp_reloads,
+            self.rate(self.fmp_reloads),
+            self.instructions
+        )
+    }
+}
+
+/// Count two shapes solc leaves in code built without the optimizer
+pub fn optimizer_off(code: &[u8]) -> OptimizerOff {
+    let ins = linear_sweep(code);
+    let mut swap_cleanups = 0;
+    let mut fmp_reloads = 0;
+    for (k, w) in ins.windows(3).enumerate() {
+        if w[0].1 == 0x91 && w[1].1 == 0x90 && w[2].1 == 0x50 {
+            swap_cleanups += 1;
+        }
+        if w[0].1 == 0x5b
+            && w[1].1 == 0x60
+            && code.get(w[1].0 + 1) == Some(&0x40)
+            && w[2].1 == 0x51
+            && ins.get(k + 3).is_some_and(|x| x.1 == 0x80)
+        {
+            fmp_reloads += 1;
+        }
+    }
+    OptimizerOff {
+        swap_cleanups,
+        fmp_reloads,
+        instructions: ins.len(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Both shapes, five times each in 150 instructions, read as off; one
+    /// shape alone does not
+    #[test]
+    fn optimizer_off_needs_both_shapes() {
+        let cleanup = "919050";
+        let reload = "5b60405180";
+        let filler = "6001".repeat(10);
+        let both = hex::decode(format!("{cleanup}{reload}{filler}").repeat(5)).unwrap();
+        let r = optimizer_off(&both);
+        assert_eq!((r.swap_cleanups, r.fmp_reloads), (5, 5));
+        assert!(r.likely_off(), "{r:?}");
+        let one = hex::decode(format!("{cleanup}{filler}").repeat(5)).unwrap();
+        assert!(!optimizer_off(&one).likely_off());
+        // Too few sites, however dense
+        let few = hex::decode(format!("{cleanup}{reload}").repeat(2)).unwrap();
+        assert!(!optimizer_off(&few).likely_off());
+    }
+
+    fn fixture(text: &str) -> Vec<u8> {
+        hex::decode(text.trim().trim_start_matches("0x")).unwrap()
+    }
+
+    /// Dai (solc 0.5.12, optimizer off) reads as off; optimised fixtures do
+    /// not, legacy or via-IR
+    #[test]
+    fn optimizer_off_on_mainnet_fixtures() {
+        let dai = fixture(include_str!(
+            "../../tests/fixtures/bytecode/dai_optimizer_off.hex"
+        ));
+        let r = optimizer_off(&dai);
+        assert!(r.likely_off(), "{r:?}");
+        // A small optimizer-off contract (solc 0.8.7)
+        let small = fixture(include_str!(
+            "../../tests/fixtures/bytecode/batch_zero_optimizer_off.hex"
+        ));
+        let r = optimizer_off(&small);
+        assert!(r.likely_off(), "{r:?}");
+        for (name, text) in [
+            // Older optimizers leave repeated masks; these are optimised
+            (
+                "uniswap_v2_router02 (0.6.6, 999999 runs)",
+                include_str!("../../tests/fixtures/bytecode/uniswap_v2_router02.hex"),
+            ),
+            (
+                "kittycore (0.4.18, 200 runs)",
+                include_str!("../../tests/fixtures/bytecode/kittycore_opt200.hex"),
+            ),
+            (
+                "univ3_pool",
+                include_str!("../../tests/fixtures/bytecode/univ3_pool.hex"),
+            ),
+            (
+                "owned_solc0828_opt",
+                include_str!("../../tests/fixtures/bytecode/owned_solc0828_opt.hex"),
+            ),
+            (
+                "owned_solc0828_viair",
+                include_str!("../../tests/fixtures/bytecode/owned_solc0828_viair.hex"),
+            ),
+            (
+                "usdc_impl",
+                include_str!("../../tests/fixtures/bytecode/usdc_impl.hex"),
+            ),
+        ] {
+            let r = optimizer_off(&fixture(text));
+            assert!(!r.likely_off(), "{name}: {r:?}");
+        }
+        // The fingerprint says so and widens the runs hint to unknown
+        let fp = fingerprint(&dai, &vec![true; dai.len()]);
+        assert_eq!(fp.optimizer, "likely off");
+        assert_eq!(fp.optimizer_runs_hint, "unknown (optimizer likely off)");
+        assert!(fp
+            .optimizer_evidence
+            .iter()
+            .any(|e| e.starts_with("runs hint read from constants")));
+    }
 
     fn all_visited(code: &[u8]) -> Vec<bool> {
         vec![true; code.len()]
@@ -808,12 +947,18 @@ mod tests {
         let (h, ev) = optimizer_runs_hint(&low, &all_visited(&low));
         assert_eq!(h, "likely low (≈200)");
         assert_eq!(ev.other_shifted, vec![14]);
-        // The Error(string) selector written out alone is not a high bucket
+        // The Error(string) selector written out alone is only a bound
         let sel_only = hex::decode(format!("{sel32}5060e01c00")).unwrap();
-        let (h, ev) = optimizer_runs_hint(&sel_only, &all_visited(&sel_only));
-        assert_eq!(runs_bucket(&h, &ev).0, "unknown");
-        // Mid: selector computed, masks written out
-        let mid = hex::decode(format!("62461bcd60e51b50{mask20}5000")).unwrap();
+        let (h, _) = optimizer_runs_hint(&sel_only, &all_visited(&sel_only));
+        assert_eq!(h, "likely ≥ ~5000 (Error(string) selector only)");
+        // Selector computed, every other constant written out: only a lower
+        // bound (solc 0.8.17 at 20000 runs looks like this)
+        let bound = hex::decode(format!("62461bcd60e51b50{mask20}5000")).unwrap();
+        let (h, _) = optimizer_runs_hint(&bound, &all_visited(&bound));
+        assert_eq!(h, "likely ≥ ~1000");
+        // Mid: selector computed, other constants some written out, some
+        // computed
+        let mid = hex::decode(format!("62461bcd60e51b50{mask20}5063aabbccdd60e01b5000")).unwrap();
         assert_eq!(
             optimizer_runs_hint(&mid, &all_visited(&mid)).0,
             "likely mid (≈1000-4000)"
@@ -847,7 +992,7 @@ mod tests {
         assert_eq!(fp.push0_in_code, 0);
         assert_eq!(fp.max_evm_version.as_deref(), Some("paris"));
         assert!(fp.evm_version_reasons.iter().any(|r| r.contains("0.8.23")));
-        assert_eq!(fp.optimizer_runs_bucket, "high (≥ ~5000)");
+        assert_eq!(fp.optimizer_runs_hint, "likely high (≥ ~5000)");
         assert_eq!(fp.max_evm_version_confidence.as_deref(), Some("consistent"));
         assert!(!fp.optimizer_runs_evidence.address_mask_shifted.is_empty());
         assert!(fp.optimizer_runs_evidence.other_shifted.is_empty());
@@ -915,31 +1060,6 @@ mod tests {
         assert_eq!(fp.push0_executed, 1);
         assert_eq!(fp.max_evm_version, None);
         assert!(fp.min_evm_version.starts_with("shanghai"));
-    }
-
-    #[test]
-    fn runs_bucket_only_for_clear_hints() {
-        let ev = RunsEvidence::default();
-        assert_eq!(
-            runs_bucket("likely high (≥ ~5000)", &ev).0,
-            "high (≥ ~5000)"
-        );
-        assert_eq!(
-            runs_bucket("likely mid (≈1000-4000)", &ev).0,
-            "medium (~1000)"
-        );
-        assert_eq!(runs_bucket("likely low (≈200)", &ev).0, "low (≤ ~200)");
-        for weak in [
-            "likely ≥ ~1000",
-            "likely ≥ ~5000 (Error(string) selector only)",
-            "likely < ~5000",
-            "likely ≤ ~2000",
-            "unknown",
-        ] {
-            let (b, e) = runs_bucket(weak, &ev);
-            assert_eq!(b, "unknown");
-            assert!(e.is_empty());
-        }
     }
 
     #[test]

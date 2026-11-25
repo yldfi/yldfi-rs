@@ -151,6 +151,7 @@ fn normalize_hex_selector(selector: &str) -> Cow<'_, str> {
 
 use crate::error::{sanitize_error_message, AbiError, Result};
 use crate::etherscan::fallback::{self, Origin};
+use crate::etherscan::limiter;
 use crate::etherscan::support::describe_etherscan_error;
 use crate::etherscan::SignatureCache;
 use crate::utils::{
@@ -342,8 +343,8 @@ impl Client {
             )
             .await
             {
-                Some(found) => (found.abi, found.origin),
-                None => return Err(err),
+                fallback::Fallback::Found(found) => (found.abi, found.origin),
+                other => return Err(fallback_error(err, other)),
             },
         };
 
@@ -393,13 +394,13 @@ impl Client {
             )
             .await
             {
-                Some(found) => Ok((
+                fallback::Fallback::Found(found) => Ok((
                     ContractMetadata {
                         items: vec![found.to_metadata()],
                     },
                     found.origin,
                 )),
-                None => Err(err),
+                other => Err(fallback_error(err, other)),
             },
         }
     }
@@ -408,11 +409,27 @@ impl Client {
     pub async fn creation_data(&self, address: &str) -> Result<ContractCreationData> {
         self.ensure_api_supported()?;
         let addr = parse_address(address)?;
-        Ok(self
-            .inner
-            .contract_creation_data(addr)
-            .await
-            .map_err(|e| map_etherscan_error(e, address))?)
+        Ok(
+            with_rate_limit_retry(|| self.inner.contract_creation_data(addr))
+                .await
+                .map_err(|e| map_etherscan_error(e, address))?,
+        )
+    }
+
+    /// Gas oracle (`gastracker/gasoracle`), paced and retried on rate limits
+    pub async fn gas_oracle(
+        &self,
+    ) -> std::result::Result<foundry_block_explorers::gas::GasOracle, EtherscanError> {
+        with_rate_limit_retry(|| self.inner.gas_oracle()).await
+    }
+
+    /// Confirmation time estimate (`gastracker/gasestimate`), paced and
+    /// retried on rate limits
+    pub async fn gas_estimate(
+        &self,
+        gas_price: alloy::primitives::U256,
+    ) -> std::result::Result<u32, EtherscanError> {
+        with_rate_limit_retry(|| self.inner.gas_estimate(gas_price)).await
     }
 
     // ========================================================================
@@ -667,22 +684,32 @@ impl Client {
         let chain_id = self.chain.chain_id();
         super::support::ensure_etherscan_supported(chain_id).map_err(|e| e.to_string())?;
 
-        let mut request = self
-            .http
-            .get(ETHERSCAN_V2_API_URL)
-            .query(&[("chainid", chain_id.to_string())])
-            .query(params);
-        if let Some(key) = &self.api_key {
-            request = request.query(&[("apikey", key.as_str())]);
+        let mut attempt = 0;
+        loop {
+            limiter::acquire().await;
+            let mut request = self
+                .http
+                .get(ETHERSCAN_V2_API_URL)
+                .query(&[("chainid", chain_id.to_string())])
+                .query(params);
+            if let Some(key) = &self.api_key {
+                request = request.query(&[("apikey", key.as_str())]);
+            }
+            let response = request.send().await.map_err(|e| {
+                crate::error::sanitize_error_message(&format!("request failed: {e}")).into_owned()
+            })?;
+            let json: serde_json::Value = response
+                .json()
+                .await
+                .map_err(|e| format!("could not read the response: {e}"))?;
+            match parse_explorer_response(json) {
+                Err(e) if attempt < RATE_LIMIT_RETRIES && limiter::is_rate_limit_text(&e) => {
+                    tokio::time::sleep(limiter::backoff(attempt)).await;
+                    attempt += 1;
+                }
+                other => return other,
+            }
         }
-        let response = request.send().await.map_err(|e| {
-            crate::error::sanitize_error_message(&format!("request failed: {e}")).into_owned()
-        })?;
-        let json: serde_json::Value = response
-            .json()
-            .await
-            .map_err(|e| format!("could not read the response: {e}"))?;
-        parse_explorer_response(json)
     }
 
     /// Make an eth_call via Etherscan proxy
@@ -703,6 +730,7 @@ impl Client {
             base_url
         };
 
+        limiter::acquire().await;
         let response = self.http.get(&url).send().await.map_err(|e| {
             AbiError::EtherscanFetch(format!(
                 "eth_call failed: {}",
@@ -790,38 +818,65 @@ fn alloy_api_is_etherscan(chain: AlloyChain) -> bool {
         .is_some_and(|url| url.host_str() == Some("api.etherscan.io"))
 }
 
-/// Whether an explorer error is a rate limit worth waiting out
+/// Whether an explorer error is a rate limit worth waiting out. The
+/// library reports one as `RateLimitExceeded`, as an error response, or (when
+/// it expected ABI JSON or a source list and got the limit message) as a
+/// parse error whose content is that message
 fn is_rate_limit(err: &EtherscanError) -> bool {
     match err {
         EtherscanError::RateLimitExceeded => true,
         EtherscanError::ErrorResponse {
             message, result, ..
-        } => {
-            let text = format!("{message} {}", result.as_deref().unwrap_or_default());
-            text.to_ascii_lowercase().contains("rate limit")
-        }
-        _ => false,
+        } => limiter::is_rate_limit_text(&format!(
+            "{message} {}",
+            result.as_deref().unwrap_or_default()
+        )),
+        EtherscanError::Serde { content, .. } => limiter::is_rate_limit_text(content),
+        other => limiter::is_rate_limit_text(&other.to_string()),
     }
 }
 
-/// Run an explorer request, waiting 1 s then 2 s and retrying when it is
-/// rate limited
+/// Retries after a rate-limit answer (so up to five requests)
+const RATE_LIMIT_RETRIES: u32 = 4;
+
+/// Run an explorer request in this machine's explorer request pacing
+/// (`limiter`), retrying with growing waits (1, 2, 4, 8 s plus jitter) when
+/// it is still rate limited
 async fn with_rate_limit_retry<T, F, Fut>(mut request: F) -> std::result::Result<T, EtherscanError>
 where
     F: FnMut() -> Fut,
     Fut: std::future::Future<Output = std::result::Result<T, EtherscanError>>,
 {
-    let mut wait = Duration::from_secs(1);
-    for _ in 0..2 {
+    for attempt in 0..RATE_LIMIT_RETRIES {
+        limiter::acquire().await;
         match request().await {
             Err(err) if is_rate_limit(&err) => {
-                tokio::time::sleep(wait).await;
-                wait *= 2;
+                tokio::time::sleep(limiter::backoff(attempt)).await;
             }
             other => return other,
         }
     }
+    limiter::acquire().await;
     request().await
+}
+
+/// The error to report when Etherscan failed and the fallback found
+/// nothing. "Not verified" is reported only when Etherscan said so and every
+/// fallback answered; when a fallback could not be asked, a "not verified"
+/// from Etherscan alone becomes a fetch error that says verification is
+/// unconfirmed (the explorer can answer that way for a contract it has, and
+/// a throttled fallback proves nothing)
+fn fallback_error(err: crate::error::Error, fallback: fallback::Fallback) -> crate::error::Error {
+    match (&err, fallback) {
+        (
+            crate::error::Error::Abi(AbiError::ContractNotVerified(address)),
+            fallback::Fallback::Unavailable(why),
+        ) => AbiError::EtherscanFetch(format!(
+            "Etherscan has no verified source for {address}, and the other verifiers could not be checked ({why}); verification status unconfirmed, try again"
+        ))
+        .into(),
+        _ => err,
+    }
 }
 
 fn parse_address(address: &str) -> Result<Address> {
@@ -890,6 +945,30 @@ mod tests {
         }
     }
 
+    /// Etherscan's "not verified" stands only when every fallback answered;
+    /// with one unreachable (rate limit, timeout) it is an unconfirmed fetch
+    /// error, never `not_verified`
+    #[test]
+    fn unreachable_fallback_does_not_confirm_not_verified() {
+        use crate::agent_output::ErrorCode;
+        let nv = || crate::error::Error::from(AbiError::ContractNotVerified(ADDR.into()));
+        let err = fallback_error(
+            nv(),
+            fallback::Fallback::Unavailable("Sourcify: HTTP 429".into()),
+        );
+        let crate::error::Error::Abi(abi) = &err else {
+            panic!("{err:?}")
+        };
+        assert!(matches!(abi, AbiError::EtherscanFetch(_)), "{abi:?}");
+        assert_ne!(abi.code(), ErrorCode::NotVerified);
+        assert!(err.to_string().contains("unconfirmed"), "{err}");
+        let err = fallback_error(nv(), fallback::Fallback::NotVerified);
+        assert!(matches!(
+            err,
+            crate::error::Error::Abi(AbiError::ContractNotVerified(_))
+        ));
+    }
+
     #[test]
     fn not_verified_keeps_input_address() {
         let err = map_etherscan_error(EtherscanError::ContractCodeNotVerified(Address::ZERO), ADDR);
@@ -928,10 +1007,16 @@ mod tests {
         assert!(!is_rate_limit(&EtherscanError::ContractCodeNotVerified(
             Address::ZERO
         )));
+        // getabi / getsourcecode answer the limit with a plain string where
+        // the library expects ABI JSON or a list: a parse error
+        assert!(is_rate_limit(&serde_error(
+            "Max calls per sec rate limit reached (3/sec)"
+        )));
+        assert!(!is_rate_limit(&serde_error("Invalid API Key")));
     }
 
     #[tokio::test(start_paused = true)]
-    async fn retry_stops_after_three_tries() {
+    async fn retry_stops_after_five_tries() {
         let mut calls = 0;
         let result: std::result::Result<(), _> = with_rate_limit_retry(|| {
             calls += 1;
@@ -939,7 +1024,7 @@ mod tests {
         })
         .await;
         assert!(result.is_err());
-        assert_eq!(calls, 3);
+        assert_eq!(calls, 5);
     }
 
     #[test]

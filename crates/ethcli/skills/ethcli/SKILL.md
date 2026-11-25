@@ -109,6 +109,24 @@ single facts.
   (`states_pruned`, `invalid_opcodes`, `unresolved_jumps`; `opcode_sites`
   with `reached: false` lists sensitive opcodes no path reached, and
   `in_metadata: true` marks bytes in a trailing metadata region).
+- **Bytecode output tiers:** fingerprint, match, decompile and inspect
+  label their output `fact` (exact, or held/unknown when not certain:
+  proxy target and values, selectors, compiler from metadata), `bound`
+  (EVM version range) or `hint` (heuristic: optimizer, runs, pipeline);
+  see `output_tiers`. Treat hints as starting points only.
+- **Compiler settings of a verified contract:** `contract source <addr>
+  --json` (MCP `contract_source` with `json=true`) gives each contract's
+  `compiler`: `compiler_version`, `evm_version`, `via_ir` (null when no
+  verifier reports it; `via_ir_from` names the source), `optimizer`
+  enabled/runs and `libraries`. Explorer calls are paced machine-wide
+  (`ETHCLI_EXPLORER_RPS`, default 3/s, shared by ethcli processes using the
+  same state folder) and retried on short rate limits (not daily ones), so
+  parallel calls are fine; `not_verified` is only reported when every
+  verifier answered. `evm_version: "default"` is resolved to the
+  compiler's default (`evm_version_from`).
+- **Storage words:** `rpc storage` prints the whole 32-byte word (leading
+  zeros kept); JSON adds `low_160_as_address` (the low 20 bytes when the
+  upper 12 are zero; it may still be a number).
 - **Verification match:** `contract inspect` `verification[]` and the
   `contract source` stderr line say `exact` (code and metadata hash
   match) or `partial` (code only; comments/names may differ from what was
